@@ -10,10 +10,6 @@
 #include "DebugMenu/ProfilerDrawBars.c"
 #endif
 
-#ifdef USE_PCDRV
-#include "PCDRV/pcdrv.c"
-#endif
-
 #ifdef USE_FASTANIM
 #include "FastAnim/FastAnim_mods4.c"
 #endif

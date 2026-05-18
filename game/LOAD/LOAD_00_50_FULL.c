@@ -52,6 +52,10 @@
 #include "LOAD_49_IsOpen_AdvHub.c"
 #include "LOAD_50_IsOpen_Podiums.c"
 
+#ifdef USE_PCDRV
+#include "../AltMods/PCDRV/pcdrv.c"
+#endif
+
 #if defined(USE_ALTMODS)
 #include "../AltMods/Mods4.c"
 

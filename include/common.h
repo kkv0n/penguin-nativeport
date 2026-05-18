@@ -3,7 +3,7 @@
 
 // toggle these in decompile
 
-#define USE_ALTMODS // Enable this before ANY other mods
+// #define USE_ALTMODS // Enable this before ANY other mods
 
 // 2mb
 // #define USE_16BY9		// Widescreen
