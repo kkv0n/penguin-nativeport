@@ -9,7 +9,7 @@ void DECOMP_CS_LoadBoss(struct BossCutsceneData *bcd)
 
 	index = 3 - sdata->gGT->activeMempackIndex;
 
-	CDSYS_XAPauseRequest();
+	DECOMP_CDSYS_XAPauseRequest();
 
 	// erase HEAD + BODY
 	OVR_233.ptrModelBossHead = 0;

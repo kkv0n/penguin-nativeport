@@ -1,22 +1,11 @@
-// PORTED BUT NOT INCLUDED (exist on disk, still using D233 incbin blob):
-//   233_20_CS_LoadBoss.c             — CS_LoadBoss
-//   233_21_CS_Camera_ThTick_Boss.c   — CS_Camera_ThTick_Boss
-//   233_22_CS_Camera_BoolGotoBoss.c  — CS_Camera_BoolGotoBoss
-//   233_27_CS_Podium_Prize_ThTick2.c — CS_Podium_Prize_ThTick2
-//   233_31_CS_Podium_Stand_ThTick.c  — CS_Podium_Stand_ThTick
-//   233_32_CS_Podium_Stand_Init.c    — CS_Podium_Stand_Init
-//   233_33_CS_Podium_FullScene_Init.c — CS_Podium_FullScene_Init (+ fwd decls for CS_Podium_Prize_Init, CS_Camera_ThTick_Podium)
-//   233_36_CS_BoxScene_InstanceSplitLines.c — CS_BoxScene_InstanceSplitLines
-//
-// NOT PORTED (still in D233 incbin blob):
+// STUBS (empty implementations, pending decompilation):
 //   CS_Thread_Particles              (0x800abdd4) — particle effects in cutscenes
 //   CS_Thread_InterpolateFramesMS    (0x800ae318) — frame interpolation (GTE)
-//   CS_Camera_ThTick_Podium          (0x800aedf8) — camera for podium cutscenes
 //   CS_Podium_Prize_Spin             (0x800af7c0) — prize spinning animation
 //   CS_Podium_Prize_ThTick3          (0x800af994) — podium prize tick phase 3
 //   CS_Podium_Prize_ThTick1          (0x800afcc4) — podium prize tick phase 1
 //   CS_Podium_Prize_Init             (0x800afe90) — prize initialization
-//   CS_Garage_GetMenuPtr             (0x800b854c) — returns garage menu pointer
+//   CS_Camera_ThTick_Podium          (0x800aedf8) — camera for podium cutscenes
 
 #include <common.h>
 
@@ -208,5 +197,25 @@ void DECOMP_CS_Thread_Particles(struct Thread *t)
 }
 
 void DECOMP_CS_Thread_InterpolateFramesMS(struct Thread *t)
+{
+}
+
+void CS_Podium_Prize_Spin(struct Instance *inst, short *prize)
+{
+}
+
+void CS_Podium_Prize_ThTick3(struct Thread *th)
+{
+}
+
+void CS_Podium_Prize_ThTick1(struct Thread *th)
+{
+}
+
+void CS_Podium_Prize_Init(u_int param_1, char *param_2, short *param_3)
+{
+}
+
+void CS_Camera_ThTick_Podium(int param_1)
 {
 }

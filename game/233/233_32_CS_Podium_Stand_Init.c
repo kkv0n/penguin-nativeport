@@ -4,14 +4,14 @@ void DECOMP_CS_Podium_Stand_ThTick(struct Thread *);
 
 void DECOMP_CS_Podium_Stand_Init(short *podiumData)
 {
-	struct Instance *inst = INSTANCE_BirthWithThread(0xa8, 0, SMALL, OTHER, DECOMP_CS_Podium_Stand_ThTick, 0, 0);
+	struct Instance *inst = DECOMP_INSTANCE_BirthWithThread(0xa8, 0, SMALL, OTHER, DECOMP_CS_Podium_Stand_ThTick, 0, 0);
 
 	// if the instance was built
 	if (inst == NULL)
 		return;
 
 	// set funcThDestroy to remove instance from instance pool
-	inst->thread->funcThDestroy = PROC_DestroyInstance;
+	inst->thread->funcThDestroy = DECOMP_PROC_DestroyInstance;
 
 	inst->matrix.t[0] = podiumData[0];
 	inst->matrix.t[1] = podiumData[1];

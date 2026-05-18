@@ -17,6 +17,18 @@ void DECOMP_CS_Cutscene_Start(void)
 	// If this is the Naughty Dog Box Scene
 	if (gGT->levelID == NAUGHTY_DOG_CRATE)
 	{
+		struct Level *lev1 = gGT->level1;
+		for (unsigned int i = 0; i < lev1->numInstances; i++)
+		{
+			struct InstDef *def = &lev1->ptrInstDefs[i];
+			short mid = def->model->id;
+			if (mid >= 0xB6 && mid <= 0xBF)
+			{
+				if (def->ptrInstance != NULL)
+					def->ptrInstance->flags |= HIDE_MODEL;
+			}
+		}
+
 		// nullify
 		int *ptrIntArr = &initData;
 		for (int i = 0; i < sizeof(struct CsThreadInitData) / 4; i++)

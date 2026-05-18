@@ -100,7 +100,7 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 		t = 0;
 		for (i = 1; i >= 0; i--)
 		{
-			t = CS_Thread_Init(mArr[i]->id, mArr[i], &initData, 0, t);
+			t = DECOMP_CS_Thread_Init(mArr[i]->id, mArr[i], &initData, 0, t);
 
 			inst = t->inst;
 			cs = t->object;
@@ -108,7 +108,7 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 			// head
 			if (i == 0)
 			{
-				CS_ScriptCmd_OpcodeAt(cs, bcd->opcode);
+				DECOMP_CS_ScriptCmd_OpcodeAt(cs, bcd->opcode);
 				cs->unk14 = 0;
 				continue;
 			}

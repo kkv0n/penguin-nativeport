@@ -304,8 +304,32 @@ extern struct
 	struct unknown233 *pointerToWhateverThisMeans[10];
 
 
-	// TODO: Divide OVR_233 into 'real' sections
-	char fill3_beforeCutsceneOpcodes[0x3128];
+	char fill3_beforeTawnaScripts[0x320];
+
+	// 800b17b4
+	char script_tawnaNormal[0x28];
+
+	// 800b17dc
+	char script_tawnaCredits[0xC4C];
+
+	// 800b2e28
+	char script_default[0x18];
+
+	// 800b2e40
+	char script_dingofire[0x38];
+
+	// 800b2e78
+	char *danceFirstScripts[0x10];
+
+	char fill3_betweenDanceScripts[0x1CD4];
+
+	// 800b418c
+	char *danceOtherScripts[0x10];
+
+	char fill3_beforeIntroModelScripts[0x3B0];
+
+	// 800b457c
+	char *introModelScripts[0x10];
 
 	// 800b45bc
 	char *introCutsceneOpcodes[0x47];
@@ -317,7 +341,9 @@ extern struct
 	char *creditsCutsceneOpcodes[0x77];
 
 	// 800b4928
-	char fill3_afterCreditsOpcodes_beforeAdvCharSelectOpcodes[0x6bc];
+	// credits opcode pointers at 4-byte intervals indexed by (level-44),
+	// ND crate intro script at offset 0x68
+	char creditsOpcodeData[0x6bc];
 
 	// 800b4fe4
 	char *advCharSelectSelectOpcodes[8];
@@ -329,7 +355,12 @@ extern struct
 	char *advCharSelectDeselectOpcodes[8];
 
 	// 800b5044
-	char fill3_afterAdvCharSelectDeselectOpcodes_beforeInitMatrix[0x22EC];
+	char fill3_beforeBoxModelScripts[0xA38];
+
+	// 800b5a7c
+	char *boxModelScripts[0x2b];
+
+	char fill3_afterBoxModelScripts[0x1808];
 
 	// 800b7330
 	struct

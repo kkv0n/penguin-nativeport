@@ -1,10 +1,5 @@
 #include <common.h>
 
-// TODO(aalhendi): still WIP. should polish more
-#define PSX_OVR233_BASE          0x800AB9F0U
-#define OVR233_PTR(psx_addr)     ((char *)((uintptr_t)&OVR_233 + ((psx_addr) - PSX_OVR233_BASE)))
-#define OVR233_PTR_INT(psx_addr) ((int *)((uintptr_t)&OVR_233 + ((psx_addr) - PSX_OVR233_BASE)))
-
 void DECOMP_CS_Thread_MoveOnPath(struct Thread *t);
 void DECOMP_CS_Thread_Particles(struct Thread *t);
 void DECOMP_CS_Thread_InterpolateFramesMS(struct Thread *t);
@@ -63,7 +58,7 @@ void DECOMP_CS_Thread_ThTick(struct Thread *t)
 		{
 			DECOMP_CS_Instance_GetFrameData(inst, inst->animIndex, inst->animFrame, (u_short *)pos, 0, 0);
 
-			*OVR233_PTR_INT(0x800b0b7c) = pos[1];
+			OVR_233.VertSplitLine = pos[1];
 
 			inst = t->inst;
 			if (inst == 0)
@@ -164,44 +159,43 @@ struct Thread *DECOMP_CS_Thread_Init(short modelID, char *name, short *param_3, 
 
 		if (level == NAUGHTY_DOG_CRATE)
 		{
-			scriptPtr = OVR233_PTR(0x800b4990);
+			scriptPtr = &OVR_233.creditsOpcodeData[0x68];
 		}
 		else if (level == OXIDE_ENDING)
 		{
-			scriptPtr = OVR233_PTR(0x800b46fc);
+			scriptPtr = &OVR_233.introCutsceneOpcodeData[0x24];
 		}
 		else if (level == OXIDE_TRUE_ENDING)
 		{
-			scriptPtr = OVR233_PTR(0x800b472c);
+			scriptPtr = &OVR_233.introCutsceneOpcodeData[0x54];
 		}
 		else if ((gGT->gameMode2 & CREDITS) == 0)
 		{
-			scriptPtr = *(char **)(OVR233_PTR(0x800b46d8) + (level - 30) * 4);
+			scriptPtr = *(char **)&OVR_233.introCutsceneOpcodeData[(level - 30) * 4];
 		}
 		else
 		{
-			scriptPtr = *(char **)(OVR233_PTR(0x800b4928) + (level - 44) * 4);
+			scriptPtr = *(char **)&OVR_233.creditsOpcodeData[(level - 44) * 4];
 		}
 	}
 	else
 	{
-		// FIX(aalhendi): was `>` (off-by-one), ASM shows `0xb5 < param_1` → `>=`
 		if (modelID >= NDI_BOX_BOX_01)
 		{
 			if ((u_int)(modelID - NDI_BOX_BOX_01) < 0x2b)
 			{
-				scriptPtr = *(char **)(OVR233_PTR(0x800b5a7c) + (modelID - NDI_BOX_BOX_01) * 4);
+				scriptPtr = OVR_233.boxModelScripts[modelID - NDI_BOX_BOX_01];
 			}
 			else
 			{
-				scriptPtr = OVR233_PTR(0x800b2e28);
+				scriptPtr = OVR_233.script_default;
 			}
 
 			DECOMP_CS_ScriptCmd_OpcodeAt(cs, scriptPtr);
 
 			if ((u_int)(modelID - NDI_KART0) < 4)
 			{
-				cs->frameOverrideRoot = (int *)((uintptr_t)&OVR_233 + (modelID * 8 + 0x800b6d28 - PSX_OVR233_BASE));
+				cs->frameOverrideRoot = (int *)&OVR_233.cs_initMatrixTable[modelID - NDI_KART0];
 			}
 
 			goto after_opcode;
@@ -209,34 +203,34 @@ struct Thread *DECOMP_CS_Thread_Init(short modelID, char *name, short *param_3, 
 
 		if ((u_int)(modelID - STATIC_PINHEAD) < 5)
 		{
-			scriptPtr = OVR233_PTR(0x800b2e28);
+			scriptPtr = OVR_233.script_default;
 		}
 		else if (modelID == STATIC_DINGOFIRE)
 		{
-			scriptPtr = OVR233_PTR(0x800b2e40);
+			scriptPtr = OVR_233.script_dingofire;
 		}
 		else if ((u_int)(modelID - STATIC_TAWNA1) < 4)
 		{
 			if (gGT->gameMode2 & CREDITS)
-				scriptPtr = OVR233_PTR(0x800b17dc);
+				scriptPtr = OVR_233.script_tawnaCredits;
 			else
-				scriptPtr = OVR233_PTR(0x800b17b4);
+				scriptPtr = OVR_233.script_tawnaNormal;
 		}
 		else if ((u_int)(modelID - STATIC_CRASHDANCE) < 0x10)
 		{
-			char *base;
-			int off = (modelID - STATIC_CRASHDANCE) * 4;
+			char **base;
+			int off = (modelID - STATIC_CRASHDANCE);
 
 			if (modelID == gGT->podium_modelIndex_First)
-				base = OVR233_PTR(0x800b2e78);
+				base = OVR_233.danceFirstScripts;
 			else
-				base = OVR233_PTR(0x800b418c);
+				base = OVR_233.danceOtherScripts;
 
-			scriptPtr = *(char **)(base + off);
+			scriptPtr = base[off];
 		}
 		else
 		{
-			scriptPtr = OVR233_PTR(0x800b2e28);
+			scriptPtr = OVR_233.script_default;
 		}
 	}
 

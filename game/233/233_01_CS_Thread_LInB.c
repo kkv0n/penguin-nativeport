@@ -1,8 +1,5 @@
 #include <common.h>
 
-#define PSX_OVR233_BASE          0x800AB9F0U
-#define OVR233_PTR(psx_addr)     ((char *)((uintptr_t)&OVR_233 + ((psx_addr) - PSX_OVR233_BASE)))
-
 void DECOMP_CS_Thread_ThTick(struct Thread *t);
 
 void DECOMP_CS_Thread_LInB(struct Instance *inst)
@@ -20,7 +17,7 @@ void DECOMP_CS_Thread_LInB(struct Instance *inst)
 	t = DECOMP_PROC_BirthWithObject(
 		SIZE_RELATIVE_POOL_BUCKET(0x60, NONE, MEDIUM, STATIC),
 		DECOMP_CS_Thread_ThTick,
-		OVR233_PTR(0x800abd18),
+		OVR_233.s_introguy,
 		0);
 
 	inst->thread = t;
@@ -38,20 +35,20 @@ void DECOMP_CS_Thread_LInB(struct Instance *inst)
 
 	modelID = inst->model->id;
 
-	if (modelID < 0xb6)
+	if (modelID < NDI_BOX_BOX_01)
 	{
-		if ((u_short)(modelID - 0x96) < 0x10)
+		if ((u_short)(modelID - STATIC_CRASHINTRO) < 0x10)
 		{
-			scriptPtr = *(char **)(OVR233_PTR(0x800b457c) + (modelID - 0x96) * 4);
+			scriptPtr = OVR_233.introModelScripts[modelID - STATIC_CRASHINTRO];
 		}
 		else
 		{
-			scriptPtr = OVR233_PTR(0x800b2e28);
+			scriptPtr = OVR_233.script_default;
 		}
 	}
 	else
 	{
-		scriptPtr = *(char **)(OVR233_PTR(0x800b5a7c) + (modelID - 0xb6) * 4);
+		scriptPtr = OVR_233.boxModelScripts[modelID - NDI_BOX_BOX_01];
 	}
 
 	DECOMP_CS_ScriptCmd_OpcodeAt(cs, scriptPtr);
