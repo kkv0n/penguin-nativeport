@@ -1,12 +1,17 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b92cc-0x800b9398
 void CS_Credits_NewDancer(struct Thread *dancerTh, int dancerModelID)
 {
 	struct CreditsObj *creditsObj = &creditsBSS.creditsObj;
 
 	// kill any living thread
-	if (creditsBSS.DancerThread != 0)
-		creditsBSS.DancerThread->flags |= 0x800;
+	struct Thread *oldDancerThread = creditsBSS.DancerThread;
+	if (oldDancerThread != 0)
+	{
+		creditsBSS.DancerThread = 0;
+		oldDancerThread->flags |= 0x800;
+	}
 
 	// store globally, make instance invisible
 	creditsBSS.DancerThread = dancerTh;

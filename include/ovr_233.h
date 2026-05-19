@@ -577,13 +577,19 @@ struct Ovr233_Credits_BSS
 	struct Instance *dancerInst_invisible;
 
 	// 800b94a8
-	int numStrings;
+	short numStrings;
+
+	// 800b94aa
+	short unused_94aa;
 
 	// 800b94ac
 	char **ptrStrings;
 
 	// 800b94b0
-	int boolAllBlue;
+	short boolAllBlue;
+
+	// 800b94b2
+	short unused_94b2;
 
 	// 800b94b4
 	int unused[2];
@@ -591,5 +597,12 @@ struct Ovr233_Credits_BSS
 	// 800b94bc - CreditsObj (0x340 large)
 	struct CreditsObj creditsObj;
 };
+
+#ifndef REBUILD_PC
+_Static_assert(OFFSETOF(struct Ovr233_Credits_BSS, numStrings) == 0x20);
+_Static_assert(OFFSETOF(struct Ovr233_Credits_BSS, ptrStrings) == 0x24);
+_Static_assert(OFFSETOF(struct Ovr233_Credits_BSS, boolAllBlue) == 0x28);
+_Static_assert(OFFSETOF(struct Ovr233_Credits_BSS, creditsObj) == 0x34);
+#endif
 
 extern struct Ovr233_Credits_BSS creditsBSS;

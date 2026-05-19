@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b93f4-0x800b9488
 void CS_Credits_End(void)
 {
 	int levID;

@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b8668-0x800b8810
 void CS_Credits_AnimateCreditGhost(struct Instance *dst, struct Instance *src, int index)
 {
 	struct CreditsObj *co = &creditsBSS.creditsObj;

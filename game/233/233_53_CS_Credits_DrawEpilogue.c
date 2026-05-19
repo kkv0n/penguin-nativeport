@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b8bd0-0x800b8dc8
 void CS_Credits_DrawEpilogue(struct CreditsObj *co)
 {
 	if (co->epilogue_topString == 0)
@@ -34,25 +35,28 @@ void CS_Credits_DrawEpilogue(struct CreditsObj *co)
 
 	short colorSlot = 4;
 
-	if (fadeAmount > 0)
+	if (fadeAmount < 20)
 	{
-		colorSlot = 0x1f;
-
-		int fade8 = (fadeAmount << 8) / 20;
-		char *dst = (char *)&data.colors[31];
-		char *src = (char *)data.ptrColor[4];
-
-		for (int i = 0; i < 4; i++)
+		if (fadeAmount > 0)
 		{
-			int stride = i * 4;
-			dst[stride + 0] = (char)((unsigned char)src[stride + 0] * fade8 >> 8);
-			dst[stride + 1] = (char)((unsigned char)src[stride + 1] * fade8 >> 8);
-			dst[stride + 2] = (char)((unsigned char)src[stride + 2] * fade8 >> 8);
+			colorSlot = 0x1f;
+
+			int fade8 = (fadeAmount << 8) / 20;
+			char *dst = (char *)&data.colors[31];
+			char *src = (char *)data.ptrColor[4];
+
+			for (int i = 0; i < 4; i++)
+			{
+				int stride = i * 4;
+				dst[stride + 0] = (char)((unsigned char)src[stride + 0] * fade8 >> 8);
+				dst[stride + 1] = (char)((unsigned char)src[stride + 1] * fade8 >> 8);
+				dst[stride + 2] = (char)((unsigned char)src[stride + 2] * fade8 >> 8);
+			}
 		}
-	}
-	else
-	{
-		colorSlot = -1;
+		else
+		{
+			colorSlot = -1;
+		}
 	}
 
 	if ((colorSlot >= 0) && (creditsBSS.boolAllBlue != 0))
