@@ -46,6 +46,9 @@ void RB_Follower_ProcessBucket(struct Thread *thread);
 void RB_StartText_ProcessBucket(struct Thread *thread);
 u_int MM_Video_CheckIfFinished(int param_1);
 
+#ifdef CTR_INTERNAL
+volatile int gCtrDebugSkipLevelGeometry = 0;
+#endif
 
 void DECOMP_MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamepads)
 {
@@ -148,24 +151,29 @@ void DECOMP_MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem 
 
 	if ((gGT->renderFlags & 1) != 0)
 	{
+#ifdef CTR_INTERNAL
+		if (gCtrDebugSkipLevelGeometry == 0)
+#endif
+		{
 #ifndef REBUILD_PS1
 
-		RenderAllLevelGeometry(gGT);
+			RenderAllLevelGeometry(gGT);
 
 #else
 
-		for (int i = 0; i < gGT->numPlyrCurrGame; i++)
-		{
-			// 226-229
-			// placeholder for DrawLevelOvr1P
-			TEST_226(0, &gGT->pushBuffer[i], gGT->level1->ptr_mesh_info, &gGT->backBuffer->primMem, gGT->visMem1->visFaceList[i],
-			         0); // waterEnvMap?
+			for (int i = 0; i < gGT->numPlyrCurrGame; i++)
+			{
+				// 226-229
+				// placeholder for DrawLevelOvr1P
+				TEST_226(0, &gGT->pushBuffer[i], gGT->level1->ptr_mesh_info, &gGT->backBuffer->primMem, gGT->visMem1->visFaceList[i],
+				         0); // waterEnvMap?
 
-			// placeholder for DrawSky_Full
-			TEST_DrawSkybox(gGT->level1->ptr_skybox, &gGT->pushBuffer[i], &gGT->backBuffer->primMem);
-		}
+				// placeholder for DrawSky_Full
+				TEST_DrawSkybox(gGT->level1->ptr_skybox, &gGT->pushBuffer[i], &gGT->backBuffer->primMem);
+			}
 
 #endif
+		}
 
 		RenderDispEnv_World(gGT); // == RenderDispEnv_World ==
 

@@ -1,5 +1,43 @@
 #include <common.h>
 
+#ifdef CTR_INTERNAL
+volatile int gCtrDebugTires = 0;
+volatile int gCtrDebugTireBudget = 0;
+volatile int gCtrDebugTireLevel = -1;
+
+enum
+{
+	CTR_TIREDBG_RENDERBUCKET = 1 << 0,
+	CTR_TIREDBG_SOLID_STAGE = 1 << 1,
+	CTR_TIREDBG_SOLID_PRIM = 1 << 2,
+	CTR_TIREDBG_REFLECT_STAGE = 1 << 3,
+	CTR_TIREDBG_REFLECT_PRIM = 1 << 4,
+	CTR_TIREDBG_RENDERBUCKET_PRIM = 1 << 5,
+	CTR_TIREDBG_RENDERBUCKET_REJECT = 1 << 6,
+};
+
+static int CtrTireDebug_ShouldLog(int mask)
+{
+	if ((gCtrDebugTires & mask) == 0)
+		return 0;
+
+	if (gCtrDebugTireBudget == 0)
+		return 0;
+
+	if (gCtrDebugTireLevel >= 0)
+	{
+		struct GameTracker *gGT = sdata->gGT;
+		if ((gGT == 0) || (gGT->levelID != gCtrDebugTireLevel))
+			return 0;
+	}
+
+	if (gCtrDebugTireBudget > 0)
+		gCtrDebugTireBudget--;
+
+	return 1;
+}
+#endif
+
 struct RenderBucketEntry
 {
 	struct Instance *inst;
@@ -499,9 +537,16 @@ static void RenderBucket_UpdatePushBufferMetadata(struct PushBuffer *pb, const s
 {
 	int width;
 	int height;
+#ifdef CTR_INTERNAL
+	unsigned int beforeFlags;
+#endif
 
 	if ((*instFlags & PUSHBUFFER_EXISTS) == 0)
 		return;
+
+#ifdef CTR_INTERNAL
+	beforeFlags = *instFlags;
+#endif
 
 	// NOTE(aalhendi): PSX-backfeed blocker: retail QueueDraw writes projected
 	// screen pos/size to PushBuffer 0x100/0x104 and clears PUSHBUFFER_EXISTS
@@ -517,6 +562,14 @@ static void RenderBucket_UpdatePushBufferMetadata(struct PushBuffer *pb, const s
 	{
 		*instFlags &= ~PUSHBUFFER_EXISTS;
 	}
+
+#ifdef CTR_INTERNAL
+	if (CtrTireDebug_ShouldLog(CTR_TIREDBG_RENDERBUCKET) != 0)
+	{
+		fprintf(stderr, "[TIREDBG][rb-pb] flags=%08x->%08x min=(%d,%d) max=(%d,%d) size=%dx%d rect=%dx%d pb=%p\n", beforeFlags, *instFlags, bounds->minX,
+		        bounds->minY, bounds->maxX, bounds->maxY, width, height, pb->rect.w, pb->rect.h, (void *)pb);
+	}
+#endif
 }
 
 static int RenderBucket_ShouldAllocateSecondaryRange(unsigned int instFlags)
@@ -885,6 +938,14 @@ int RenderBucket_DrawInstPrim_Normal(struct RenderBucketDrawContext *ctx, u_int 
 		*(int *)&p->r2 = ctx->tempColor[3];
 		setPolyG3(p);
 		gte_stsxy3(&p->x0, &p->x1, &p->x2);
+#ifdef CTR_INTERNAL
+		if (CtrTireDebug_ShouldLog(CTR_TIREDBG_RENDERBUCKET_PRIM) != 0)
+		{
+			fprintf(stderr, "[TIREDBG][rb-prim] kind=G3 frame=%d level=%d inst=%p flags=%08x cmd=%08x code=%02x rgb0=%02x,%02x,%02x ot=%p\n",
+			        sdata->gGT != 0 ? sdata->gGT->framesInThisLEV : -1, sdata->gGT != 0 ? sdata->gGT->levelID : -1, (void *)ctx->inst, ctx->idpp->instFlags,
+			        command, p->code, p->r0, p->g0, p->b0, (void *)otEntry);
+		}
+#endif
 		AddPrim(otEntry, p);
 		ctx->primMem->curr = p + 1;
 	}
@@ -909,6 +970,17 @@ int RenderBucket_DrawInstPrim_Normal(struct RenderBucketDrawContext *ctx, u_int 
 		*(short *)&p->u2 = *(short *)&tex->u2;
 		setPolyGT3(p);
 		gte_stsxy3(&p->x0, &p->x1, &p->x2);
+#ifdef CTR_INTERNAL
+		if (CtrTireDebug_ShouldLog(CTR_TIREDBG_RENDERBUCKET_PRIM) != 0)
+		{
+			fprintf(stderr,
+			        "[TIREDBG][rb-prim] kind=GT3 frame=%d level=%d inst=%p flags=%08x cmd=%08x code=%02x rgb0=%02x,%02x,%02x rgb1=%02x,%02x,%02x "
+			        "rgb2=%02x,%02x,%02x tpage=%04x blend=%d clut=%04x tex=%u ot=%p\n",
+			        sdata->gGT != 0 ? sdata->gGT->framesInThisLEV : -1, sdata->gGT != 0 ? sdata->gGT->levelID : -1, (void *)ctx->inst, ctx->idpp->instFlags,
+			        command, p->code, p->r0, p->g0, p->b0, p->r1, p->g1, p->b1, p->r2, p->g2, p->b2, p->tpage, (p->tpage >> 5) & 3, p->clut, texIndex,
+			        (void *)otEntry);
+		}
+#endif
 		AddPrim(otEntry, p);
 		ctx->primMem->curr = p + 1;
 	}
