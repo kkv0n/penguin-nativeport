@@ -330,7 +330,7 @@ static const u32 sRenderBucketInstanceFunc3Table8008a470[4] = {
 #define RB_RETAIL_DRAWFUNC_SPECIAL       ((int)0x8006bbc0U)
 #define RB_RETAIL_DRAWFUNC_REFLECTION    ((int)0x8006c9c4U)
 #define RB_RETAIL_UNCOMPRESS_NORMAL      ((int)0x8006a8e0U)
-#define RB_RETAIL_UNCOMPRESS_60FPS       ((int)0x8006b24cU)
+#define RB_RETAIL_UNCOMPRESS_NEXTFRAME   ((int)0x8006b24cU)
 #define RB_RETAIL_UNCOMPRESS_SPLIT       ((int)0x8006bf30U)
 #define RB_RETAIL_UNCOMPRESS_REFLECT     ((int)0x8006cdecU)
 #define RB_INSTANCE_CUSTOM_MATRIX        0x800U
@@ -403,7 +403,7 @@ static void RenderBucket_SelectRetailDefaultHandlers(u32 instFlags, const struct
 	}
 
 	*drawFunc = RB_RETAIL_DRAWFUNC_NORMAL;
-	*uncompressFunc = (split->hasNextFrame != 0) ? RB_RETAIL_UNCOMPRESS_60FPS : RB_RETAIL_UNCOMPRESS_NORMAL;
+	*uncompressFunc = (split->hasNextFrame != 0) ? RB_RETAIL_UNCOMPRESS_NEXTFRAME : RB_RETAIL_UNCOMPRESS_NORMAL;
 }
 
 static void RenderBucket_SelectRetailHandlers(struct InstDrawPerPlayer *idpp, u32 *instFlags, const struct RenderBucketSplitState *split)
@@ -427,7 +427,7 @@ static void RenderBucket_SelectRetailHandlers(struct InstDrawPerPlayer *idpp, u3
 				if ((*instFlags & REFLECTIVE) != 0)
 				{
 					drawFunc = RB_RETAIL_DRAWFUNC_SPECIAL;
-					uncompressFunc = (split->hasNextFrame != 0) ? RB_RETAIL_UNCOMPRESS_60FPS : RB_RETAIL_UNCOMPRESS_NORMAL;
+					uncompressFunc = (split->hasNextFrame != 0) ? RB_RETAIL_UNCOMPRESS_NEXTFRAME : RB_RETAIL_UNCOMPRESS_NORMAL;
 				}
 				else
 				{
@@ -439,13 +439,13 @@ static void RenderBucket_SelectRetailHandlers(struct InstDrawPerPlayer *idpp, u3
 				drawFunc = ((*instFlags & REFLECTIVE) != 0) ? RB_RETAIL_DRAWFUNC_REFLECTION : RB_RETAIL_DRAWFUNC_SPLIT;
 				if ((*instFlags & REFLECTIVE) != 0)
 					*instFlags |= RB_INSTANCE_REFLECTION_FUNC23;
-				uncompressFunc = (split->hasNextFrame != 0) ? RB_RETAIL_UNCOMPRESS_60FPS : RB_RETAIL_UNCOMPRESS_NORMAL;
+				uncompressFunc = (split->hasNextFrame != 0) ? RB_RETAIL_UNCOMPRESS_NEXTFRAME : RB_RETAIL_UNCOMPRESS_NORMAL;
 			}
 		}
 		else
 		{
 			drawFunc = RB_RETAIL_DRAWFUNC_SPECIAL;
-			uncompressFunc = (split->hasNextFrame != 0) ? RB_RETAIL_UNCOMPRESS_60FPS : RB_RETAIL_UNCOMPRESS_NORMAL;
+			uncompressFunc = (split->hasNextFrame != 0) ? RB_RETAIL_UNCOMPRESS_NEXTFRAME : RB_RETAIL_UNCOMPRESS_NORMAL;
 		}
 	}
 	else
@@ -2288,6 +2288,7 @@ static int RenderBucket_DrawWaterSplitClipped(struct RenderBucketDrawContext *ct
 
 	RenderBucket_AssignSplitUvs(ctx, tex);
 
+	// TODO(aalhendi): ASM-verify mixed split triangles against 0x8006d094-0x8006d55c.
 	inVerts[0] = ctx->tempSplit[1];
 	inVerts[1] = ctx->tempSplit[2];
 	inVerts[2] = ctx->tempSplit[3];
