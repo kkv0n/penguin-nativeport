@@ -2,6 +2,7 @@
 
 // I think this function should return void?
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800ac4b8-0x800ac5e8.
 void DECOMP_RB_Hazard_ThCollide_Generic(struct Thread *thread)
 {
 	struct Instance *inst;
@@ -38,9 +39,7 @@ void DECOMP_RB_Hazard_ThCollide_Generic(struct Thread *thread)
 	// if red beaker or green beaker
 	if ((u32)(modelID - STATIC_BEAKER_RED) < 2)
 	{
-#ifndef REBUILD_PS1
 		PlaySound3D(0x3f, inst);
-#endif
 
 		DECOMP_RB_MinePool_Remove(mw);
 	}
@@ -77,15 +76,11 @@ void DECOMP_RB_Hazard_ThCollide_Generic(struct Thread *thread)
 			soundID = 0x3d;
 		}
 
-#ifndef REBUILD_PS1
 		PlaySound3D(soundID, inst);
-#endif
 
 		DECOMP_RB_MinePool_Remove(mw);
 
-#ifndef REBUILD_PS1
 		DECOMP_RB_Explosion_InitGeneric(inst);
-#endif
 
 		inst->scale[0] = 0;
 		inst->scale[1] = 0;

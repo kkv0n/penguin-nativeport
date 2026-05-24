@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800abefc-0x800abfec.
 void DECOMP_RB_Player_ModifyWumpa(struct Driver *driver, int wumpaDelta)
 {
 	char numWumpaOriginal = driver->numWumpas;
@@ -53,7 +54,7 @@ void DECOMP_RB_Player_ModifyWumpa(struct Driver *driver, int wumpaDelta)
 	    (driver->numWumpas == 10))
 	{
 		// Play "juiced up" sound
-		DECOMP_OtherFX_Play(0x41, 1);
+		OtherFX_Play(0x41, 1);
 
 		driver->BattleHUD.juicedUpCooldown = 10;
 	}
