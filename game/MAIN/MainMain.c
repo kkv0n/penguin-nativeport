@@ -605,7 +605,9 @@ void StateZero()
 #if !defined(REBUILD_PS1) || defined(CTR_NATIVE)
 	RenderBucket_InitDepthGTE();
 #endif
-#ifndef REBUILD_PS1
+	// NOTE(aalhendi): Native keeps retail authored matrix tables in DATA, so it
+	// must run the in-place bake even though REBUILD_PS1 is defined.
+#if !defined(REBUILD_PS1) || defined(CTR_NATIVE)
 	Vector_BakeMatrixTable();
 #endif
 
