@@ -54,15 +54,9 @@ int DECOMP_RB_Fruit_LInC()
 {
 }
 // void RB_GenericMine_LInB() {}		-- DONE
-int DECOMP_RB_CrateFruit_LInC()
-{
-}
-int DECOMP_RB_CrateWeapon_LInC()
-{
-}
-int DECOMP_RB_CrateTime_LInC()
-{
-}
+// int DECOMP_RB_CrateFruit_LInC() {}	-- DONE
+// int DECOMP_RB_CrateWeapon_LInC() {}	-- DONE
+// int DECOMP_RB_CrateTime_LInC() {}		-- DONE
 void DECOMP_RB_FlameJet_LInB()
 {
 }
@@ -89,12 +83,8 @@ void DECOMP_RB_CtrLetter_LInB()
 int DECOMP_RB_CtrLetter_LInC()
 {
 }
-void DECOMP_RB_Crystal_LInB()
-{
-}
-int DECOMP_RB_Crystal_LInC()
-{
-}
+// void DECOMP_RB_Crystal_LInB() {}	-- DONE
+// int DECOMP_RB_Crystal_LInC() {}	-- DONE
 // void DECOMP_RB_Teeth_LInB() {}	-- DONE
 // int DECOMP_RB_Teeth_LInC() {}		-- DONE
 

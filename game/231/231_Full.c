@@ -62,11 +62,11 @@
 #include "231_058_RB_Blade_ThTick.c"
 #include "231_059_RB_Blade_LInB.c"
 #include "231_060_RB_Bubbles_RoosTubes.c"
-
-// TODO(aalhendi): sound/voice paths.
-// TODO(aalhendi): 061-077 (crate, crystal, default LevInst, and CTR letters).
+#include "231_061_068_RB_Crate.c"
+#include "231_069_072_RB_Crystal.c"
 
 // TODO(aalhendi): 231_073_RB_Default_LInB
+// TODO(aalhendi): 073-077 default LevInst and CTR letters.
 
 #include "231_082_085_RB_Armadillo.c"
 #include "231_086_088_RB_Fireball.c"

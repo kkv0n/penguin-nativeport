@@ -2,6 +2,13 @@
 
 s16 crystalLightDir[4] = {0x94F, 0x94F, 0x94F, 0};
 
+static void RB_Crystal_RotateStep(struct Instance *crystalInst, struct Crystal *crystalObj)
+{
+	crystalObj->rot[1] += 0x40;
+	ConvertRotToMatrix(&crystalInst->matrix, &crystalObj->rot[0]);
+}
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b4dd8-0x800b4e7c.
 void DECOMP_RB_Crystal_ThTick(struct Thread *t)
 {
 	int sine;
@@ -11,9 +18,8 @@ void DECOMP_RB_Crystal_ThTick(struct Thread *t)
 	crystalInst = t->inst;
 	crystalObj = t->object;
 
-	// rotate each frame
-	crystalObj->rot[1] += 0x80;
-	ConvertRotToMatrix(&crystalInst->matrix, &crystalObj->rot[0]);
+	RB_Crystal_RotateStep(crystalInst, crystalObj);
+	RB_Crystal_RotateStep(crystalInst, crystalObj);
 
 	// sine curve for vertical bounce
 	sine = DECOMP_MATH_Sin(crystalObj->rot[1]);
