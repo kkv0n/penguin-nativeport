@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80066e8c-0x800671b0.
 void DECOMP_VehStuckProc_MaskGrab_Animate(struct Thread *t, struct Driver *d)
 {
 	char frame;
