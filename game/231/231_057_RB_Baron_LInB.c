@@ -1,15 +1,22 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b37d4-0x800b38dc.
+
 void DECOMP_RB_Baron_LInB(struct Instance *inst)
 {
 	struct Baron *baronObj;
+	struct Thread *t;
+	s16 pointIndex;
 
-	struct Thread *t = DECOMP_PROC_BirthWithObject(
+	if (inst->thread != 0)
+		return;
+
+	t = DECOMP_PROC_BirthWithObject(
 	    // creation flags
 	    SIZE_RELATIVE_POOL_BUCKET(sizeof(struct Baron), NONE, SMALL, STATIC),
 
 	    DECOMP_RB_Baron_ThTick, // behavior
-	    0,                      // debug name
+	    "baron",                // debug name
 	    0                       // thread relative
 	);
 
@@ -22,14 +29,20 @@ void DECOMP_RB_Baron_LInB(struct Instance *inst)
 	inst->scale[1] = 0x1000;
 	inst->scale[2] = 0x1000;
 
-#if 0
-	// Removed, Baron Plane would spawn two
-	// planes, one starts at pointIndex=1,
-	// the other one at pointIndex=NumPoints/2
-#endif
-
 	baronObj = ((struct Baron *)t->object);
+	pointIndex = 1;
+
+	if (inst->name[strlen(inst->name) - 1] == '0')
+		pointIndex = sdata->gGT->level1->ptrSpawnType2->numCoords / 2;
+
+	baronObj->pointIndex = pointIndex;
+	baronObj->unk1A = 4;
+	baronObj->unk22 = 0x18;
+	baronObj->unk06 = 0;
 	baronObj->otherInst = 0;
-	baronObj->pointIndex = 1;
+
+	if (inst->model->id == DYNAMIC_VONLABASS)
+		inst->flags |= 0x80;
+
 	baronObj->soundID_flags = 0;
 }

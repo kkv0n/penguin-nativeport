@@ -276,7 +276,22 @@ struct Baron
 {
 	// 0x0
 	// for the baron plane
-	char unused[0x24];
+	char unused0[0x6];
+
+	// 0x6
+	s16 unk06;
+
+	// 0x8
+	char unused8[0x12];
+
+	// 0x1a
+	s16 unk1A;
+
+	// 0x1c
+	char unused1C[0x6];
+
+	// 0x22
+	s16 unk22;
 
 	// 0x24
 	u32 soundID_flags;
