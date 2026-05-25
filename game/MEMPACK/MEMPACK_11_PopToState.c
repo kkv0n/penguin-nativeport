@@ -1,16 +1,10 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003ea08-0x8003ea28.
 void MEMPACK_PopToState(int id)
 {
-	struct Mempack *ptrMempack;
-	int numBookmarks;
+	struct Mempack *ptrMempack = sdata->PtrMempack;
 
-	// Get the pointer to the memory allocation system
-	ptrMempack = sdata->PtrMempack;
-
-	// go to bookmark address
-	ptrMempack->firstFreeByte = ptrMempack->bookmarks[id];
-
-	// upate count
 	ptrMempack->numBookmarks = id;
+	ptrMempack->firstFreeByte = ptrMempack->bookmarks[id];
 }

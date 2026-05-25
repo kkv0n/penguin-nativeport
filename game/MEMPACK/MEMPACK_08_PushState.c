@@ -1,27 +1,17 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003e978-0x8003e9b8.
 int MEMPACK_PushState()
 {
-	struct Mempack *ptrMempack;
+	struct Mempack *ptrMempack = sdata->PtrMempack;
 	int numBookmarks;
 
-	// Get the pointer to the memory allocation system
-	ptrMempack = sdata->PtrMempack;
-
-	// current number of bookmarks, before push
 	numBookmarks = ptrMempack->numBookmarks;
-
-	// if less than 16
 	if (numBookmarks < 0x10)
 	{
-		// set bookmark address
 		ptrMempack->bookmarks[numBookmarks] = ptrMempack->firstFreeByte;
-
-		// increment number of bookmarks
 		ptrMempack->numBookmarks++;
 	}
 
-	// return original number of bookmarks,
-	// AKA, return ID of bookmark pushed
 	return numBookmarks;
 }

@@ -1,15 +1,10 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003e9b8-0x8003e9d0.
 void MEMPACK_ClearLowMem()
 {
-	struct Mempack *ptrMempack;
+	struct Mempack *ptrMempack = sdata->PtrMempack;
 
-	// Get the pointer to the memory allocation system
-	ptrMempack = sdata->PtrMempack;
-
-	// reset bookmarks
 	ptrMempack->numBookmarks = 0;
-
-	// reset low-side allocation
 	ptrMempack->firstFreeByte = ptrMempack->start;
 }

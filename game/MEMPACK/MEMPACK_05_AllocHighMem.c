@@ -1,27 +1,19 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003e8e8-0x8003e938.
 void *MEMPACK_AllocHighMem(int allocSize)
 {
 	int newLastFreeByte;
 
-	// if out of memory
 	while (MEMPACK_GetFreeBytes() < allocSize)
 	{
-		// enter infinite loop
 	}
 
-	// align up
 	allocSize = (allocSize + 3) & 0xfffffffc;
+	sdata->PtrMempack->sizeOfPrevAllocation = allocSize;
 
-	// dont use sizeOfPrevAlloc, cause you can't Realloc
-	// on HighMem, that's only for low end allocations
-
-	// address to return
 	newLastFreeByte = (int)sdata->PtrMempack->lastFreeByte - allocSize;
-
-	// allocator goes backwards for high end
 	sdata->PtrMempack->lastFreeByte = (void *)newLastFreeByte;
 
-	// new last free byte
 	return (void *)newLastFreeByte;
 }

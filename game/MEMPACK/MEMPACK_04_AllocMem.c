@@ -1,36 +1,24 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003e874-0x8003e8e8.
 void *MEMPACK_AllocMem(int allocSize)
 {
 	int firstFreeByte;
 	int newAllocSize;
-	struct Mempack *ptrMempack;
+	struct Mempack *ptrMempack = sdata->PtrMempack;
 
-	// Get the pointer to the memory allocation system
-	ptrMempack = sdata->PtrMempack;
-
-	// if out of memory
 	if (MEMPACK_GetFreeBytes() < allocSize)
 	{
 		CTR_ErrorScreen(0xFF, 0, 0);
-
-		// infinite loop
 		for (;;)
 		{
 		}
 	}
 
-	// align up
 	newAllocSize = (allocSize + 3) & 0xfffffffc;
-
-	// save the amount of memory we allocated
-	// so that it can be used for Realloc, if needed
 	ptrMempack->sizeOfPrevAllocation = newAllocSize;
 
-	// get the first byte in RAM that can be used by CTR
 	firstFreeByte = (int)ptrMempack->firstFreeByte;
-
-	// append allocator for next allocation
 	ptrMempack->firstFreeByte = (void *)(firstFreeByte + newAllocSize);
 
 	return (void *)firstFreeByte;

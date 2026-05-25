@@ -1,12 +1,9 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003e85c-0x8003e874.
 int MEMPACK_GetFreeBytes()
 {
-	struct Mempack *ptrMempack;
+	struct Mempack *ptrMempack = sdata->PtrMempack;
 
-	// Get the pointer to the memory allocation system
-	ptrMempack = sdata->PtrMempack;
-
-	// subtract last byte from first byte, to return size
 	return (u32)ptrMempack->lastFreeByte - (u32)ptrMempack->firstFreeByte;
 }
