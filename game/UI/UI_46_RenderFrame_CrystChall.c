@@ -86,6 +86,7 @@ void DECOMP_UI_RenderFrame_CrystChall(void)
 #endif
 		}
 
+		// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80054550-0x80054558 for crystal pickup SFX.
 		DECOMP_OtherFX_Play(0x42, 1);
 
 		if (player->PickupWumpaHUD.numCollected != 0)
@@ -146,6 +147,7 @@ LAB_800545e8:
 	// if not paused, item stopped rolling, and
 	// weapon roulette sound is playing, then
 	// stop the sound and remove flag
+	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80054618-0x80054628 for roulette SFX stop.
 	DECOMP_OtherFX_Stop2(0x5d);
 	gGT->gameMode1 &= ~(ROLLING_ITEM);
 

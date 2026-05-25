@@ -76,6 +76,7 @@ void DECOMP_UI_RaceEnd_MenuProc(struct RectMenu *menu)
 		// clear backup,
 		// keep music,
 		// destroy "most" fx, let menu fx play to end
+		// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80055df0-0x80055e04 for retry stop-audio args.
 		DECOMP_howl_StopAudio(1, 0, 0);
 
 		// if did not improve time, then dont

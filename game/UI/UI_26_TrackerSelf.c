@@ -161,6 +161,7 @@ LAB_8004fe8c:
 			if ((gGT->gameMode1 & PAUSE_ALL) == 0)
 			{
 				// "homing in" sound
+				// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80050014-0x8005001c for tracker beep SFX.
 				DECOMP_OtherFX_Play(0x56, 1);
 			}
 
