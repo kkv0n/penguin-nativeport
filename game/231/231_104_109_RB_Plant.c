@@ -1,6 +1,8 @@
 #include <common.h>
 
 // budget: 2584
+// NOTE(aalhendi): Retail-backed audio/control corrections for NTSC-U 926 0x800b81e8-0x800b89a4.
+// TODO(aalhendi): Complete exact ASM pass for the full Plant state machine.
 
 enum PlantAnim
 {
@@ -112,20 +114,13 @@ void DECOMP_RB_Plant_ThTick_Eat(struct Thread *t)
 				for (i = 0; i < 4; i++)
 				{
 					// spit tires
-					particle =
-#ifdef REBUILD_PS1
-					    0;
-#else
-					    Particle_Init(0, sdata->gGT->iconGroup[0], &emSet_PlantTires[0]);
-#endif
+					particle = Particle_Init(0, sdata->gGT->iconGroup[0], &emSet_PlantTires[0]);
 
 					if (particle == 0)
 						break;
 
-#ifndef REBUILD_PS1
 					particle->funcPtr = Particle_FuncPtr_SpitTire;
 					particle->plantInst = plantInst;
-#endif
 
 					particle->axis[0].startVal += (plantInst->matrix.t[0] + (plantInst->matrix.m[0][2] * 9 >> 7)) * 0x100;
 
@@ -135,14 +130,14 @@ void DECOMP_RB_Plant_ThTick_Eat(struct Thread *t)
 
 					particle->axis[0].velocity += (
 					                                  // 6 - 26
-					                                  (DECOMP_MixRNG_Scramble() & 10 + 0x10) * (plantInst->matrix.m[0][2] >> 0xC)) *
+					                                  ((DECOMP_MixRNG_Scramble() % 10) + 0x10) * (plantInst->matrix.m[0][2] >> 0xC)) *
 					                              0x100;
 
 					// axis[1].velocity is untouched
 
 					particle->axis[2].velocity += (
 					                                  // 6 - 26
-					                                  (DECOMP_MixRNG_Scramble() & 10 + 0x10) * (plantInst->matrix.m[2][2] >> 0xC)) *
+					                                  ((DECOMP_MixRNG_Scramble() % 10) + 0x10) * (plantInst->matrix.m[2][2] >> 0xC)) *
 					                              0x100;
 				}
 			}
@@ -290,13 +285,8 @@ void DECOMP_RB_Plant_ThTick_Hungry(struct Thread *t)
 		// get driver from instance
 		hitDriver = (struct Driver *)hitInst->thread->object;
 
-		int didHit =
-#ifdef REBUILD_PS1
-		    0;
-#else
-		    // attempt to harm driver (eat)
-		    DECOMP_RB_Hazard_HurtDriver(hitDriver, 5, 0, 0);
-#endif
+		// attempt to harm driver (eat)
+		int didHit = DECOMP_RB_Hazard_HurtDriver(hitDriver, 5, 0, 0);
 
 		if (didHit != 0)
 		{
@@ -332,9 +322,7 @@ void DECOMP_RB_Plant_ThTick_Hungry(struct Thread *t)
 		// get driver from instance
 		hitDriver = (struct Driver *)hitInst->thread->object;
 
-#ifndef REBUILD_PS1
 		DECOMP_RB_Hazard_HurtDriver(hitDriver, 5, 0, 0);
-#endif
 
 		plantObj->boolEatingPlayer = 0;
 
@@ -349,6 +337,12 @@ void DECOMP_RB_Plant_ThTick_Rest(struct Thread *t)
 
 	plantInst = t->inst;
 	plantObj = (struct Plant *)t->object;
+
+	if (plantObj->cooldown != 0)
+	{
+		plantObj->cooldown--;
+		return;
+	}
 
 	if (plantInst->animIndex == PlantAnim_Rest)
 	{
@@ -400,19 +394,23 @@ void DECOMP_RB_Plant_LInB(struct Instance *inst)
 	struct SpawnType1 *ptrSpawnType1;
 	s16 *metaArray;
 	int plantID;
+	struct Thread *t;
 
-	struct Thread *t = DECOMP_PROC_BirthWithObject(
+	if (inst->thread != NULL)
+		return;
+
+	t = DECOMP_PROC_BirthWithObject(
 	    // creation flags
 	    SIZE_RELATIVE_POOL_BUCKET(sizeof(struct Plant), NONE, SMALL, STATIC),
-
 	    DECOMP_RB_Plant_ThTick_Rest, // behavior
-	    0,                           // debug name
+	    "plant",                     // debug name
 	    0                            // thread relative
 	);
 
+	inst->thread = t;
 	if (t == 0)
 		return;
-	inst->thread = t;
+
 	t->inst = inst;
 
 	inst->scale[0] = 0x2800;
@@ -423,7 +421,15 @@ void DECOMP_RB_Plant_LInB(struct Instance *inst)
 
 	plantObj = ((struct Plant *)t->object);
 	plantObj->cycleCount = 0;
+	plantObj->cooldown = 0;
 	plantObj->boolEatingPlayer = 0;
+
+	plantBoxDesc.bbox.min[0] = 0xffc0;
+	plantBoxDesc.bbox.min[1] = 0xffc0;
+	plantBoxDesc.bbox.min[2] = 0;
+	plantBoxDesc.bbox.max[0] = 0x40;
+	plantBoxDesc.bbox.max[1] = 0x80;
+	plantBoxDesc.bbox.max[2] = 0x1e0;
 
 	ptrSpawnType1 = sdata->gGT->level1->ptrSpawnType1;
 	if (ptrSpawnType1->count > 0)
@@ -432,8 +438,8 @@ void DECOMP_RB_Plant_LInB(struct Instance *inst)
 		void **pointers = ST1_GETPOINTERS(ptrSpawnType1);
 		metaArray = (s16 *)pointers[ST1_SPAWN];
 
-		plantID = inst->name[6] - '0';
-		t->cooldownFrameCount = metaArray[plantID * 2 + 0];
+		plantID = inst->name[strlen(inst->name) - 1] - '0';
+		plantObj->cooldown = metaArray[plantID * 2 + 0];
 		plantObj->LeftOrRight = metaArray[plantID * 2 + 1];
 	}
 }
