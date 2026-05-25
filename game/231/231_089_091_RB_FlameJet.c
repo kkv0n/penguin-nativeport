@@ -224,6 +224,7 @@ struct ParticleEmitter emSet_fjFire[0x8] = {[0] =
                                             // null terminator
                                             {}};
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b64c0-0x800b6728.
 void DECOMP_RB_FlameJet_Particles(struct Instance *inst, struct FlameJet *fjObj)
 {
 	int result;
@@ -262,14 +263,18 @@ void DECOMP_RB_FlameJet_Particles(struct Instance *inst, struct FlameJet *fjObj)
 	if (gGT->numPlyrCurrGame > 1)
 		return;
 
+	// NOTE(aalhendi): Retail would read PS1 null-space if the fire particle allocation failed.
+	if (particle1 == NULL)
+		return;
+
 	particle2 = Particle_Init(0, (struct IconGroup *)gGT->ptrSparkle, &emSet_fjHeat[0]);
 
 	// heat particle
 	if (particle2 != 0)
 	{
-		particle2->axis[0].startVal = particle1->axis[0].startVal;
-		particle2->axis[1].startVal = particle1->axis[1].startVal + 0x1000;
-		particle2->axis[2].startVal = particle1->axis[2].startVal;
+		particle2->axis[0].startVal += particle1->axis[0].startVal;
+		particle2->axis[1].startVal += particle1->axis[1].startVal + 0x1000;
+		particle2->axis[2].startVal += particle1->axis[2].startVal;
 
 		// register sharing
 		result = particle2->axis[3].startVal;
@@ -281,15 +286,14 @@ void DECOMP_RB_FlameJet_Particles(struct Instance *inst, struct FlameJet *fjObj)
 		particle2->axis[1].velocity = 0;
 		particle2->axis[2].velocity = (s16)fjObj->dirZ;
 
-		int vel = (0x4a00 - particle2->axis[3].startVal) / 7;
-		particle2->axis[3].velocity = vel;
-		particle2->axis[4].velocity = vel;
-		particle2->axis[5].velocity = vel;
+		particle2->axis[3].velocity = (0x4a00 - particle2->axis[3].startVal) / 7;
+		particle2->axis[4].velocity = (0x4600 - particle2->axis[4].startVal) / 7;
+		particle2->axis[5].velocity = (0x4400 - particle2->axis[5].startVal) / 7;
 
 		particle2->axis[1].accel = particle1->axis[1].accel;
 
 		particle2->unk1A = 0x1e00;
-		particle2->unk18 = inst->unk50 - 1;
+		particle2->unk18 = inst->unk50;
 	}
 }
 
