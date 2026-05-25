@@ -1,6 +1,7 @@
 #include <common.h>
 
 // budget: 2132 bytes
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b7338-0x800b7b8c.
 
 extern s16 minecartArr[50];
 
@@ -24,15 +25,11 @@ void RB_Minecart_CheckColl(struct Instance *minecartInst, struct Thread *minecar
 
 	if (hitInst != 0)
 	{
-#if 0
-		// unused, DYNAMIC_SKUNK causes spin-out
-#endif
-
 		// get driver from instance
 		hitDriver = (struct Driver *)hitInst->thread->object;
 
-		// attempt to harm driver (squish)
-		DECOMP_RB_Hazard_HurtDriver(hitDriver, 3, 0, 0);
+		// attempt to harm driver (squish or spin-out)
+		DECOMP_RB_Hazard_HurtDriver(hitDriver, (minecartInst->model->id == DYNAMIC_SKUNK) ? 1 : 3, 0, 0);
 	}
 #endif
 }
@@ -46,6 +43,8 @@ void RB_Minecart_NewPoint(struct Instance *minecartInst, struct Minecart *mineca
 		int start = spawnType2->posCoords[pointIndex + i - 3];
 		int end = spawnType2->posCoords[pointIndex + i];
 
+		minecartObj->posStart[i] = start;
+		minecartObj->posEnd[i] = end;
 		minecartInst->matrix.t[i] = start;
 		minecartObj->dir[i] = start - end;
 	}
@@ -62,16 +61,15 @@ void DECOMP_RB_Minecart_ThTick(struct Thread *t)
 {
 	struct Instance *minecartInst;
 	struct Minecart *minecartObj;
+	struct Level *level;
 	struct SpawnType2 *spawnType2;
-	int animFrame;
-	int numFrames;
 	int numCoords;
 
 	s16 i;
-	s16 pos[3];
 
 	minecartInst = t->inst;
 	minecartObj = (struct Minecart *)t->object;
+	level = sdata->gGT->level1;
 
 	// if animation is not over
 	if ((minecartInst->animFrame + 1) < DECOMP_INSTANCE_GetNumAnimFrames(minecartInst, 0))
@@ -87,8 +85,11 @@ void DECOMP_RB_Minecart_ThTick(struct Thread *t)
 		minecartInst->animFrame = 0;
 	}
 
+	if (level->numSpawnType2 == 0)
+		return;
+
 	// path coordinates for minecarts
-	spawnType2 = &sdata->gGT->level1->ptrSpawnType2[0];
+	spawnType2 = &level->ptrSpawnType2[0];
 	numCoords = spawnType2->numCoords;
 
 	// between two points
@@ -116,14 +117,8 @@ void DECOMP_RB_Minecart_ThTick(struct Thread *t)
 
 		RB_Minecart_NewPoint(minecartInst, minecartObj, spawnType2);
 
-		if (minecartObj->posIndex == 1)
+		if ((minecartObj->posIndex == 1) && (minecartInst->model->id == DYNAMIC_MINE_CART))
 		{
-// we know it's always minecart,
-// cause skunk and vonlabass are removed
-#if 0
-			&& modelID == DYNAMIC_MINE_CART
-#endif
-
 			for (i = 0; i < 3; i++)
 			{
 				minecartObj->rotCurr[i] = minecartObj->rotDesired[i];
@@ -137,13 +132,12 @@ void DECOMP_RB_Minecart_ThTick(struct Thread *t)
 
 	for (i = 0; i < 3; i++)
 	{
-		// skip safety tests, assume no division by zero
-		minecartInst->matrix.t[i] -= minecartObj->dir[i] / minecartObj->betweenPoints_numFrames;
+		minecartInst->matrix.t[i] =
+		    minecartObj->posStart[i] - ((minecartObj->betweenPoints_currFrame * minecartObj->dir[i]) / minecartObj->betweenPoints_numFrames);
 	}
 
-	minecartObj->rotCurr[0] = DECOMP_RB_Hazard_InterpolateValue(minecartObj->rotCurr[0], minecartObj->rotDesired[0], minecartObj->rotSpeed);
-
 	minecartObj->rotCurr[1] = DECOMP_RB_Hazard_InterpolateValue(minecartObj->rotCurr[1], minecartObj->rotDesired[1], minecartObj->rotSpeed);
+	minecartObj->rotCurr[0] = DECOMP_RB_Hazard_InterpolateValue(minecartObj->rotCurr[0], minecartObj->rotDesired[0], minecartObj->rotSpeed);
 
 	// converted to TEST in rebuildPS1
 	ConvertRotToMatrix(&minecartInst->matrix, &minecartObj->rotCurr[0]);
@@ -161,15 +155,19 @@ void DECOMP_RB_Minecart_LInB(struct Instance *inst)
 {
 	struct Minecart *minecartObj;
 	struct SpawnType2 *spawnType2;
+	struct Thread *t;
 	int minecartID;
 	int startIndex;
 
-	struct Thread *t = DECOMP_PROC_BirthWithObject(
+	if (inst->thread != 0)
+		return;
+
+	t = DECOMP_PROC_BirthWithObject(
 	    // creation flags
 	    SIZE_RELATIVE_POOL_BUCKET(sizeof(struct Minecart), NONE, SMALL, STATIC),
 
 	    DECOMP_RB_Minecart_ThTick, // behavior
-	    0,                         // debug name
+	    "minecart",                // debug name
 	    0                          // thread relative
 	);
 
@@ -187,18 +185,33 @@ void DECOMP_RB_Minecart_LInB(struct Instance *inst)
 	minecartObj->betweenPoints_numFrames = 8;
 	minecartObj->rotSpeed = 0x20;
 
-// unused code
-#if 0
-	// DYNAMIC_SKUNK = inst scale 0x2000
-	// DYNAMIC_VONLABASS = inst scale 0x800
-	// both of these are framesBetweenPoints=4 and rotSpeed=0x18
-#endif
+	inst->scale[0] = 0x1000;
+	inst->scale[1] = 0x1000;
+	inst->scale[2] = 0x1000;
+
+	if (inst->model->id == DYNAMIC_SKUNK)
+	{
+		inst->scale[0] = 0x2000;
+		inst->scale[1] = 0x2000;
+		inst->scale[2] = 0x2000;
+		minecartObj->betweenPoints_numFrames = 4;
+		minecartObj->rotSpeed = 0x18;
+	}
+
+	else if (inst->model->id == DYNAMIC_VONLABASS)
+	{
+		inst->scale[0] = 0x800;
+		inst->scale[1] = 0x800;
+		inst->scale[2] = 0x800;
+		minecartObj->betweenPoints_numFrames = 4;
+		minecartObj->rotSpeed = 0x18;
+	}
 
 	// path coordinates for minecarts
 	spawnType2 = &sdata->gGT->level1->ptrSpawnType2[0];
 
 	// from instance
-	minecartID = inst->name[0x9] - '0';
+	minecartID = inst->name[strlen(inst->name) - 1] - '0';
 
 	// minecart#0
 	startIndex = 1;
