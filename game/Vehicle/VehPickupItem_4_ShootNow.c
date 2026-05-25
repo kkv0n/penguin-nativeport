@@ -13,7 +13,7 @@ void RB_Warpball_SeekDriver(struct TrackerWeapon *tw, u32 param_2, struct Driver
 
 void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 {
-	// NOTE(aalhendi): Retail-backed audio/item dispatch corrections for NTSC-U 926
+	// NOTE(aalhendi): Retail-backed item/audio lifecycle corrections for NTSC-U 926
 	// 0x8006540c-0x800666e4. TODO(aalhendi): complete the full ASM pass.
 	struct Instance *dInst;
 	struct Thread *weaponTh;
@@ -22,6 +22,8 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 	struct TrackerWeapon *tw;
 	struct GameTracker *gGT = sdata->gGT;
 	int modelID;
+	int mineHitModel = 0;
+	int mineShouldInitFollower = 0;
 
 	switch (weaponID)
 	{
@@ -294,6 +296,8 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 
 		DECOMP_RB_MinePool_Add(mw);
 		DECOMP_VehPickupItem_PotionThrow(mw, weaponInst, flags);
+		mineHitModel = weaponInst->model->id | 0x8000;
+		mineShouldInitFollower = (flags == 0);
 
 	RunMineCOLL:
 
@@ -323,7 +327,7 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 
 		if (sps->boolDidTouchHitbox != 0)
 		{
-			sps->Input1.modelID = (weaponInst->model->id) | 0x8000;
+			sps->Input1.modelID = mineHitModel;
 
 			DECOMP_RB_Hazard_CollLevInst(sps, weaponTh);
 
@@ -372,7 +376,7 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		// dropped a mine
 		d->actionsFlagSet |= 0x80000000;
 
-		if (flags == 0)
+		if (mineShouldInitFollower != 0)
 		{
 			DECOMP_RB_Follower_Init(d, weaponTh);
 		}
@@ -381,11 +385,20 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 	// Beaker
 	case 4:
 
-		modelID = STATIC_BEAKER_GREEN;
-		if (d->numWumpas >= 10)
+		if (d->numWumpas < 10)
+		{
+			modelID = STATIC_BEAKER_GREEN;
+
+			weaponInst = DECOMP_INSTANCE_BirthWithThread(modelID, sdata->s_beaker1, SMALL, MINE, DECOMP_RB_GenericMine_ThTick, sizeof(struct MineWeapon), 0);
+			if (weaponInst == 0)
+				return;
+		}
+		else
+		{
 			modelID = STATIC_BEAKER_RED;
 
-		weaponInst = DECOMP_INSTANCE_BirthWithThread(modelID, sdata->s_beaker1, SMALL, MINE, DECOMP_RB_GenericMine_ThTick, sizeof(struct MineWeapon), 0);
+			weaponInst = DECOMP_INSTANCE_BirthWithThread(modelID, sdata->s_beaker1, SMALL, MINE, DECOMP_RB_GenericMine_ThTick, sizeof(struct MineWeapon), 0);
+		}
 
 		dInst = d->instSelf;
 
@@ -420,7 +433,9 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		mw->crateInst = 0;
 		mw->boolDestroyed = 0;
 		mw->frameCount_DontHurtParent = 10;
-		mw->extraFlags = (modelID == STATIC_BEAKER_RED);
+		mw->extraFlags = 0;
+		if (modelID == STATIC_BEAKER_RED)
+			mw->extraFlags = 1;
 
 		struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[d->driverID];
 
@@ -444,6 +459,8 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 			*(int *)&mw->velocity[0] = 0;
 			*(int *)&mw->velocity[2] = 0;
 
+			mineHitModel = weaponInst->model->id;
+			mineShouldInitFollower = 1;
 			goto RunMineCOLL;
 		}
 		break;
@@ -462,10 +479,12 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		weaponInst =
 		    DECOMP_INSTANCE_BirthWithThread(0x5a, shieldDarkName, MEDIUM, OTHER, RB_ShieldDark_ThTick_Grow, sizeof(struct Shield), d->instSelf->thread);
 
-		d->instBubbleHold = weaponInst;
-
 		weaponTh = weaponInst->thread;
+		weaponInst->scale[0] = 0x700;
+		weaponInst->scale[1] = 0x700;
+		weaponInst->scale[2] = 0x700;
 		weaponTh->funcThDestroy = DECOMP_PROC_DestroyInstance;
+		OtherFX_Play(0x57, 1);
 
 		modelID = DYNAMIC_SHIELD_GREEN;
 		if (d->numWumpas >= 10)
@@ -474,12 +493,6 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		struct Instance *instColor = DECOMP_INSTANCE_Birth3D(gGT->modelPtr[modelID], sdata->s_shield, 0);
 
 		struct Instance *instHighlight = DECOMP_INSTANCE_Birth3D(gGT->modelPtr[DYNAMIC_HIGHLIGHT], highlightName, weaponTh);
-
-		weaponInst->alphaScale = 0x400;
-
-		weaponInst->scale[0] = 0x700;
-		weaponInst->scale[1] = 0x700;
-		weaponInst->scale[2] = 0x700;
 
 		instColor->scale[0] = 0x700;
 		instColor->scale[1] = 0x700;
@@ -508,7 +521,8 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 			shieldObj->flags = 4;
 		}
 
-		OtherFX_Play(0x57, 1);
+		weaponInst->alphaScale = 0x400;
+		d->instBubbleHold = weaponInst;
 		break;
 
 	// Mask
