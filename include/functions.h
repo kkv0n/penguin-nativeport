@@ -489,7 +489,7 @@ void LibraryOfModels_Clear(struct GameTracker *gGT);
 
 struct Instance *LinkedCollide_Radius(struct Instance *objInst, struct Thread *_objTh, struct Thread *thBucket, u32 hitRadius);
 struct Instance *LinkedCollide_Hitbox_Desc(struct HitboxDesc *objBoxDesc);
-// LinkedCollide_Hitbox()
+struct Instance *LinkedCollide_Hitbox(struct Instance *objInst, struct Thread *_objTh, struct Thread *thBucket, struct BoundingBox bbox);
 
 // LIST
 

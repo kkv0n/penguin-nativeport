@@ -180,7 +180,7 @@ void RB_Plant_ThTick_Grab(struct Thread *t)
 			plantInst->animFrame = plantInst->animFrame + 1;
 
 			plantBoxDescLocal.bucket = gGT->threadBuckets[MINE].thread;
-			hitInst = LinkedCollide_Hitbox(&plantBoxDescLocal);
+			hitInst = LinkedCollide_Hitbox_Desc(&plantBoxDescLocal);
 
 			if (hitInst != 0)
 			{
@@ -291,7 +291,7 @@ void RB_Plant_ThTick_Hungry(struct Thread *t)
 	plantBoxDescLocal.thread = t;
 
 	plantBoxDescLocal.bucket = gGT->threadBuckets[PLAYER].thread;
-	hitInst = LinkedCollide_Hitbox(&plantBoxDescLocal);
+	hitInst = LinkedCollide_Hitbox_Desc(&plantBoxDescLocal);
 
 	if (hitInst != 0)
 	{
@@ -328,7 +328,7 @@ void RB_Plant_ThTick_Hungry(struct Thread *t)
 		return;
 
 	plantBoxDescLocal.bucket = gGT->threadBuckets[ROBOT].thread;
-	hitInst = LinkedCollide_Hitbox(&plantBoxDescLocal);
+	hitInst = LinkedCollide_Hitbox_Desc(&plantBoxDescLocal);
 
 	if (hitInst != 0)
 	{

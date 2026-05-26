@@ -262,7 +262,8 @@ void JitPool_Remove(struct JitPool *AP, struct Item *item);
 void LevInstDef_UnPack(struct mesh_info *ptr_mesh_info);
 void LevInstDef_RePack(struct mesh_info *ptr_mesh_info, int boolAdvHub);
 
-struct Instance *LinkedCollide_Hitbox(struct HitboxDesc *objBoxDesc);
+struct Instance *LinkedCollide_Hitbox_Desc(struct HitboxDesc *objBoxDesc);
+struct Instance *LinkedCollide_Hitbox(struct Instance *objInst, struct Thread *_objTh, struct Thread *thBucket, struct BoundingBox bbox);
 
 // LIST
 void LIST_AddBack(struct LinkedList *L, struct Item *I);
@@ -350,6 +351,7 @@ void MainRaceTrack_RequestLoad(s16 levelID);
 
 int MATH_Sin(u32 angle);
 int MATH_Cos(u32 angle);
+MATRIX *MATH_HitboxMatrix(MATRIX *output, MATRIX *input);
 void ConvertRotToMatrix_InverseTranspose_NoRotY(MATRIX *m, s16 *rot);
 void ConvertRotToMatrix_InverseTranspose(MATRIX *m, s16 *rot);
 void ConvertRotToMatrix(MATRIX *m, s16 *rot);

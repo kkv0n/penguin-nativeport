@@ -1,6 +1,7 @@
 #include <common.h>
 
-struct Instance *LinkedCollide_Hitbox(struct HitboxDesc *objBoxDesc)
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80031608-0x80031734. Retail ignores _objTh.
+struct Instance *LinkedCollide_Hitbox(struct Instance *objInst, struct Thread *_objTh, struct Thread *thBucket, struct BoundingBox bbox)
 {
 	struct Instance *thInst;
 	int diff_y;
@@ -9,8 +10,10 @@ struct Instance *LinkedCollide_Hitbox(struct HitboxDesc *objBoxDesc)
 	VECTOR outVec;
 	s32 flags[2];
 
+	(void)_objTh;
+
 	// Loop over thBucket Linked List
-	for (struct Thread *thBucket = objBoxDesc->bucket; thBucket != 0; thBucket = thBucket->siblingThread)
+	for (; thBucket != 0; thBucket = thBucket->siblingThread)
 	{
 		thInst = thBucket->inst;
 
@@ -18,19 +21,17 @@ struct Instance *LinkedCollide_Hitbox(struct HitboxDesc *objBoxDesc)
 		thInstPos.vy = thInst->matrix.t[1];
 		thInstPos.vz = thInst->matrix.t[2];
 
-		diff_y = thInst->matrix.t[1] - objBoxDesc->inst->matrix.t[1];
+		diff_y = thInst->matrix.t[1] - objInst->matrix.t[1];
 
-#ifndef REBUILD_PS1
-		MATH_HitboxMatrix(&thInstMatrix, &objBoxDesc->inst->matrix);
-#endif
+		MATH_HitboxMatrix(&thInstMatrix, &objInst->matrix);
 
 		SetRotMatrix(&thInstMatrix);
 		SetTransMatrix(&thInstMatrix);
 
 		RotTrans(&thInstPos, &outVec, (long *)flags);
 
-		if ((objBoxDesc->bbox.min[0] < outVec.vx) && (objBoxDesc->bbox.max[0] > outVec.vx) && (objBoxDesc->bbox.min[2] < outVec.vz) &&
-		    (objBoxDesc->bbox.max[2] > outVec.vz) && (objBoxDesc->bbox.min[1] < diff_y) && (objBoxDesc->bbox.max[1] > diff_y))
+		if ((bbox.min[0] < outVec.vx) && (outVec.vx < bbox.max[0]) && (bbox.min[2] < outVec.vz) && (outVec.vz < bbox.max[2]) && (bbox.min[1] <= diff_y) &&
+		    (diff_y < bbox.max[1]))
 		{
 			return thInst; // collision thread instance
 		}
