@@ -1,8 +1,6 @@
 #include <common.h>
 
-extern void *PlayerWarpingFuncTable[13];
-
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80068e04-0x80068f90
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80068e04-0x80068f90.
 void VehStuckProc_Warp_Init(struct Thread *th, struct Driver *d)
 {
 	if (d->kartState == KS_WARP_PAD)
@@ -16,8 +14,6 @@ void VehStuckProc_Warp_Init(struct Thread *th, struct Driver *d)
 
 	// Warp sound?
 	OtherFX_Play(0x97, 1);
-
-	char i;
 
 	OtherFX_Stop1((int)d->driverAudioPtrs[1]);
 	d->driverAudioPtrs[1] = NULL;
@@ -50,25 +46,20 @@ void VehStuckProc_Warp_Init(struct Thread *th, struct Driver *d)
 	d->speed = 0;
 	d->speedApprox = 0;
 
+	d->funcPtrs[0] = NULL;
+	d->funcPtrs[1] = NULL;
+	d->funcPtrs[2] = NULL;
+	d->funcPtrs[3] = VehPhysProc_Driving_Audio;
+	d->funcPtrs[4] = VehStuckProc_Warp_PhysAngular;
+	d->funcPtrs[5] = NULL;
+	d->funcPtrs[6] = NULL;
+	d->funcPtrs[7] = NULL;
+	d->funcPtrs[8] = NULL;
+	d->funcPtrs[9] = NULL;
+	d->funcPtrs[10] = VehPhysForce_TranslateMatrix;
+	d->funcPtrs[11] = VehFrameProc_Driving;
+	d->funcPtrs[12] = VehEmitter_DriverMain;
+
 	// driver is warping
 	d->actionsFlagSet |= 0x4000;
-
-	for (i = 0; i < 13; i++)
-	{
-		d->funcPtrs[i] = PlayerWarpingFuncTable[i];
-	}
 }
-
-void *PlayerWarpingFuncTable[13] = {NULL,
-                                    NULL,
-                                    NULL,
-                                    VehPhysProc_Driving_Audio,
-                                    VehStuckProc_Warp_PhysAngular,
-                                    NULL,
-                                    NULL,
-                                    NULL,
-                                    NULL,
-                                    NULL,
-                                    VehPhysForce_TranslateMatrix,
-                                    VehFrameProc_Driving,
-                                    VehEmitter_DriverMain};
