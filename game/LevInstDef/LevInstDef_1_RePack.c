@@ -2,6 +2,7 @@
 
 void LevInstDef_RePack(struct mesh_info *ptr_mesh_info, int boolAdvHub)
 {
+	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80031268-0x800313c8.
 	int i;
 	int numQuadBlock;
 	struct QuadBlock *ptrQuadBlockArray;
@@ -18,7 +19,7 @@ void LevInstDef_RePack(struct mesh_info *ptr_mesh_info, int boolAdvHub)
 	{
 		qbCurr = &ptrQuadBlockArray[i];
 
-		if (qbCurr->pvs != 0)
+		if ((qbCurr->pvs != 0) && (qbCurr->pvs->visInstSrc != 0))
 		{
 			// loop through all instance pointers visible on quadblock
 			for (visInstSrc = qbCurr->pvs->visInstSrc; visInstSrc[0] != NULL; visInstSrc++)
@@ -30,25 +31,28 @@ void LevInstDef_RePack(struct mesh_info *ptr_mesh_info, int boolAdvHub)
 
 	level1 = sdata->gGT->level1;
 
-	if (level1->numInstances != 0)
+	if (level1->ptrInstDefPtrArray != 0)
 	{
 		// loop through all instDef pointers in the LEV
 		for (visInstSrc = (struct Instance **)level1->ptrInstDefPtrArray; visInstSrc[0] != NULL; visInstSrc++)
 		{
+			struct Instance *inst = visInstSrc[0];
+			struct InstDef *instDef = inst->instDef;
+
 			// if on adv hub
 			if (boolAdvHub != 0)
 			{
 				// kill thread if it exists
-				th = visInstSrc[0]->thread;
+				th = inst->thread;
 				if (th != 0)
 					th->flags |= 0x800;
+
+				// erase instance in pool
+				LIST_AddFront(&sdata->gGT->JitPools.instance.free, (struct Item *)inst);
 			}
 
-			// erase instance in pool
-			LIST_AddFront(&sdata->gGT->JitPools.instance.free, (struct Item *)visInstSrc[0]);
-
 			// go back to instDef
-			visInstSrc[0] = (struct Instance *)visInstSrc[0]->instDef;
+			visInstSrc[0] = (struct Instance *)instDef;
 		}
 	}
 
