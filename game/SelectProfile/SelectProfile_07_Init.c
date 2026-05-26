@@ -38,7 +38,7 @@ void SelectProfile_Init(u16 flags)
 #ifdef CTR_NATIVE
 		char *threadName = &s_SelectProfileThreadName[0];
 #else
-		char *threadName = &rdata.s_LoadSave[0];
+		char *threadName = rdata.s_LoadSave;
 #endif
 
 		t = PROC_BirthWithObject(SIZE_RELATIVE_POOL_BUCKET(sizeof(struct SelectProfileLoadSaveObj), NONE, SMALL, OTHER), SelectProfile_ThTick, threadName,
@@ -68,7 +68,7 @@ void SelectProfile_Init(u16 flags)
 #ifdef CTR_NATIVE
 			char *instName = &s_SelectProfileInstName[0];
 #else
-			char *instName = &rdata.s_loadsave[0];
+			char *instName = rdata.s_loadsave;
 #endif
 
 			if (model != NULL)

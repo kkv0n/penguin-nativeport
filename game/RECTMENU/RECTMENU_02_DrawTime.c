@@ -5,7 +5,7 @@
 static const char s_rectMenuTimeFormat[] = "%ld:%ld%ld:%ld%ld";
 #define RECTMENU_TIME_FORMAT s_rectMenuTimeFormat
 #else
-#define RECTMENU_TIME_FORMAT (&rdata.s_timeString[0])
+#define RECTMENU_TIME_FORMAT rdata.s_timeString
 #endif
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80044ff8-0x80045134.

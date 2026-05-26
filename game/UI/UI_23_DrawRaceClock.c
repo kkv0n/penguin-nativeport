@@ -171,7 +171,7 @@ void UI_DrawRaceClock(u16 paramX, u16 paramY, u32 flags, struct Driver *driver)
 	if (gGT->numLaps == 7)
 	{
 		// String for amount of time in total race
-		totalTimeString = &rdata.s_timeString_empty[0];
+		totalTimeString = rdata.s_timeString_empty;
 
 		// Convert each number from the binary version of the number to the ascii version of the number by adding ascii value of '0'
 		totalTimeString[0] = minutesTens + '0';
@@ -329,7 +329,7 @@ void UI_DrawRaceClock(u16 paramX, u16 paramY, u32 flags, struct Driver *driver)
 				}
 
 				// draw string for total amount of time in race
-				DecalFont_DrawLine(&rdata.s_timeString_empty[0], iVar5, iVar7, lapFontType, stringColor);
+				DecalFont_DrawLine(rdata.s_timeString_empty, iVar5, iVar7, lapFontType, stringColor);
 			}
 		LAB_8004f84c:
 			// lap counter

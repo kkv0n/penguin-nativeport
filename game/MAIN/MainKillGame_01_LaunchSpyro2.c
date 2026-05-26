@@ -30,7 +30,7 @@ void MainKillGame_LaunchSpyro2(void)
 	_96_remove();
 	_96_init();
 
-	LoadExec(&rdata.s_PathTo_SpyroExe[0], 0x801fff00, 0);
+	LoadExec(rdata.s_PathTo_SpyroExe, 0x801fff00, 0);
 
 #endif
 }
