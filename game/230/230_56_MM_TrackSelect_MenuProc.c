@@ -104,13 +104,11 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 					// by default, dont show ghost in race
 					sdata->boolReplayHumanGhost = 0;
 
-#ifndef REBUILD_PS1
 					SelectProfile_ToggleMode(0x30);
 
 					// open the ghost selection menu
 					sdata->ptrDesiredMenu = &data.menuGhostSelection;
 					return;
-#endif
 				}
 
 				// passthrough Menu for the function
@@ -453,12 +451,8 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 			// if you are in time trial mode
 			if ((gGT->gameMode1 & TIME_TRIAL) != 0)
 			{
-#ifndef REBUILD_PS1
 				// Check if this track has Ghost Data
 				uVar15 = RefreshCard_BoolGhostForLEV(selectMenu[iVar10].levID);
-#else
-				uVar15 = 0;
-#endif
 
 				// If this track has Ghost Data
 				if ((uVar15 & 0xffff) != 0)
