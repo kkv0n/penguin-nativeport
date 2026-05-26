@@ -1,17 +1,12 @@
 #include <common.h>
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005572c-0x80055840
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005572c-0x80055840.
 void UI_RaceEnd_GetDriverClock(struct Driver *driver)
 {
 	u8 missileLaunched;
 	int avgSpd;
 	int timeElapsed;
 	int numTimesAttacked;
-
-#if 0
-  // "trap" calls removed
-  // assume no division by zero
-#endif
 
 	// If race timer is not supposed to stop for this racer
 	if ((driver->actionsFlagSet & 0x40000) == 0)
@@ -30,7 +25,7 @@ void UI_RaceEnd_GetDriverClock(struct Driver *driver)
 		}
 
 		// if missiles launched is less than 4
-		if (driver->numTimesMissileLaunched < 4)
+		if ((u8)driver->numTimesMissileLaunched < 4)
 		{
 			driver->NumMissilesComparedToNumAttacks = 0xffffffff;
 		}
@@ -42,7 +37,7 @@ void UI_RaceEnd_GetDriverClock(struct Driver *driver)
 			missileLaunched = driver->numTimesMissileLaunched;
 
 			// compare number of missiles to number of attacks
-			driver->NumMissilesComparedToNumAttacks = (int)((driver->numTimesAttacking << 0xc) / missileLaunched);
+			driver->NumMissilesComparedToNumAttacks = (int)(((u8)driver->numTimesAttacking << 0xc) / missileLaunched);
 		}
 
 		numTimesAttacked = 0;
@@ -50,7 +45,7 @@ void UI_RaceEnd_GetDriverClock(struct Driver *driver)
 		// count number of times you were attacked in race
 		for (int i = 0; i < 8; i++)
 		{
-			numTimesAttacked += driver->numTimesAttackedByPlayer[i];
+			numTimesAttacked += (u8)driver->numTimesAttackedByPlayer[i];
 		}
 
 		driver->numTimesAttacked = numTimesAttacked;
