@@ -346,11 +346,9 @@ void MM_Battle_MenuProc(struct RectMenu *unused)
 									{
 										if (sdata->teamOfEachPlayer[i] != gGT->battleSetup.teamOfEachPlayer[i])
 										{
-#ifndef REBUILD_PS1
 											MainStats_ClearBattleVS();
-#endif
 										}
-										gGT->battleSetup.teamOfEachPlayer[i] = gGT->battleSetup.teamOfEachPlayer[i];
+										sdata->teamOfEachPlayer[i] = gGT->battleSetup.teamOfEachPlayer[i];
 									}
 
 									sdata->buttonTapPerPlayer[1] = 0;
