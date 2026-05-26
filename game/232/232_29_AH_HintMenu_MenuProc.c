@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 overlay 232 0x800b3594-0x800b3dd8.
 void AH_HintMenu_MenuProc(struct RectMenu *menu)
 {
 	struct GameTracker *gGT;
@@ -162,12 +163,6 @@ void AH_HintMenu_MenuProc(struct RectMenu *menu)
 				}
 				else
 				{
-// temporary until XA support is on PC,
-// otherwise state is locked in 4, and menu bugs
-#ifdef REBUILD_PC
-					sdata->XA_State = 0;
-#endif
-
 					// If there is no loading in progress
 					if ((sdata->load_inProgress == 0) && (sdata->XA_State == 0))
 					{
