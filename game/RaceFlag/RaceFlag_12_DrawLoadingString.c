@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800442a0-0x800444e8.
 void RaceFlag_DrawLoadingString(void)
 {
 	struct GameTracker *gGT = sdata->gGT;

@@ -1,6 +1,6 @@
 #include <common.h>
 
-#ifdef REBUILD_PC
+#if defined(CTR_NATIVE)
 u32 scratchpadBuf[0x1000];
 #endif
 
@@ -37,6 +37,7 @@ force_inline int MathSinInline(u32 param_1)
 	return iVar1;
 }
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 PS1 path 0x800444e8-0x80044ef8; CTR_NATIVE uses host scratchpad.
 void RaceFlag_DrawSelf()
 {
 	int i, j;
@@ -95,7 +96,7 @@ SKIP_LOADING_TEXT:
 
 	p = (POLY_G4 *)gGT->backBuffer->primMem.curr;
 
-#ifdef REBUILD_PC
+#if defined(CTR_NATIVE)
 	scratchpad = &scratchpadBuf[0];
 	memset(&scratchpadBuf[0], 0, 0x1000 * 4);
 #else
@@ -111,7 +112,7 @@ SKIP_LOADING_TEXT:
 	// Remove 36*10 branching instructions,
 	// Reduces clock from ~150 to ~130
 	{
-#ifdef REBUILD_PC
+#if defined(CTR_NATIVE)
 		posL = &scratchpadBuf[(toggle * 0x78 / 4) - 1];
 		toggle = toggle ^ 1;
 		posR = &scratchpadBuf[(toggle * 0x78 / 4)];
@@ -218,7 +219,7 @@ SKIP_LOADING_TEXT:
 	// Now executing without branching
 	for (column = 1; column < 36; column++)
 	{
-#ifdef REBUILD_PC
+#if defined(CTR_NATIVE)
 		posL = &scratchpadBuf[(toggle * 0x78 / 4) - 1];
 		toggle = toggle ^ 1;
 		posR = &scratchpadBuf[(toggle * 0x78 / 4)];
