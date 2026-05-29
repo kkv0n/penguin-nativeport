@@ -984,8 +984,8 @@ void RenderAllLevelGeometry(struct GameTracker *gGT)
 		RenderLists_PreInit();
 		gGT->bspLeafsDrawn = 0;
 
-		gGT->bspLeafsDrawn += RenderLists_Init1P2P(ptr_mesh_info->bspRoot, level1->visMem->visLeafList[0], pushBuffer, (u32)&gGT->LevRenderLists[0],
-		                                           level1->visMem->bspList[0], (char)numPlyrCurrGame);
+		gGT->bspLeafsDrawn += RenderLists_Init1P2P(ptr_mesh_info->bspRoot, gGT->visMem1->visLeafList[0], pushBuffer, (u32)&gGT->LevRenderLists[0],
+		                                           gGT->visMem1->bspList[0], (char)numPlyrCurrGame);
 
 		// 226-229
 		DrawLevelOvr1P(&gGT->LevRenderLists[0], pushBuffer, (struct BSP *)ptr_mesh_info, &gGT->backBuffer->primMem, gGT->visMem1->visFaceList[0],
@@ -1019,8 +1019,8 @@ void RenderAllLevelGeometry(struct GameTracker *gGT)
 
 		for (i = 0; i < numPlyrCurrGame; i++)
 		{
-			gGT->bspLeafsDrawn += RenderLists_Init1P2P(ptr_mesh_info->bspRoot, level1->visMem->visLeafList[i], &gGT->pushBuffer[i],
-			                                           (u32)&gGT->LevRenderLists[i], level1->visMem->bspList[i], (char)numPlyrCurrGame);
+			gGT->bspLeafsDrawn += RenderLists_Init1P2P(ptr_mesh_info->bspRoot, gGT->visMem1->visLeafList[i], &gGT->pushBuffer[i], (u32)&gGT->LevRenderLists[i],
+			                                           gGT->visMem1->bspList[i], (char)numPlyrCurrGame);
 		}
 
 		// 226-229
@@ -1057,8 +1057,8 @@ void RenderAllLevelGeometry(struct GameTracker *gGT)
 
 	for (i = 0; i < numPlyrCurrGame; i++)
 	{
-		gGT->bspLeafsDrawn += RenderLists_Init3P4P(ptr_mesh_info->bspRoot, level1->visMem->visLeafList[i], &gGT->pushBuffer[i], (u32)&gGT->LevRenderLists[i],
-		                                           level1->visMem->bspList[i]);
+		gGT->bspLeafsDrawn += RenderLists_Init3P4P(ptr_mesh_info->bspRoot, gGT->visMem1->visLeafList[i], &gGT->pushBuffer[i], (u32)&gGT->LevRenderLists[i],
+		                                           gGT->visMem1->bspList[i]);
 	}
 
 	if (numPlyrCurrGame == 3)
