@@ -8,7 +8,8 @@
 #endif
 
 
-// Native host file IO
+// Native always uses PCDRV as its extracted-asset transport. Non-native builds
+// may still define USE_PCDRV externally for PSX debugger/emulator host-file IO.
 #ifdef CTR_NATIVE
 #ifndef USE_PCDRV
 #define USE_PCDRV

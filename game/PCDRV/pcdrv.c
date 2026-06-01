@@ -1,4 +1,9 @@
 
+#ifdef CTR_NATIVE
+#include <stdio.h>
+#include <string.h>
+#endif
+
 #if 0
 typedef struct {
 	CdlLOC	pos;		/* file location */
@@ -7,99 +12,235 @@ typedef struct {
 } CdlFILE;
 #endif
 
+#ifndef CTR_NATIVE
+// Optional PSX debugger/emulator host-file path. Normal PSX ISO builds should
+// leave USE_PCDRV undefined and use the real CD APIs instead.
 int fileCount = 0;
 int fileFD[8] = {0};
 int currFD = 0;
+#else
+// Native PCDRV backs PSX-shaped Cd* calls with extracted files under assets/.
+#define PCDRV_NATIVE_MAX_OPEN_FILES 8
+#define PCDRV_NATIVE_SECTOR_SIZE    0x800
+
+static FILE *sPcdrvNativeFiles[PCDRV_NATIVE_MAX_OPEN_FILES];
+static int sPcdrvNativeFileCount;
+static int sPcdrvNativeCurrentFile;
+
+static int PCDRV_NativeNormalizeFilename(char *dst, int dst_count, const char *src)
+{
+	int i;
+
+	if ((dst_count <= 0) || (src == NULL))
+		return 0;
+
+	for (i = 0; src[i] != '\0'; i++)
+	{
+		char c = src[i];
+
+		if (i + 1 >= dst_count)
+			return 0;
+
+		if (c == ';')
+			break;
+
+#if !defined(_WIN32)
+		if (c == '\\')
+			c = '/';
+#endif
+
+		dst[i] = c;
+	}
+
+	dst[i] = '\0';
+	return 1;
+}
+
+static const char *PCDRV_NativePathAfterRoot(const char *filename)
+{
+	if ((filename[0] == '/') || (filename[0] == '\\'))
+		return filename + 1;
+
+	return filename;
+}
+
+static int PCDRV_NativeOpenHostFile(const char *filename, int *outSize)
+{
+	char normalized[256];
+	char assetPath[256];
+	const char *rootless;
+	FILE *file;
+	int fileIndex;
+	long fileSize;
+
+	if (sPcdrvNativeFileCount >= PCDRV_NATIVE_MAX_OPEN_FILES)
+		return -1;
+
+	if (PCDRV_NativeNormalizeFilename(normalized, sizeof(normalized), filename) == 0)
+		return -1;
+
+	rootless = PCDRV_NativePathAfterRoot(normalized);
+	snprintf(assetPath, sizeof(assetPath), "assets/%s", rootless);
+
+	file = fopen(assetPath, "rb");
+	if (file == NULL)
+		file = fopen(rootless, "rb");
+
+	if (file == NULL)
+		return -1;
+
+	if (fseek(file, 0, SEEK_END) != 0)
+	{
+		fclose(file);
+		return -1;
+	}
+
+	fileSize = ftell(file);
+	if (fileSize < 0)
+	{
+		fclose(file);
+		return -1;
+	}
+
+	if (fseek(file, 0, SEEK_SET) != 0)
+	{
+		fclose(file);
+		return -1;
+	}
+
+	fileIndex = sPcdrvNativeFileCount++;
+	sPcdrvNativeFiles[fileIndex] = file;
+	*outSize = (int)fileSize;
+	return fileIndex;
+}
+
+static int PCDRV_NativeSearchFile(CdlFILE *loc, const char *filename)
+{
+	char normalized[256];
+	const char *rootless;
+	int fileIndex;
+	int fileSize;
+	int encodedPos;
+
+	if ((loc == NULL) || (filename == NULL))
+		return 0;
+
+	fileIndex = PCDRV_NativeOpenHostFile(filename, &fileSize);
+	if (fileIndex < 0)
+		return 0;
+
+	if (PCDRV_NativeNormalizeFilename(normalized, sizeof(normalized), filename) == 0)
+		return 0;
+
+	rootless = PCDRV_NativePathAfterRoot(normalized);
+	encodedPos = fileIndex << 24;
+
+	memcpy(&loc->pos, &encodedPos, sizeof(encodedPos));
+	loc->size = fileSize;
+	memset(loc->name, 0, sizeof(loc->name));
+	strncpy(loc->name, rootless, sizeof(loc->name) - 1);
+
+	return 1;
+}
+
+static int PCDRV_NativePosToInt(const CdlLOC *pos)
+{
+	int value;
+
+	memcpy(&value, pos, sizeof(value));
+	return value;
+}
+
+static int PCDRV_NativeIntToPos(int value, CdlLOC *pos)
+{
+	memcpy(pos, &value, sizeof(value));
+	return value;
+}
+
+static int PCDRV_NativeSetLoc(const CdlLOC *pos)
+{
+	int encodedPos;
+	int fileIndex;
+	int sector;
+
+	encodedPos = PCDRV_NativePosToInt(pos);
+	fileIndex = (encodedPos >> 24) & 0xff;
+	sector = encodedPos & 0xffffff;
+
+	if ((fileIndex < 0) || (fileIndex >= sPcdrvNativeFileCount) || (sPcdrvNativeFiles[fileIndex] == NULL))
+		return 0;
+
+	sPcdrvNativeCurrentFile = fileIndex;
+
+	return fseek(sPcdrvNativeFiles[sPcdrvNativeCurrentFile], sector * PCDRV_NATIVE_SECTOR_SIZE, SEEK_SET) == 0;
+}
+
+static int PCDRV_NativeReadSectors(int sectors, void *dst)
+{
+	size_t byteCount;
+
+	if ((sPcdrvNativeCurrentFile < 0) || (sPcdrvNativeCurrentFile >= sPcdrvNativeFileCount) || (sPcdrvNativeFiles[sPcdrvNativeCurrentFile] == NULL))
+		return 0;
+
+	byteCount = (size_t)sectors * PCDRV_NATIVE_SECTOR_SIZE;
+
+	return fread(dst, 1, byteCount, sPcdrvNativeFiles[sPcdrvNativeCurrentFile]) == byteCount;
+}
+#endif
 CdlCB fpReadCallback = 0;
 
 CdlCB pcCdReadCallback(CdlCB x)
 {
+	CdlCB prev = fpReadCallback;
 	fpReadCallback = x;
+	return prev;
 }
 
 // TODO: Remove when MM_Video is done
 int pcCdPosToInt(const CdlLOC *p)
 {
+#ifdef CTR_NATIVE
+	return PCDRV_NativePosToInt(p);
+#else
 	return *(int *)p;
+#endif
 }
 
 // TODO: Remove when MM_Video is done
 int pcCdIntToPos(int val, const CdlLOC *p)
 {
+#ifdef CTR_NATIVE
+	return PCDRV_NativeIntToPos(val, (CdlLOC *)p);
+#else
 	*(int *)p = val;
+	return val;
+#endif
 }
 
 CdlFILE *pcCdSearchFile(CdlFILE *loc, const char *filename)
 {
 #ifdef CTR_NATIVE
-	int v1;
-	char *ownedFilename;
-	int fileSize;
+	if (PCDRV_NativeSearchFile(loc, filename) == 0)
+		return NULL;
+
+	return loc;
 #else
 	// because this API is STRANGE
 	register int v1 asm("v1");
-#endif
 
 	// Turn "\\BIGFILE.BIG;1" into "BIGFILE.BIG"
-
-#ifdef CTR_NATIVE
-	// NOTE(aalhendi): Native PCDRV normalizes the path in-place below.
-	ownedFilename = malloc(strlen(filename) + 1);
-	if (ownedFilename == NULL)
-		return NULL;
-
-	strcpy(ownedFilename, filename);
-	filename = ownedFilename;
-#endif
 
 	char *str = filename;
 	while (*str != 0)
 	{
 		if (*str == ';')
 			*str = '\0';
-#ifdef CTR_NATIVE
-#ifndef _WIN32
-		else if (*str == '\\')
-			*str = '/';
-#endif
-#endif
 		str++;
 	}
 
-#ifdef CTR_NATIVE
-	{
-		char assetPath[256];
-		snprintf(assetPath, sizeof(assetPath), "assets/%s", &filename[1]);
-		v1 = PCopen(assetPath, PCDRV_MODE_READ);
-		if (v1 == -1)
-			v1 = PCopen(&filename[1], PCDRV_MODE_READ);
-	}
-
-	if (v1 == -1)
-	{
-		free(ownedFilename);
-		return NULL;
-	}
-
-	fileSize = PClseek(v1, 0, PCDRV_SEEK_END);
-	PClseek(v1, 0, PCDRV_SEEK_SET);
-
-	if (fileSize < 0)
-	{
-		PCclose(v1);
-		free(ownedFilename);
-		return NULL;
-	}
-#else
 	v1 = PCopen(&filename[1], PCDRV_MODE_READ);
-#endif
 
-#ifdef CTR_NATIVE
-	fileFD[fileCount] = v1;
-	loc->size = fileSize;
-#else
 	fileFD[fileCount] = fileCount;
-#endif
 
 	// max of 256 files
 	// CTR has 40 files,
@@ -107,15 +248,10 @@ CdlFILE *pcCdSearchFile(CdlFILE *loc, const char *filename)
 	// bottom 3 bytes is sectorIndex
 	*(int *)&loc->pos = fileCount << 24;
 
-#ifdef CTR_NATIVE
-	memset(loc->name, 0, sizeof(loc->name));
-	strncpy(loc->name, filename[0] == '/' ? &filename[1] : filename, sizeof(loc->name) - 1);
-	free(ownedFilename);
-#endif
-
 	fileCount++;
 
 	return loc;
+#endif
 }
 
 // TODO, put his decoding in vsync callback
@@ -123,9 +259,7 @@ int boolDecodeXaDuringVsyncCallback = 0;
 
 int pcCdControl(u8 com, u_long *buf, u8 *result)
 {
-#ifdef CTR_NATIVE
-	int v1;
-#else
+#ifndef CTR_NATIVE
 	// because this API is STRANGE
 	register int v1 asm("v1");
 #endif
@@ -142,10 +276,14 @@ int pcCdControl(u8 com, u_long *buf, u8 *result)
 		//	The "+ offset" is then stored in bottom 24 bits
 		//	CdIntToPos encodes this, for CdControl input parameter
 
+#ifdef CTR_NATIVE
+		PCDRV_NativeSetLoc((const CdlLOC *)buf);
+#else
 		currFD = *(int *)buf >> 24;
 		int sector = *(int *)buf & 0xffffff;
 
 		v1 = PClseek(fileFD[currFD], sector * 0x800, PCDRV_SEEK_SET);
+#endif
 	}
 
 #ifdef CTR_NATIVE
@@ -190,14 +328,16 @@ int pcCdControl(u8 com, u_long *buf, u8 *result)
 
 int pcCdRead(int sectors, u_long *buf, int mode)
 {
-#ifdef CTR_NATIVE
-	int v1;
-#else
+#ifndef CTR_NATIVE
 	// because this API is STRANGE
 	register int v1 asm("v1");
 #endif
 
+#ifdef CTR_NATIVE
+	PCDRV_NativeReadSectors(sectors, buf);
+#else
 	v1 = PCread(fileFD[currFD], buf, sectors * 0x800);
+#endif
 
 	if (fpReadCallback != 0)
 	{

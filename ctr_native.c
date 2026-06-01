@@ -247,7 +247,6 @@ int main(int argc, char *argv[])
 	Platform_Init("Crash Team Racing", 800, 600);
 #endif
 
-	Platform_InitFilesystem("assets/ctr-u.bin");
 	Platform_InitScratchpad();
 
 	// // NOTE(aalhendi): CTR already throttles through the retail VSync/draw-sync
@@ -303,11 +302,6 @@ void Platform_PresentVRAMDisplay(void)
 int Platform_PollInput(void)
 {
 	return 1;
-}
-
-void Platform_InitFilesystem(const char *disc_image)
-{
-	PsyX_CDFS_Init(disc_image, 0, 0);
 }
 
 int NikoGetEnterKey(void)
