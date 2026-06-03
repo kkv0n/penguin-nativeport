@@ -1,20 +1,25 @@
 #include <common.h>
 
 #if defined(CTR_NATIVE)
-static int MainInit_FindPlayerModelListStart(void)
+static void MainInit_RebindNativeTimeTrialGhostModels(struct GameTracker *gGT)
 {
-	int modelIndex = 0;
-	struct Model *m;
+	struct Thread *thread;
 
-	while (1)
+	for (thread = gGT->threadBuckets[GHOST].thread; thread != NULL; thread = thread->siblingThread)
 	{
-		m = sdata->PLYROBJECTLIST[modelIndex++];
+		struct Driver *driver = thread->object;
+		if ((driver == NULL) || (driver->instSelf == NULL) || (driver->ghostID != 1))
+			continue;
 
-		if (m == NULL)
-			return 0;
+		int characterIndex = 2;
+		int timeTrialFlags = sdata->gameProgress.highScoreTracks[gGT->levelID].timeTrialFlags;
+		if ((timeTrialFlags & 2) != 0)
+			characterIndex = 3;
 
-		if (*(int *)&m->name[0] == *(int *)&sdata->s_token[0])
-			return modelIndex;
+		int characterID = data.characterIDs[characterIndex];
+		struct Model *model = VehBirth_GetModelByName(data.MetaDataCharacters[characterID].name_Debug);
+		if (model != NULL)
+			driver->instSelf->model = model;
 	}
 }
 #endif
@@ -131,20 +136,10 @@ void MainInit_Drivers(struct GameTracker *gGT)
 		GhostTape_Start();
 
 #if defined(CTR_NATIVE)
-		int modelIndex = MainInit_FindPlayerModelListStart();
-
-		// 0: human ghost
-		// 1: n tropy / oxide
-		if (sdata->ptrGhostTape[1] != 0)
-		{
-			// N Tropy to Oxide
-			void **pointers = ST1_GETPOINTERS(gGT->level1->ptrSpawnType1);
-			if (sdata->ptrGhostTape[1]->gh == pointers[ST1_NOXIDE])
-				modelIndex++;
-		}
-
-		// NOTE(aalhendi): Native TT MPKs keep ghost driver models after the menu token.
-		gGT->threadBuckets[GHOST].thread->inst->model = sdata->PLYROBJECTLIST[modelIndex++];
+		// NOTE(aalhendi): Retail GhostReplay_Init2 chooses the N. Tropy/Oxide
+		// ghost by character name. Native TT MPKs also contain the human ghost
+		// model after `token`, so ordinal post-token slots are not stable.
+		MainInit_RebindNativeTimeTrialGhostModels(gGT);
 
 		struct Model **humanPlyrDriverModel = &gGT->threadBuckets[PLAYER].thread->inst->model;
 
