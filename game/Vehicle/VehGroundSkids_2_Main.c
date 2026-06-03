@@ -20,15 +20,16 @@ static s32 VehGroundSkids_Abs(s32 value)
 
 static int VehGroundSkids_InitPoint(SVECTOR *scratch, const SVECTOR *point, const s32 *origin)
 {
-	s32 x = ((s32)point->vx - origin[0]) << 2;
+	// NOTE(aalhendi): Retail uses lh/lw/subu/sll here; preserve unsigned 32-bit wraparound.
+	s32 x = (s32)(((u32)(s32)point->vx - (u32)origin[0]) << 2);
 	if (VehGroundSkids_Abs(x) >= 0x1771)
 		return 0;
 
-	s32 y = ((s32)point->vy - origin[1]) << 2;
+	s32 y = (s32)(((u32)(s32)point->vy - (u32)origin[1]) << 2);
 	if (VehGroundSkids_Abs(y) >= 0x1771)
 		return 0;
 
-	s32 z = ((s32)point->vz - origin[2]) << 2;
+	s32 z = (s32)(((u32)(s32)point->vz - (u32)origin[2]) << 2);
 	if (VehGroundSkids_Abs(z) >= 0x1771)
 		return 0;
 
@@ -116,9 +117,9 @@ void VehGroundSkids_Main(struct Thread *thread, struct PushBuffer *pb)
 	gte_SetRotMatrix(&pb->matrix_ViewProj);
 	gte_SetTransVector((VECTOR *)origin);
 
-	origin[0] = pb->matrix_ViewProj.t[0];
-	origin[1] = pb->matrix_ViewProj.t[1];
-	origin[2] = pb->matrix_ViewProj.t[2];
+	origin[0] = pb->matrix_Camera.t[0];
+	origin[1] = pb->matrix_Camera.t[1];
+	origin[2] = pb->matrix_Camera.t[2];
 
 	while (thread != NULL)
 	{

@@ -6,7 +6,8 @@
 
 static s16 VehGroundSkids_ScaleRelative(u16 value, u16 origin)
 {
-	return (s16)((value - origin) << 2);
+	// NOTE(aalhendi): Retail uses lhu/subu/sll/sh, so preserve unsigned halfword wraparound.
+	return (s16)(u16)(((u32)value - (u32)origin) << 2);
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005c278-0x8005c354.
