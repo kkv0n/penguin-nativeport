@@ -74,6 +74,8 @@ typedef enum
 #include "ctr_native.h"
 #include "platform.h"
 #include "platform/native_audio.h"
+#include "platform/native_checkpoint.h"
+#include "platform/native_state.h"
 
 #ifndef CTR_NATIVE_MEMPACK_RETAIL_PRESSURE
 #define CTR_NATIVE_MEMPACK_RETAIL_PRESSURE 1
@@ -113,6 +115,51 @@ static int s_platformBeginScene = 0;
 #include "game/zGlobal_RDATA.c"
 #include "game/zGlobal_DATA.c"
 #include "game/zGlobal_SDATA.c"
+
+#define NATIVE_CHECKPOINT_FOURCC(a, b, c, d) ((u32)(a) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
+
+// NOTE(aalhendi): `CTRC` means CTR native whole-machine Checkpoint. This is
+// native debug tooling only; retail gameplay still owns its normal load/reset
+// paths.
+#define NATIVE_CHECKPOINT_MAGIC              NATIVE_CHECKPOINT_FOURCC('C', 'T', 'R', 'C')
+#define NATIVE_CHECKPOINT_VERSION            1u
+
+enum NativeCheckpointRegionKind
+{
+	NATIVE_CHECKPOINT_REGION_RDATA = NATIVE_CHECKPOINT_FOURCC('R', 'D', 'A', 'T'), // resident rdata globals
+	NATIVE_CHECKPOINT_REGION_DATA = NATIVE_CHECKPOINT_FOURCC('D', 'A', 'T', 'A'),  // resident data globals
+	NATIVE_CHECKPOINT_REGION_SDATA = NATIVE_CHECKPOINT_FOURCC('S', 'D', 'A', 'T'), // resident sdata globals
+	NATIVE_CHECKPOINT_REGION_D230 = NATIVE_CHECKPOINT_FOURCC('D', '2', '3', '0'),  // main-menu overlay data
+	NATIVE_CHECKPOINT_REGION_V230 = NATIVE_CHECKPOINT_FOURCC('V', '2', '3', '0'),  // main-menu video BSS
+	NATIVE_CHECKPOINT_REGION_D231 = NATIVE_CHECKPOINT_FOURCC('D', '2', '3', '1'),  // race/battle overlay data
+	NATIVE_CHECKPOINT_REGION_D232 = NATIVE_CHECKPOINT_FOURCC('D', '2', '3', '2'),  // adventure overlay data
+	NATIVE_CHECKPOINT_REGION_O233 = NATIVE_CHECKPOINT_FOURCC('O', '2', '3', '3'),  // cutscene overlay data
+	NATIVE_CHECKPOINT_REGION_GAR3 = NATIVE_CHECKPOINT_FOURCC('G', 'A', 'R', '3'),  // garage runtime state
+	NATIVE_CHECKPOINT_REGION_CRD3 = NATIVE_CHECKPOINT_FOURCC('C', 'R', 'D', '3'),  // credits runtime state
+	NATIVE_CHECKPOINT_REGION_MPAK = NATIVE_CHECKPOINT_FOURCC('M', 'P', 'A', 'K'),  // mempack backing store
+	NATIVE_CHECKPOINT_REGION_SCRP = NATIVE_CHECKPOINT_FOURCC('S', 'C', 'R', 'P'),  // PS1 scratchpad RAM
+	NATIVE_CHECKPOINT_REGION_NATS = NATIVE_CHECKPOINT_FOURCC('N', 'A', 'T', 'S'),  // native subsystem state bundle
+};
+
+struct NativeCheckpointRegion
+{
+	u32 kind;
+	u32 offset;
+	u32 size;
+};
+
+struct NativeCheckpointHeader
+{
+	u32 magic;
+	u32 version;
+	u32 size;
+	u32 regionCount;
+	struct PlatformMempackArena mempackArena;
+	u32 psxRandSeed;
+	s32 activeMempackIndex;
+	u32 reserved[2];
+	struct NativeCheckpointRegion regions[13];
+};
 
 static int frameGap = 2000;
 static int frameCount = 0;
@@ -158,10 +205,8 @@ void Platform_InitScratchpad(void)
 #endif
 }
 
-const struct PlatformMempackArena *Platform_InitMempackArena(void)
+static void Platform_ConfigureMempackArena(void)
 {
-	memset(s_mempackMemory, 0, sizeof(s_mempackMemory));
-
 	s_mempackArena.base = &s_mempackMemory[0];
 	s_mempackArena.start = &s_mempackMemory[CTR_NATIVE_MEMPACK_START_OFFSET];
 	s_mempackArena.endOfMemory = &s_mempackMemory[CTR_NATIVE_MEMPACK_BUFFER_SIZE];
@@ -173,8 +218,279 @@ const struct PlatformMempackArena *Platform_InitMempackArena(void)
 	// pack linked primitive pointers without losing address bits.
 	s_mempackArena.lowAddressValid =
 	    ((u32)s_mempackArena.base < 0x01000000) && ((u32)s_mempackArena.start < 0x01000000) && ((u32)s_mempackArena.endOfMemory <= 0x01000000);
+}
+
+const struct PlatformMempackArena *Platform_InitMempackArena(void)
+{
+	memset(s_mempackMemory, 0, sizeof(s_mempackMemory));
+	Platform_ConfigureMempackArena();
 
 	return &s_mempackArena;
+}
+
+static u32 NativeCheckpoint_Align4(u32 value)
+{
+	return (value + 3u) & ~3u;
+}
+
+static int NativeCheckpoint_GetActiveMempackIndex(void)
+{
+	int i;
+
+	for (i = 0; i < 4; i++)
+	{
+		if (sdata_static.PtrMempack == &sdata_static.mempack[i])
+			return i;
+	}
+
+	if ((sdata_static.gameTracker.activeMempackIndex >= 0) && (sdata_static.gameTracker.activeMempackIndex < 4))
+		return sdata_static.gameTracker.activeMempackIndex;
+
+	return 0;
+}
+
+static int NativeCheckpoint_GetRegionSize(u32 kind)
+{
+	switch (kind)
+	{
+	case NATIVE_CHECKPOINT_REGION_RDATA:
+		return (int)sizeof(rdata);
+	case NATIVE_CHECKPOINT_REGION_DATA:
+		return (int)sizeof(data);
+	case NATIVE_CHECKPOINT_REGION_SDATA:
+		return (int)sizeof(sdata_static);
+	case NATIVE_CHECKPOINT_REGION_D230:
+		return (int)sizeof(D230);
+	case NATIVE_CHECKPOINT_REGION_V230:
+		return (int)sizeof(V230);
+	case NATIVE_CHECKPOINT_REGION_D231:
+		return (int)sizeof(D231);
+	case NATIVE_CHECKPOINT_REGION_D232:
+		return (int)sizeof(D232);
+	case NATIVE_CHECKPOINT_REGION_O233:
+		return (int)sizeof(OVR_233);
+	case NATIVE_CHECKPOINT_REGION_GAR3:
+		return (int)sizeof(gGarage);
+	case NATIVE_CHECKPOINT_REGION_CRD3:
+		return (int)sizeof(creditsBSS);
+	case NATIVE_CHECKPOINT_REGION_MPAK:
+		return (int)sizeof(s_mempackMemory);
+	case NATIVE_CHECKPOINT_REGION_SCRP:
+		return (int)CTR_SCRATCHPAD_SIZE;
+	case NATIVE_CHECKPOINT_REGION_NATS:
+		return NativeState_GetSize();
+	}
+
+	return 0;
+}
+
+static void *NativeCheckpoint_GetRegionPtr(u32 kind)
+{
+	switch (kind)
+	{
+	case NATIVE_CHECKPOINT_REGION_RDATA:
+		return &rdata;
+	case NATIVE_CHECKPOINT_REGION_DATA:
+		return &data;
+	case NATIVE_CHECKPOINT_REGION_SDATA:
+		return &sdata_static;
+	case NATIVE_CHECKPOINT_REGION_D230:
+		return &D230;
+	case NATIVE_CHECKPOINT_REGION_V230:
+		return &V230;
+	case NATIVE_CHECKPOINT_REGION_D231:
+		return &D231;
+	case NATIVE_CHECKPOINT_REGION_D232:
+		return &D232;
+	case NATIVE_CHECKPOINT_REGION_O233:
+		return &OVR_233;
+	case NATIVE_CHECKPOINT_REGION_GAR3:
+		return &gGarage;
+	case NATIVE_CHECKPOINT_REGION_CRD3:
+		return &creditsBSS;
+	case NATIVE_CHECKPOINT_REGION_MPAK:
+		return &s_mempackMemory[0];
+	case NATIVE_CHECKPOINT_REGION_SCRP:
+		return CTR_SCRATCHPAD_BASE;
+	}
+
+	return NULL;
+}
+
+static int NativeCheckpoint_InitHeader(struct NativeCheckpointHeader *header)
+{
+	u32 offset = NativeCheckpoint_Align4((u32)sizeof(*header));
+	u32 i;
+	static const u32 regionKinds[] = {
+	    NATIVE_CHECKPOINT_REGION_RDATA, NATIVE_CHECKPOINT_REGION_DATA, NATIVE_CHECKPOINT_REGION_SDATA, NATIVE_CHECKPOINT_REGION_D230,
+	    NATIVE_CHECKPOINT_REGION_V230,  NATIVE_CHECKPOINT_REGION_D231, NATIVE_CHECKPOINT_REGION_D232,  NATIVE_CHECKPOINT_REGION_O233,
+	    NATIVE_CHECKPOINT_REGION_GAR3,  NATIVE_CHECKPOINT_REGION_CRD3, NATIVE_CHECKPOINT_REGION_MPAK,  NATIVE_CHECKPOINT_REGION_SCRP,
+	    NATIVE_CHECKPOINT_REGION_NATS,
+	};
+
+	memset(header, 0, sizeof(*header));
+	header->magic = NATIVE_CHECKPOINT_MAGIC;
+	header->version = NATIVE_CHECKPOINT_VERSION;
+	header->regionCount = (u32)len(regionKinds);
+
+	if (header->regionCount > len(header->regions))
+		return 0;
+
+	for (i = 0; i < header->regionCount; i++)
+	{
+		const int regionSize = NativeCheckpoint_GetRegionSize(regionKinds[i]);
+
+		if (regionSize <= 0)
+			return 0;
+
+		header->regions[i].kind = regionKinds[i];
+		header->regions[i].offset = offset;
+		header->regions[i].size = (u32)regionSize;
+		offset = NativeCheckpoint_Align4(offset + (u32)regionSize);
+	}
+
+	header->size = offset;
+	return 1;
+}
+
+static int NativeCheckpoint_ValidateHeader(const struct NativeCheckpointHeader *header, int srcSize)
+{
+	struct NativeCheckpointHeader liveHeader;
+	u32 i;
+
+	if ((header == NULL) || (srcSize < (int)sizeof(*header)))
+		return 0;
+	if ((header->magic != NATIVE_CHECKPOINT_MAGIC) || (header->version != NATIVE_CHECKPOINT_VERSION))
+		return 0;
+	if ((header->size < sizeof(*header)) || (header->size > (u32)srcSize))
+		return 0;
+	if (!NativeCheckpoint_InitHeader(&liveHeader))
+		return 0;
+	if ((header->size != liveHeader.size) || (header->regionCount != liveHeader.regionCount))
+		return 0;
+
+	for (i = 0; i < header->regionCount; i++)
+	{
+		const struct NativeCheckpointRegion *region = &header->regions[i];
+		const struct NativeCheckpointRegion *liveRegion = &liveHeader.regions[i];
+		const u32 end = region->offset + region->size;
+
+		if ((region->kind != liveRegion->kind) || (region->offset != liveRegion->offset) || (region->size != liveRegion->size))
+			return 0;
+		if ((region->size == 0) || (region->offset < sizeof(*header)) || (end < region->offset) || (end > header->size))
+			return 0;
+	}
+
+	return 1;
+}
+
+static void Platform_RepairResidentPointers(s32 activeMempackIndex)
+{
+	if ((activeMempackIndex < 0) || (activeMempackIndex >= 4))
+		activeMempackIndex = 0;
+
+	// NOTE(aalhendi): Native keeps retail-shaped global data, but pointer aliases
+	// must target this process's static storage. This also moves GCC's
+	// initializer-only memcard helper global out of the live state graph so
+	// checkpoints capture the actual memcard buffer.
+	sdata = &sdata_static;
+	sdata_static.gGT = &sdata_static.gameTracker;
+	sdata_static.gGamepads = &sdata_static.gamepadSystem;
+	sdata_static.PtrMempack = &sdata_static.mempack[activeMempackIndex];
+	sdata_static.ptrToMemcardBuffer1 = (int)&sdata_static.memcardBytes[0];
+	sdata_static.ptrToMemcardBuffer2 = &sdata_static.memcardBytes[0];
+}
+
+int NativeCheckpoint_GetSize(void)
+{
+	struct NativeCheckpointHeader header;
+
+	if (!NativeCheckpoint_InitHeader(&header))
+		return 0;
+
+	return (int)header.size;
+}
+
+int NativeCheckpoint_Capture(void *dst, int dstSize)
+{
+	struct NativeCheckpointHeader header;
+	u8 *bytes = (u8 *)dst;
+	u32 i;
+
+	if (!NativeCheckpoint_InitHeader(&header))
+		return 0;
+	if ((dst == NULL) || (dstSize < (int)header.size))
+		return 0;
+
+	header.mempackArena = s_mempackArena;
+	header.psxRandSeed = psxRandSeed;
+	header.activeMempackIndex = NativeCheckpoint_GetActiveMempackIndex();
+
+	memset(dst, 0, header.size);
+	memcpy(dst, &header, sizeof(header));
+
+	for (i = 0; i < header.regionCount; i++)
+	{
+		struct NativeCheckpointRegion *region = &header.regions[i];
+
+		if (region->kind == NATIVE_CHECKPOINT_REGION_NATS)
+		{
+			if (!NativeState_Capture(&bytes[region->offset], (int)region->size))
+				return 0;
+		}
+		else
+		{
+			void *src = NativeCheckpoint_GetRegionPtr(region->kind);
+
+			if (src == NULL)
+				return 0;
+
+			memcpy(&bytes[region->offset], src, region->size);
+		}
+	}
+
+	return 1;
+}
+
+int NativeCheckpoint_Restore(const void *src, int srcSize)
+{
+	const struct NativeCheckpointHeader *header = (const struct NativeCheckpointHeader *)src;
+	const u8 *bytes = (const u8 *)src;
+	const struct NativeCheckpointRegion *nativeStateRegion = NULL;
+	u32 i;
+
+	if (!NativeCheckpoint_ValidateHeader(header, srcSize))
+		return 0;
+
+	for (i = 0; i < header->regionCount; i++)
+	{
+		const struct NativeCheckpointRegion *region = &header->regions[i];
+
+		if (region->kind == NATIVE_CHECKPOINT_REGION_NATS)
+		{
+			nativeStateRegion = region;
+		}
+		else
+		{
+			void *dst = NativeCheckpoint_GetRegionPtr(region->kind);
+
+			if (dst == NULL)
+				return 0;
+
+			memcpy(dst, &bytes[region->offset], region->size);
+		}
+	}
+
+	psxRandSeed = header->psxRandSeed;
+	Platform_ConfigureMempackArena();
+	Platform_RepairResidentPointers(header->activeMempackIndex);
+
+	if (nativeStateRegion == NULL)
+		return 0;
+	if (!NativeState_Restore(&bytes[nativeStateRegion->offset], (int)nativeStateRegion->size))
+		return 0;
+
+	return 1;
 }
 
 static void CalcFPS(void)
@@ -303,7 +619,7 @@ int main(int argc, char *argv[])
 	printf("[CTR Native] Starting...\n");
 	fflush(stdout);
 
-	char *sdlBasePath = SDL_GetBasePath();
+	const char *sdlBasePath = SDL_GetBasePath();
 	printf("[CTR Native] SDL base path: %s\n", sdlBasePath ? sdlBasePath : "(null)");
 	fflush(stdout);
 
@@ -311,8 +627,7 @@ int main(int argc, char *argv[])
 
 	if (sdlBasePath)
 	{
-		strncpy(baseDir, sdlBasePath, sizeof(baseDir));
-		SDL_free(sdlBasePath);
+		snprintf(baseDir, sizeof(baseDir), "%s", sdlBasePath);
 		char *sep = strrchr(baseDir, '\\');
 		if (!sep)
 			sep = strrchr(baseDir, '/');
@@ -344,6 +659,10 @@ int main(int argc, char *argv[])
 #endif
 
 	Platform_InitScratchpad();
+	Platform_RepairResidentPointers(0);
+
+	(void)argc;
+	(void)argv;
 
 	int result = CTR_Main();
 
