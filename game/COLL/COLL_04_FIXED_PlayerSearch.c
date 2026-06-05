@@ -199,6 +199,17 @@ static int COLL_FIXED_PlayerSearch_CheckMaskGrabProgress(struct Driver *d, struc
 
 	u16 trackLength = level->ptr_restart_points[0].distToFinish;
 
+#if defined(CTR_NATIVE)
+	// NOTE(aalhendi): Retail reaches directly through lastValid here. Native
+	// can enter this early checkpoint path before spawn/collision has seeded
+	// lastValid, and cannot mirror PS1 low-memory null-space reads.
+	if (d->lastValid == NULL)
+	{
+		d->lastValid = d->currBlockTouching;
+		return 0;
+	}
+#endif
+
 	if ((node->distToFinish < (CollFixed_MulLo(trackLength, 0xf) >> 4)) && (d->lastValid->checkpointIndex != 0xff) &&
 	    ((level->ptr_restart_points[d->lastValid->checkpointIndex].distToFinish + (trackLength >> 2)) < node->distToFinish))
 	{
