@@ -1756,8 +1756,17 @@ internal void NativeRenderer_BlitBackbufferToFramebufferTex(int x, int y, int w,
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0); // source is backbuffer
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_glBlitFramebuffer);
 
-		glBlitFramebuffer(s_presentViewport.x, s_presentViewport.y, s_presentViewport.x + s_presentViewport.w, s_presentViewport.y + s_presentViewport.h, x,
-		                  y + h, x + w, y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		// NOTE(penta3): The framebuffer texture is a REGION snapshot sized w*h; every
+		// consumer (GPU pack shader, glGetTexImage readbacks) reads it from 0,0 and
+		// re-places it at the VRAM (x,y) themselves, so the blit destination must be
+		// region-relative. The old dst used the VRAM-absolute y: for the high buffer
+		// (y=0x128=296 -> rows 296..512 of a 216-row texture) GL clipped the ENTIRE
+		// blit and the texture silently kept the previous frame. Every other frame the
+		// feedback effects then sampled a 1-frame-old image: moving warp (warpball)
+		// doubled, heat ghosted overlapping UI, while static heat and the clock blur
+		// (previous-frame by design) masked it.
+		glBlitFramebuffer(s_presentViewport.x, s_presentViewport.y, s_presentViewport.x + s_presentViewport.w, s_presentViewport.y + s_presentViewport.h, 0, h, w, 0,
+		                  GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
 		// done, unbind
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
