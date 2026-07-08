@@ -58,8 +58,21 @@ enum DrawLevelOvr1PPrimCode
 	DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO = -1,
 };
 
+enum DrawLevelOvr1PProjectedSource
+{
+	DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS,
+	DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_WATER_COLOR_LO_FLAGS,
+};
+
+enum DrawLevelOvr1PGridSlotMode
+{
+	DRAW_LEVEL_OVR1P_GRID_SLOT_NONE,
+	DRAW_LEVEL_OVR1P_GRID_SLOT_FACE,
+	DRAW_LEVEL_OVR1P_GRID_SLOT_WORD,
+};
+
 static const u32 DRAW_LEVEL_OVR1P_SLOT_WORD_PRESERVE = 0xffffffff;
-static int sOvr226_800a1cc4_InheritedOtIndex;
+static int sDrawLevelOvr1P_FullDynamicInheritedOtIndex;
 static struct QuadBlock **sDrawLevelOvr1P_RenderedOverflowBase;
 static u8 *sDrawLevelOvr1P_ClipRecordStart;
 static u32 sDrawLevelOvr1P_PrimReserveBias;
@@ -167,30 +180,37 @@ static const struct DrawLevelOvr1PNearSubdivisionCase sDrawLevelOvr1PDeepestGrid
     {0, 0, {{0, 4, 2, 8}, {4, 1, 8, 3}}, {DRAW_LEVEL_OVR1P_DIRECT_QUAD, DRAW_LEVEL_OVR1P_DIRECT_QUAD}, {0x0, 0xc}},
 };
 
-// NOTE(aalhendi): Retail overlay 226 dispatches these offsets from 0x28 down
-// to 0x00 through tables at 0x800ab40c/0x800ab438.
+// NOTE(aalhendi): Retail overlay 226 dispatches the render-list offsets from
+// FULL_DYNAMIC_LIST down to 4X4_RENDERED through tables at 0x800ab40c/0x800ab438.
 static const struct DrawLevelOvr1PBucket sDrawLevelOvr1PBuckets[] = {
-    {0x00, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_4X4_RENDERED, DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {0x04, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_4X4_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {0x08, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_RENDERED, DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {0x0c, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {0x10, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_4X2_RENDERED, DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {0x14, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_4X2_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {0x18, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_4X1_RENDERED, DRAW_LEVEL_OVR1P_LOD_LOW},
-    {0x1c, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_4X1_LIST, DRAW_LEVEL_OVR1P_LOD_LOW},
-    {0x20, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_WATER_RENDERED, DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {0x24, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_WATER_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {0x28, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_FULL_DYNAMIC_LIST, DRAW_LEVEL_OVR1P_LOD_LOW},
+    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_4X4_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_4X4_RENDERED,
+     DRAW_LEVEL_OVR1P_LOD_HIGH},
+    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_4X4_LIST, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_4X4_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
+    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_DYNAMIC_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_RENDERED,
+     DRAW_LEVEL_OVR1P_LOD_HIGH},
+    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_DYNAMIC_LIST, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
+    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_4X2_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_4X2_RENDERED,
+     DRAW_LEVEL_OVR1P_LOD_HIGH},
+    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_4X2_LIST, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_4X2_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
+    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_4X1_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_4X1_RENDERED,
+     DRAW_LEVEL_OVR1P_LOD_LOW},
+    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_4X1_LIST, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_4X1_LIST, DRAW_LEVEL_OVR1P_LOD_LOW},
+    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_WATER_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_WATER_RENDERED,
+     DRAW_LEVEL_OVR1P_LOD_HIGH},
+    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_WATER_LIST, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_WATER_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
+    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_FULL_DYNAMIC_LIST, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_FULL_DYNAMIC_LIST,
+     DRAW_LEVEL_OVR1P_LOD_LOW},
 };
 
 CTR_STATIC_ASSERT(sizeof(sDrawLevelOvr1PBuckets) / sizeof(sDrawLevelOvr1PBuckets[0]) == OVR226_BUCKET_COUNT);
 CTR_STATIC_ASSERT(sizeof(struct OverlayRDATA_226) == 0x564);
-CTR_STATIC_ASSERT(sizeof(struct OverlayRDATA_226_BucketSetupRecord) == 0x64);
+CTR_STATIC_ASSERT(sizeof(struct DrawLevelOvrBucketSetupRecord) == 0x64);
 CTR_STATIC_ASSERT(sizeof(((struct OverlayRDATA_226 *)0)->scratchInitTable) == 0x60);
 CTR_STATIC_ASSERT(sizeof(((struct OverlayRDATA_226 *)0)->clipRecordJumpTable) == 0x60);
 
 static void DrawLevelOvr1P_SetGridFaceSlot(const struct DrawLevelOvr1PScratchVertex *projected, int faceIndex);
 static int DrawLevelOvr1P_IsDeepestSubdivisionFrame(const struct DrawLevelOvr1PScratchVertex *projected);
+static void Ovr226_800a0d34_SetEntryGteAndCameraScratch(struct PushBuffer *pb);
 
 static struct DrawLevelOvr1PStableScratch *DrawLevelOvr1P_Scratch(void)
 {
@@ -223,13 +243,13 @@ static u32 DrawLevelOvr1P_GetActiveDrawOrderLow(void)
 	return DrawLevelOvr1P_Scratch()->drawOrderOrHeader;
 }
 
-static void DrawLevelOvr1P_CopyScratchWords(const u32 *source, const struct OverlayRDATA_226_BucketSetupCopy *copy)
+static void DrawLevelOvr1P_CopyScratchWords(const u32 *source, const struct DrawLevelOvrBucketSetupCopy *copy)
 {
 	u32 *scratch = CTR_SCRATCHPAD_PTR(u32, copy->scratchOffset);
 
-	for (u32 i = 0; i <= copy->loopCounter; i++)
+	for (u32 scratchWordIndex = 0; scratchWordIndex <= copy->lastWordIndex; scratchWordIndex++)
 	{
-		scratch[i] = source[i];
+		scratch[scratchWordIndex] = source[scratchWordIndex];
 	}
 }
 
@@ -237,9 +257,9 @@ static void Ovr226_800ab3dc_CopyClipRecordJumpTable(void)
 {
 	u32 *clipRecordJumpTable = CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_GT3_CLIP_RECORD_JUMP_TABLE_OFFSET);
 
-	for (int i = 0; i < OVR226_CLIP_RECORD_JUMP_WORD_COUNT; i++)
+	for (s32 jumpWordIndex = 0; jumpWordIndex < OVR226_CLIP_RECORD_JUMP_WORD_COUNT; jumpWordIndex++)
 	{
-		clipRecordJumpTable[i] = R226.clipRecordJumpTable[i];
+		clipRecordJumpTable[jumpWordIndex] = R226.clipRecordJumpTable[jumpWordIndex];
 	}
 }
 
@@ -248,15 +268,15 @@ static int Ovr226_800ab3d4_EmptyGT4ClipRecordLabel(void)
 	return 1;
 }
 
-static const struct OverlayRDATA_226_BucketSetupRecord *DrawLevelOvr1P_FindBucketSetupRecord(u32 setupAddress)
+static const struct DrawLevelOvrBucketSetupRecord *DrawLevelOvr1P_FindBucketSetupRecord(u32 setupAddress)
 {
-	for (int i = 0; i < OVR226_BUCKET_COUNT; i++)
+	for (s32 bucketIndex = 0; bucketIndex < OVR226_BUCKET_COUNT; bucketIndex++)
 	{
-		u32 recordAddress = OVR226_RDATA_BUCKET_SETUP_BASE + (u32)(i * sizeof(R226.bucketSetups[0]));
+		u32 recordAddress = OVR226_RDATA_BUCKET_SETUP_BASE + (u32)(bucketIndex * sizeof(R226.bucketSetups[0]));
 
 		if (recordAddress == setupAddress)
 		{
-			return &R226.bucketSetups[i];
+			return &R226.bucketSetups[bucketIndex];
 		}
 	}
 
@@ -267,15 +287,15 @@ static void Ovr226_800a0ddc_CopyScratchInitTable(void)
 {
 	u32 *scratch = CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_SCRATCH_INIT_TABLE_OFFSET);
 
-	for (int i = 0; i < OVR226_SCRATCH_INIT_WORD_COUNT; i++)
+	for (s32 scratchWordIndex = 0; scratchWordIndex < OVR226_SCRATCH_INIT_WORD_COUNT; scratchWordIndex++)
 	{
-		scratch[i] = R226.scratchInitTable[i];
+		scratch[scratchWordIndex] = R226.scratchInitTable[scratchWordIndex];
 	}
 }
 
 static void Ovr226_800a0e44_ApplyBucketSetup(u32 setupAddress)
 {
-	const struct OverlayRDATA_226_BucketSetupRecord *setup = DrawLevelOvr1P_FindBucketSetupRecord(setupAddress);
+	const struct DrawLevelOvrBucketSetupRecord *setup = DrawLevelOvr1P_FindBucketSetupRecord(setupAddress);
 
 	if (setup == NULL)
 	{
@@ -301,12 +321,12 @@ static u32 DrawLevelOvr1P_Select4x1ProjectedIndices(const struct QuadBlock *bloc
 
 	DrawLevelOvr1P_Scratch()->selected4x1TableWord = tableWord;
 
-	for (int i = 0; i < 4; i++)
+	for (s32 vertexIndex = 0; vertexIndex < 4; vertexIndex++)
 	{
-		u32 tableShift = (tableWord >> ((3 - i) * 8)) & 0x1f;
+		u32 tableShift = (tableWord >> ((3 - vertexIndex) * 8)) & 0x1f;
 		u32 recordOffset = (selector->selector >> tableShift) & 0xff;
 
-		indices[i] = recordOffset / (int)sizeof(struct DrawLevelOvr1PScratchVertex);
+		indices[vertexIndex] = recordOffset / (int)sizeof(struct DrawLevelOvr1PScratchVertex);
 	}
 
 	return tableWord;
@@ -362,9 +382,14 @@ static int DrawLevelOvr1P_IsPlausibleTextureLayout(const struct TextureLayout *t
 static int DrawLevelOvr1P_MempackContains(const struct Mempack *pack, uintptr_t ptr, uintptr_t *span)
 {
 	uintptr_t start = (uintptr_t)pack->start;
-	uintptr_t end = (uintptr_t)pack->endOfAllocator;
+	if ((start == 0) || (pack->packSize <= 0))
+	{
+		return 0;
+	}
 
-	if ((start == 0) || (start >= end) || (ptr < start) || (ptr >= end))
+	uintptr_t end = start + (uintptr_t)pack->packSize;
+
+	if ((end < start) || (ptr < start) || (ptr >= end))
 	{
 		return 0;
 	}
@@ -391,9 +416,9 @@ static const struct Mempack *DrawLevelOvr1P_FindMempackContaining(uintptr_t ptr)
 		return DrawLevelOvr1P_MempackContains(mainPack, ptr, NULL) ? mainPack : NULL;
 	}
 
-	for (int i = 0; i < 4; i++)
+	for (s32 packIndex = 0; packIndex < 4; packIndex++)
 	{
-		const struct Mempack *pack = &sdata->mempack[i];
+		const struct Mempack *pack = &sdata->mempack[packIndex];
 		uintptr_t span;
 
 		if (DrawLevelOvr1P_MempackContains(pack, ptr, &span))
@@ -428,7 +453,13 @@ static int DrawLevelOvr1P_IsNativeLevelSpan(uintptr_t ptr, uintptr_t size)
 		return 0;
 	}
 
-	return end <= (uintptr_t)pack->endOfAllocator;
+	uintptr_t span;
+	if (!DrawLevelOvr1P_MempackContains(pack, ptr, &span))
+	{
+		return 0;
+	}
+
+	return end <= (uintptr_t)pack->start + span;
 }
 
 #endif
@@ -697,73 +728,73 @@ static int DrawLevelOvr1P_GetDeepestMosaicReloadGate(u32 directHandlerAddress, u
 
 	switch (directHandlerAddress)
 	{
-	case 0x800a4034:
-	case 0x800a402c:
-	case 0x800a40b8:
-		expectedHandlerAddress = 0x800a3a34;
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT4:
+		expectedHandlerAddress = DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_HELPER_DEFAULT;
 		*reloadSpan = 0x30;
 		break;
 
-	case 0x800a4c14:
-	case 0x800a4c0c:
-	case 0x800a4cc8:
-		expectedHandlerAddress = 0x800a4550;
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_DIRECT_GT4:
+		expectedHandlerAddress = DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_HELPER_DEFAULT;
 		*reloadSpan = 0x30;
 		break;
 
-	case 0x800a5d14:
-	case 0x800a5d0c:
-	case 0x800a5d98:
-		expectedHandlerAddress = 0x800a557c;
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT4:
+		expectedHandlerAddress = DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_HELPER_DEFAULT;
 		*reloadSpan = 0x60;
 		break;
 
-	case 0x800a6bb4:
-	case 0x800a6bac:
-	case 0x800a6c68:
-		expectedHandlerAddress = 0x800a6480;
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_DIRECT_GT4:
+		expectedHandlerAddress = DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_HELPER_DEFAULT;
 		*reloadSpan = 0x60;
 		break;
 
-	case 0x800a7a60:
-	case 0x800a7a58:
-	case 0x800a7ae4:
-		expectedHandlerAddress = 0x800a745c;
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT4:
+		expectedHandlerAddress = DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_HELPER_DEFAULT;
 		*reloadSpan = 0xc0;
 		break;
 
-	case 0x800a3670:
-	case 0x800a3668:
-	case 0x800a36f4:
-		expectedHandlerAddress = 0x800a3014;
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_PRIMARY_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_SECOND_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT4_228:
+		expectedHandlerAddress = DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_DEFAULT_228;
 		*reloadSpan = 0xc0;
 		break;
 
-	case 0x800a3724:
-	case 0x800a371c:
-	case 0x800a37a8:
-		expectedHandlerAddress = 0x800a30c8;
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_PRIMARY_229:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_SECOND_229:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT4_229:
+		expectedHandlerAddress = DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_DEFAULT_229;
 		*reloadSpan = 0xc0;
 		break;
 
-	case 0x800a87d4:
-	case 0x800a87cc:
-	case 0x800a8888:
-		expectedHandlerAddress = 0x800a810c;
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT4:
+		expectedHandlerAddress = DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_HELPER_DEFAULT;
 		*reloadSpan = 0xc0;
 		break;
 
-	case 0x800a9680:
-	case 0x800a9678:
-	case 0x800a9704:
-		expectedHandlerAddress = 0x800a907c;
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT4:
+		expectedHandlerAddress = DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_HELPER_DEFAULT;
 		*reloadSpan = 0xc0;
 		break;
 
-	case 0x800aa3f4:
-	case 0x800aa3ec:
-	case 0x800aa4a8:
-		expectedHandlerAddress = 0x800a9d2c;
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT4:
+		expectedHandlerAddress = DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_HELPER_DEFAULT;
 		*reloadSpan = 0xc0;
 		break;
 
@@ -868,14 +899,14 @@ static u32 DrawLevelOvr1P_GetDefaultGridFaceSlotWord(u32 handlerAddress, int fac
 	// The wide4 helpers intentionally use QuadBlock-relative slots 0/0xc/0x30/0x3c.
 	switch (handlerAddress)
 	{
-	case 0x800a557c:
-	case 0x800a6480:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_HELPER_DEFAULT:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_HELPER_DEFAULT:
 		return sWide2SlotWords[faceIndex];
 
-	case 0x800a745c:
-	case 0x800a810c:
-	case 0x800a907c:
-	case 0x800a9d2c:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_HELPER_DEFAULT:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_HELPER_DEFAULT:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_HELPER_DEFAULT:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_HELPER_DEFAULT:
 		return sWide4SlotWords[faceIndex];
 
 	default:
@@ -995,34 +1026,6 @@ static void DrawLevelOvr1P_SetProjectedDepth(struct DrawLevelOvr1PScratchVertex 
 	}
 }
 
-static int DrawLevelOvr1P_ProjectVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected,
-                                              int index0, int index1, int index2, int writeClipBytes)
-{
-	struct LevVertex *vertex0 = &vertices[block->index[index0]];
-	struct LevVertex *vertex1 = &vertices[block->index[index1]];
-	struct LevVertex *vertex2 = &vertices[block->index[index2]];
-	u32 depth0;
-	u32 depth1;
-	u32 depth2;
-	s32 gteFlag;
-
-	DrawLevelOvr1P_CopySourceVertex(&projected[index0], vertex0);
-	DrawLevelOvr1P_CopySourceVertex(&projected[index1], vertex1);
-	DrawLevelOvr1P_CopySourceVertex(&projected[index2], vertex2);
-
-	CTR_GteLoadSVec3V3(&vertex0->pos, &vertex1->pos, &vertex2->pos);
-	gte_rtpt();
-	CTR_GteStoreSXY3(&projected[index0].posScreen[0], &projected[index1].posScreen[0], &projected[index2].posScreen[0]);
-	gte_stsz3(&depth0, &depth1, &depth2);
-	gte_stflg(&gteFlag);
-
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index0], depth0, writeClipBytes);
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index1], depth1, writeClipBytes);
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index2], depth2, writeClipBytes);
-
-	return ((u32)gteFlag & DRAW_LEVEL_OVR1P_GTE_RTPT_OVERFLOW) != 0;
-}
-
 static void DrawLevelOvr1P_StoreProjectedDepthWord(struct DrawLevelOvr1PScratchVertex *projected, u32 depth);
 
 static void Ovr226_800a0f78_ProjectVertexTripleFullDepth(struct LevVertex *vertices, const struct QuadBlock *block,
@@ -1090,26 +1093,28 @@ static void Ovr226_800a0dc4_ClearProjectedScratch(void)
 	}
 }
 
-static int DrawLevelOvr1P_ProjectQuadBlockGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected,
-                                               int writeClipBytes)
+static void DrawLevelOvr1P_CopyProjectedSource(struct LevVertex *vertex, struct DrawLevelOvr1PScratchVertex *projected,
+                                               enum DrawLevelOvr1PProjectedSource source, int copyColorHi)
 {
-	int gteOverflow = 0;
+	switch (source)
+	{
+	case DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS:
+		DrawLevelOvr1P_CopySourcePosFlags(projected, vertex);
+		break;
+	case DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_WATER_COLOR_LO_FLAGS:
+		projected->posVec = vertex->pos;
+		projected->flags = (u16)vertex->color_lo[0] | ((u16)vertex->color_lo[1] << 8);
+		break;
+	}
 
-	gteOverflow |= DrawLevelOvr1P_ProjectVertexTriple(vertices, block, projected, 0, 1, 2, writeClipBytes);
-	gteOverflow |= DrawLevelOvr1P_ProjectVertexTriple(vertices, block, projected, 3, 4, 5, writeClipBytes);
-	gteOverflow |= DrawLevelOvr1P_ProjectVertexTriple(vertices, block, projected, 6, 7, 8, writeClipBytes);
-
-	return gteOverflow;
+	if (copyColorHi)
+	{
+		DrawLevelOvr1P_CopyColorWord(projected->color_hi, vertex->color_hi);
+	}
 }
 
-static void Ovr226_800a1ee0_StoreWaterListProjectedVertex(struct LevVertex *vertex, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	projected->posVec = vertex->pos;
-	projected->flags = (u16)vertex->color_lo[0] | ((u16)vertex->color_lo[1] << 8);
-}
-
-static int Ovr226_800a1ee0_ProjectWaterListVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                        struct DrawLevelOvr1PScratchVertex *projected, int index0, int index1, int index2)
+static int DrawLevelOvr1P_ProjectListVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected,
+                                                  int index0, int index1, int index2, enum DrawLevelOvr1PProjectedSource source)
 {
 	struct LevVertex *vertex0 = &vertices[block->index[index0]];
 	struct LevVertex *vertex1 = &vertices[block->index[index1]];
@@ -1138,283 +1143,51 @@ static int Ovr226_800a1ee0_ProjectWaterListVertexTriple(struct LevVertex *vertic
 	depth1 = MFC2(18);
 	CTR_GteStoreSXY2(&projected[index2].posScreen[0]);
 	depth2 = MFC2(19);
-	Ovr226_800a1ee0_StoreWaterListProjectedVertex(vertex0, &projected[index0]);
-	Ovr226_800a1ee0_StoreWaterListProjectedVertex(vertex1, &projected[index1]);
-	Ovr226_800a1ee0_StoreWaterListProjectedVertex(vertex2, &projected[index2]);
+	DrawLevelOvr1P_CopyProjectedSource(vertex0, &projected[index0], source, 0);
+	DrawLevelOvr1P_CopyProjectedSource(vertex1, &projected[index1], source, 0);
+	DrawLevelOvr1P_CopyProjectedSource(vertex2, &projected[index2], source, 0);
 	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[index1], depth1);
 	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[index2], depth2);
 
 	return 0;
 }
 
-static int Ovr226_800a1ee0_ProjectWaterListGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected)
+static void DrawLevelOvr1P_SetGridSlotMode(const struct DrawLevelOvr1PScratchVertex *projected, enum DrawLevelOvr1PGridSlotMode slotMode)
 {
-	DrawLevelOvr1P_SetGridFaceSlot(projected, 0);
-	if (Ovr226_800a1ee0_ProjectWaterListVertexTriple(vertices, block, projected, 0, 1, 2))
+	switch (slotMode)
 	{
-		return 1;
+	case DRAW_LEVEL_OVR1P_GRID_SLOT_NONE:
+		break;
+	case DRAW_LEVEL_OVR1P_GRID_SLOT_FACE:
+		DrawLevelOvr1P_SetGridFaceSlot(projected, 0);
+		break;
+	case DRAW_LEVEL_OVR1P_GRID_SLOT_WORD:
+		DrawLevelOvr1P_SetGridFaceSlotWord(projected, 0);
+		break;
 	}
-
-	if (Ovr226_800a1ee0_ProjectWaterListVertexTriple(vertices, block, projected, 3, 4, 5))
-	{
-		return 1;
-	}
-
-	DrawLevelOvr1P_SetActiveDrawOrderLow(block);
-	return Ovr226_800a1ee0_ProjectWaterListVertexTriple(vertices, block, projected, 6, 7, 8);
 }
 
-static void Ovr226_800a3738_CopyGround4x1ListProjectedSource(struct LevVertex *vertex, struct DrawLevelOvr1PScratchVertex *projected)
+static int DrawLevelOvr1P_ProjectListGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected,
+                                          enum DrawLevelOvr1PProjectedSource source, enum DrawLevelOvr1PGridSlotMode slotMode)
 {
-	DrawLevelOvr1P_CopySourcePosFlags(projected, vertex);
-}
+	DrawLevelOvr1P_SetGridSlotMode(projected, slotMode);
 
-static int Ovr226_800a3738_ProjectGround4x1ListVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                            struct DrawLevelOvr1PScratchVertex *projected, int index0, int index1, int index2)
-{
-	struct LevVertex *vertex0 = &vertices[block->index[index0]];
-	struct LevVertex *vertex1 = &vertices[block->index[index1]];
-	struct LevVertex *vertex2 = &vertices[block->index[index2]];
-	u32 depth0;
-	u32 depth1;
-	u32 depth2;
-	s32 gteFlag;
-
-	CTR_GteLoadSVec3V3(&vertex0->pos, &vertex1->pos, &vertex2->pos);
-	gte_rtpt();
-
-	DrawLevelOvr1P_CopyColorWord(projected[index0].color_hi, vertex0->color_hi);
-	DrawLevelOvr1P_CopyColorWord(projected[index1].color_hi, vertex1->color_hi);
-	DrawLevelOvr1P_CopyColorWord(projected[index2].color_hi, vertex2->color_hi);
-	CTR_GteStoreSXY0(&projected[index0].posScreen[0]);
-	gte_stflg(&gteFlag);
-	depth0 = MFC2(17);
-	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[index0], depth0);
-	if (((u32)gteFlag & DRAW_LEVEL_OVR1P_GTE_RTPT_OVERFLOW) != 0)
+	if (DrawLevelOvr1P_ProjectListVertexTriple(vertices, block, projected, 0, 1, 2, source))
 	{
 		return 1;
 	}
 
-	CTR_GteStoreSXY1(&projected[index1].posScreen[0]);
-	depth1 = MFC2(18);
-	CTR_GteStoreSXY2(&projected[index2].posScreen[0]);
-	depth2 = MFC2(19);
-	Ovr226_800a3738_CopyGround4x1ListProjectedSource(vertex0, &projected[index0]);
-	Ovr226_800a3738_CopyGround4x1ListProjectedSource(vertex1, &projected[index1]);
-	Ovr226_800a3738_CopyGround4x1ListProjectedSource(vertex2, &projected[index2]);
-	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[index1], depth1);
-	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[index2], depth2);
-
-	return 0;
-}
-
-static int Ovr226_800a3738_ProjectGround4x1ListGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	DrawLevelOvr1P_SetGridFaceSlot(projected, 0);
-	if (Ovr226_800a3738_ProjectGround4x1ListVertexTriple(vertices, block, projected, 0, 1, 2))
-	{
-		return 1;
-	}
-
-	if (Ovr226_800a3738_ProjectGround4x1ListVertexTriple(vertices, block, projected, 3, 4, 5))
+	if (DrawLevelOvr1P_ProjectListVertexTriple(vertices, block, projected, 3, 4, 5, source))
 	{
 		return 1;
 	}
 
 	DrawLevelOvr1P_SetActiveDrawOrderLow(block);
-	return Ovr226_800a3738_ProjectGround4x1ListVertexTriple(vertices, block, projected, 6, 7, 8);
+	return DrawLevelOvr1P_ProjectListVertexTriple(vertices, block, projected, 6, 7, 8, source);
 }
 
-static void Ovr226_800a5030_CopyGround4x2ListProjectedSource(struct LevVertex *vertex, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	DrawLevelOvr1P_CopySourcePosFlags(projected, vertex);
-}
-
-static int Ovr226_800a5030_ProjectGround4x2ListVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                            struct DrawLevelOvr1PScratchVertex *projected, int index0, int index1, int index2)
-{
-	struct LevVertex *vertex0 = &vertices[block->index[index0]];
-	struct LevVertex *vertex1 = &vertices[block->index[index1]];
-	struct LevVertex *vertex2 = &vertices[block->index[index2]];
-	u32 depth0;
-	u32 depth1;
-	u32 depth2;
-	s32 gteFlag;
-
-	CTR_GteLoadSVec3V3(&vertex0->pos, &vertex1->pos, &vertex2->pos);
-	gte_rtpt();
-
-	DrawLevelOvr1P_CopyColorWord(projected[index0].color_hi, vertex0->color_hi);
-	DrawLevelOvr1P_CopyColorWord(projected[index1].color_hi, vertex1->color_hi);
-	DrawLevelOvr1P_CopyColorWord(projected[index2].color_hi, vertex2->color_hi);
-	CTR_GteStoreSXY0(&projected[index0].posScreen[0]);
-	gte_stflg(&gteFlag);
-	depth0 = MFC2(17);
-	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[index0], depth0);
-	if (((u32)gteFlag & DRAW_LEVEL_OVR1P_GTE_RTPT_OVERFLOW) != 0)
-	{
-		return 1;
-	}
-
-	CTR_GteStoreSXY1(&projected[index1].posScreen[0]);
-	depth1 = MFC2(18);
-	CTR_GteStoreSXY2(&projected[index2].posScreen[0]);
-	depth2 = MFC2(19);
-	Ovr226_800a5030_CopyGround4x2ListProjectedSource(vertex0, &projected[index0]);
-	Ovr226_800a5030_CopyGround4x2ListProjectedSource(vertex1, &projected[index1]);
-	Ovr226_800a5030_CopyGround4x2ListProjectedSource(vertex2, &projected[index2]);
-	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[index1], depth1);
-	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[index2], depth2);
-
-	return 0;
-}
-
-static int Ovr226_800a5030_ProjectGround4x2ListGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	DrawLevelOvr1P_SetGridFaceSlot(projected, 0);
-	if (Ovr226_800a5030_ProjectGround4x2ListVertexTriple(vertices, block, projected, 0, 1, 2))
-	{
-		return 1;
-	}
-
-	if (Ovr226_800a5030_ProjectGround4x2ListVertexTriple(vertices, block, projected, 3, 4, 5))
-	{
-		return 1;
-	}
-
-	DrawLevelOvr1P_SetActiveDrawOrderLow(block);
-	return Ovr226_800a5030_ProjectGround4x2ListVertexTriple(vertices, block, projected, 6, 7, 8);
-}
-
-static void Ovr226_800a6fd0_CopyDynamicListProjectedSource(struct LevVertex *vertex, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	DrawLevelOvr1P_CopySourcePosFlags(projected, vertex);
-}
-
-static int Ovr226_800a6fd0_ProjectDynamicListVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                          struct DrawLevelOvr1PScratchVertex *projected, int index0, int index1, int index2)
-{
-	struct LevVertex *vertex0 = &vertices[block->index[index0]];
-	struct LevVertex *vertex1 = &vertices[block->index[index1]];
-	struct LevVertex *vertex2 = &vertices[block->index[index2]];
-	u32 depth0;
-	u32 depth1;
-	u32 depth2;
-	s32 gteFlag;
-
-	CTR_GteLoadSVec3V3(&vertex0->pos, &vertex1->pos, &vertex2->pos);
-	gte_rtpt();
-
-	DrawLevelOvr1P_CopyColorWord(projected[index0].color_hi, vertex0->color_hi);
-	DrawLevelOvr1P_CopyColorWord(projected[index1].color_hi, vertex1->color_hi);
-	DrawLevelOvr1P_CopyColorWord(projected[index2].color_hi, vertex2->color_hi);
-	CTR_GteStoreSXY0(&projected[index0].posScreen[0]);
-	gte_stflg(&gteFlag);
-	depth0 = MFC2(17);
-	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[index0], depth0);
-	if (((u32)gteFlag & DRAW_LEVEL_OVR1P_GTE_RTPT_OVERFLOW) != 0)
-	{
-		return 1;
-	}
-
-	CTR_GteStoreSXY1(&projected[index1].posScreen[0]);
-	depth1 = MFC2(18);
-	CTR_GteStoreSXY2(&projected[index2].posScreen[0]);
-	depth2 = MFC2(19);
-	Ovr226_800a6fd0_CopyDynamicListProjectedSource(vertex0, &projected[index0]);
-	Ovr226_800a6fd0_CopyDynamicListProjectedSource(vertex1, &projected[index1]);
-	Ovr226_800a6fd0_CopyDynamicListProjectedSource(vertex2, &projected[index2]);
-	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[index1], depth1);
-	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[index2], depth2);
-
-	return 0;
-}
-
-static int Ovr226_800a6fd0_ProjectDynamicListGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	DrawLevelOvr1P_SetGridFaceSlotWord(projected, 0);
-	if (Ovr226_800a6fd0_ProjectDynamicListVertexTriple(vertices, block, projected, 0, 1, 2))
-	{
-		return 1;
-	}
-
-	if (Ovr226_800a6fd0_ProjectDynamicListVertexTriple(vertices, block, projected, 3, 4, 5))
-	{
-		return 1;
-	}
-
-	DrawLevelOvr1P_SetActiveDrawOrderLow(block);
-	return Ovr226_800a6fd0_ProjectDynamicListVertexTriple(vertices, block, projected, 6, 7, 8);
-}
-
-static void Ovr226_800a8bf0_CopyWideDynamicProjectedSource(struct LevVertex *vertex, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	DrawLevelOvr1P_CopySourcePosFlags(projected, vertex);
-}
-
-static int Ovr226_800a8bf0_ProjectWideDynamicVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                          struct DrawLevelOvr1PScratchVertex *projected, int index0, int index1, int index2)
-{
-	struct LevVertex *vertex0 = &vertices[block->index[index0]];
-	struct LevVertex *vertex1 = &vertices[block->index[index1]];
-	struct LevVertex *vertex2 = &vertices[block->index[index2]];
-	u32 depth0;
-	u32 depth1;
-	u32 depth2;
-	s32 gteFlag;
-
-	CTR_GteLoadSVec3V3(&vertex0->pos, &vertex1->pos, &vertex2->pos);
-	gte_rtpt();
-
-	DrawLevelOvr1P_CopyColorWord(projected[index0].color_hi, vertex0->color_hi);
-	DrawLevelOvr1P_CopyColorWord(projected[index1].color_hi, vertex1->color_hi);
-	DrawLevelOvr1P_CopyColorWord(projected[index2].color_hi, vertex2->color_hi);
-	CTR_GteStoreSXY0(&projected[index0].posScreen[0]);
-	gte_stflg(&gteFlag);
-	depth0 = MFC2(17);
-	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[index0], depth0);
-	if (((u32)gteFlag & DRAW_LEVEL_OVR1P_GTE_RTPT_OVERFLOW) != 0)
-	{
-		return 1;
-	}
-
-	CTR_GteStoreSXY1(&projected[index1].posScreen[0]);
-	depth1 = MFC2(18);
-	CTR_GteStoreSXY2(&projected[index2].posScreen[0]);
-	depth2 = MFC2(19);
-	Ovr226_800a8bf0_CopyWideDynamicProjectedSource(vertex0, &projected[index0]);
-	Ovr226_800a8bf0_CopyWideDynamicProjectedSource(vertex1, &projected[index1]);
-	Ovr226_800a8bf0_CopyWideDynamicProjectedSource(vertex2, &projected[index2]);
-	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[index1], depth1);
-	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[index2], depth2);
-
-	return 0;
-}
-
-static int Ovr226_800a8bf0_ProjectWideDynamicGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	DrawLevelOvr1P_SetGridFaceSlotWord(projected, 0);
-	if (Ovr226_800a8bf0_ProjectWideDynamicVertexTriple(vertices, block, projected, 0, 1, 2))
-	{
-		return 1;
-	}
-
-	if (Ovr226_800a8bf0_ProjectWideDynamicVertexTriple(vertices, block, projected, 3, 4, 5))
-	{
-		return 1;
-	}
-
-	DrawLevelOvr1P_SetActiveDrawOrderLow(block);
-	return Ovr226_800a8bf0_ProjectWideDynamicVertexTriple(vertices, block, projected, 6, 7, 8);
-}
-
-static void Ovr226_800a5e5c_StoreGround4x2RenderedProjectedVertex(struct LevVertex *vertex, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	DrawLevelOvr1P_CopySourceVertex(projected, vertex);
-}
-
-static void Ovr226_800a5e5c_ProjectGround4x2RenderedVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                                 struct DrawLevelOvr1PScratchVertex *projected, int index0, int index1, int index2)
+static void DrawLevelOvr1P_ProjectRenderedVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected,
+                                                       int index0, int index1, int index2, enum DrawLevelOvr1PProjectedSource source)
 {
 	struct LevVertex *vertex0 = &vertices[block->index[index0]];
 	struct LevVertex *vertex1 = &vertices[block->index[index1]];
@@ -1423,9 +1196,9 @@ static void Ovr226_800a5e5c_ProjectGround4x2RenderedVertexTriple(struct LevVerte
 	u32 depth1;
 	u32 depth2;
 
-	Ovr226_800a5e5c_StoreGround4x2RenderedProjectedVertex(vertex0, &projected[index0]);
-	Ovr226_800a5e5c_StoreGround4x2RenderedProjectedVertex(vertex1, &projected[index1]);
-	Ovr226_800a5e5c_StoreGround4x2RenderedProjectedVertex(vertex2, &projected[index2]);
+	DrawLevelOvr1P_CopyProjectedSource(vertex0, &projected[index0], source, 1);
+	DrawLevelOvr1P_CopyProjectedSource(vertex1, &projected[index1], source, 1);
+	DrawLevelOvr1P_CopyProjectedSource(vertex2, &projected[index2], source, 1);
 
 	CTR_GteLoadSVec3V3(&vertex0->pos, &vertex1->pos, &vertex2->pos);
 	gte_rtpt();
@@ -1437,168 +1210,14 @@ static void Ovr226_800a5e5c_ProjectGround4x2RenderedVertexTriple(struct LevVerte
 	DrawLevelOvr1P_SetProjectedDepth(&projected[index2], depth2, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
 }
 
-static void Ovr226_800a5e5c_ProjectGround4x2RenderedGrid(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                         struct DrawLevelOvr1PScratchVertex *projected)
+static void DrawLevelOvr1P_ProjectRenderedGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected,
+                                               enum DrawLevelOvr1PProjectedSource source, enum DrawLevelOvr1PGridSlotMode slotMode)
 {
-	DrawLevelOvr1P_SetGridFaceSlot(projected, 0);
-	Ovr226_800a5e5c_ProjectGround4x2RenderedVertexTriple(vertices, block, projected, 0, 1, 2);
-	Ovr226_800a5e5c_ProjectGround4x2RenderedVertexTriple(vertices, block, projected, 3, 4, 5);
+	DrawLevelOvr1P_SetGridSlotMode(projected, slotMode);
+	DrawLevelOvr1P_ProjectRenderedVertexTriple(vertices, block, projected, 0, 1, 2, source);
+	DrawLevelOvr1P_ProjectRenderedVertexTriple(vertices, block, projected, 3, 4, 5, source);
 	DrawLevelOvr1P_SetActiveDrawOrderLow(block);
-	Ovr226_800a5e5c_ProjectGround4x2RenderedVertexTriple(vertices, block, projected, 6, 7, 8);
-}
-
-static void Ovr226_800a7ba8_StoreDynamicRenderedProjectedVertex(struct LevVertex *vertex, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	DrawLevelOvr1P_CopySourceVertex(projected, vertex);
-}
-
-static void Ovr226_800a7ba8_ProjectDynamicRenderedVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                               struct DrawLevelOvr1PScratchVertex *projected, int index0, int index1, int index2)
-{
-	struct LevVertex *vertex0 = &vertices[block->index[index0]];
-	struct LevVertex *vertex1 = &vertices[block->index[index1]];
-	struct LevVertex *vertex2 = &vertices[block->index[index2]];
-	u32 depth0;
-	u32 depth1;
-	u32 depth2;
-
-	Ovr226_800a7ba8_StoreDynamicRenderedProjectedVertex(vertex0, &projected[index0]);
-	Ovr226_800a7ba8_StoreDynamicRenderedProjectedVertex(vertex1, &projected[index1]);
-	Ovr226_800a7ba8_StoreDynamicRenderedProjectedVertex(vertex2, &projected[index2]);
-
-	CTR_GteLoadSVec3V3(&vertex0->pos, &vertex1->pos, &vertex2->pos);
-	gte_rtpt();
-	CTR_GteStoreSXY3(&projected[index0].posScreen[0], &projected[index1].posScreen[0], &projected[index2].posScreen[0]);
-	gte_stsz3(&depth0, &depth1, &depth2);
-
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index0], depth0, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index1], depth1, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index2], depth2, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
-}
-
-static void Ovr226_800a7ba8_ProjectDynamicRenderedGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	DrawLevelOvr1P_SetGridFaceSlotWord(projected, 0);
-	Ovr226_800a7ba8_ProjectDynamicRenderedVertexTriple(vertices, block, projected, 0, 1, 2);
-	Ovr226_800a7ba8_ProjectDynamicRenderedVertexTriple(vertices, block, projected, 3, 4, 5);
-	DrawLevelOvr1P_SetActiveDrawOrderLow(block);
-	Ovr226_800a7ba8_ProjectDynamicRenderedVertexTriple(vertices, block, projected, 6, 7, 8);
-}
-
-static void Ovr226_800a97c8_StoreQuad4x4RenderedProjectedVertex(struct LevVertex *vertex, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	DrawLevelOvr1P_CopySourceVertex(projected, vertex);
-}
-
-static void Ovr226_800a97c8_ProjectQuad4x4RenderedVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                               struct DrawLevelOvr1PScratchVertex *projected, int index0, int index1, int index2)
-{
-	struct LevVertex *vertex0 = &vertices[block->index[index0]];
-	struct LevVertex *vertex1 = &vertices[block->index[index1]];
-	struct LevVertex *vertex2 = &vertices[block->index[index2]];
-	u32 depth0;
-	u32 depth1;
-	u32 depth2;
-
-	Ovr226_800a97c8_StoreQuad4x4RenderedProjectedVertex(vertex0, &projected[index0]);
-	Ovr226_800a97c8_StoreQuad4x4RenderedProjectedVertex(vertex1, &projected[index1]);
-	Ovr226_800a97c8_StoreQuad4x4RenderedProjectedVertex(vertex2, &projected[index2]);
-
-	CTR_GteLoadSVec3V3(&vertex0->pos, &vertex1->pos, &vertex2->pos);
-	gte_rtpt();
-	CTR_GteStoreSXY3(&projected[index0].posScreen[0], &projected[index1].posScreen[0], &projected[index2].posScreen[0]);
-	gte_stsz3(&depth0, &depth1, &depth2);
-
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index0], depth0, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index1], depth1, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index2], depth2, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
-}
-
-static void Ovr226_800a97c8_ProjectQuad4x4RenderedGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	DrawLevelOvr1P_SetGridFaceSlotWord(projected, 0);
-	Ovr226_800a97c8_ProjectQuad4x4RenderedVertexTriple(vertices, block, projected, 0, 1, 2);
-	Ovr226_800a97c8_ProjectQuad4x4RenderedVertexTriple(vertices, block, projected, 3, 4, 5);
-	DrawLevelOvr1P_SetActiveDrawOrderLow(block);
-	Ovr226_800a97c8_ProjectQuad4x4RenderedVertexTriple(vertices, block, projected, 6, 7, 8);
-}
-
-static void Ovr226_800a417c_StoreGround4x1RenderedProjectedVertex(struct LevVertex *vertex, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	DrawLevelOvr1P_CopySourceVertex(projected, vertex);
-}
-
-static void Ovr226_800a417c_ProjectGround4x1RenderedVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                                 struct DrawLevelOvr1PScratchVertex *projected, int index0, int index1, int index2)
-{
-	struct LevVertex *vertex0 = &vertices[block->index[index0]];
-	struct LevVertex *vertex1 = &vertices[block->index[index1]];
-	struct LevVertex *vertex2 = &vertices[block->index[index2]];
-	u32 depth0;
-	u32 depth1;
-	u32 depth2;
-
-	Ovr226_800a417c_StoreGround4x1RenderedProjectedVertex(vertex0, &projected[index0]);
-	Ovr226_800a417c_StoreGround4x1RenderedProjectedVertex(vertex1, &projected[index1]);
-	Ovr226_800a417c_StoreGround4x1RenderedProjectedVertex(vertex2, &projected[index2]);
-
-	CTR_GteLoadSVec3V3(&vertex0->pos, &vertex1->pos, &vertex2->pos);
-	gte_rtpt();
-	CTR_GteStoreSXY3(&projected[index0].posScreen[0], &projected[index1].posScreen[0], &projected[index2].posScreen[0]);
-	gte_stsz3(&depth0, &depth1, &depth2);
-
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index0], depth0, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index1], depth1, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index2], depth2, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
-}
-
-static void Ovr226_800a417c_ProjectGround4x1RenderedGrid(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                         struct DrawLevelOvr1PScratchVertex *projected)
-{
-	DrawLevelOvr1P_SetGridFaceSlot(projected, 0);
-	Ovr226_800a417c_ProjectGround4x1RenderedVertexTriple(vertices, block, projected, 0, 1, 2);
-	Ovr226_800a417c_ProjectGround4x1RenderedVertexTriple(vertices, block, projected, 3, 4, 5);
-	DrawLevelOvr1P_SetActiveDrawOrderLow(block);
-	Ovr226_800a417c_ProjectGround4x1RenderedVertexTriple(vertices, block, projected, 6, 7, 8);
-}
-
-static void Ovr226_800a2924_StoreWaterRenderedProjectedVertex(struct LevVertex *vertex, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	projected->posVec = vertex->pos;
-	projected->flags = (u16)vertex->color_lo[0] | ((u16)vertex->color_lo[1] << 8);
-	DrawLevelOvr1P_CopyColorWord(projected->color_hi, vertex->color_hi);
-}
-
-static void Ovr226_800a2924_ProjectWaterRenderedVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                             struct DrawLevelOvr1PScratchVertex *projected, int index0, int index1, int index2)
-{
-	struct LevVertex *vertex0 = &vertices[block->index[index0]];
-	struct LevVertex *vertex1 = &vertices[block->index[index1]];
-	struct LevVertex *vertex2 = &vertices[block->index[index2]];
-	u32 depth0;
-	u32 depth1;
-	u32 depth2;
-
-	Ovr226_800a2924_StoreWaterRenderedProjectedVertex(vertex0, &projected[index0]);
-	Ovr226_800a2924_StoreWaterRenderedProjectedVertex(vertex1, &projected[index1]);
-	Ovr226_800a2924_StoreWaterRenderedProjectedVertex(vertex2, &projected[index2]);
-
-	CTR_GteLoadSVec3V3(&vertex0->pos, &vertex1->pos, &vertex2->pos);
-	gte_rtpt();
-	CTR_GteStoreSXY3(&projected[index0].posScreen[0], &projected[index1].posScreen[0], &projected[index2].posScreen[0]);
-	gte_stsz3(&depth0, &depth1, &depth2);
-
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index0], depth0, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index1], depth1, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
-	DrawLevelOvr1P_SetProjectedDepth(&projected[index2], depth2, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
-}
-
-static void Ovr226_800a2924_ProjectWaterRenderedGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected)
-{
-	Ovr226_800a2924_ProjectWaterRenderedVertexTriple(vertices, block, projected, 0, 1, 2);
-	Ovr226_800a2924_ProjectWaterRenderedVertexTriple(vertices, block, projected, 3, 4, 5);
-	DrawLevelOvr1P_SetActiveDrawOrderLow(block);
-	Ovr226_800a2924_ProjectWaterRenderedVertexTriple(vertices, block, projected, 6, 7, 8);
+	DrawLevelOvr1P_ProjectRenderedVertexTriple(vertices, block, projected, 6, 7, 8, source);
 }
 
 static u32 DrawLevelOvr1P_GetProjectedColorWord(const struct DrawLevelOvr1PScratchVertex *projected);
@@ -1691,19 +1310,21 @@ static u32 Ovr226_800a2d30_ApplyWaterRenderedColorFade(u32 color, s16 x, s16 z)
 
 static void Ovr226_800a211c_ApplyWaterListColorFades(struct DrawLevelOvr1PScratchVertex *projected)
 {
-	for (int i = 0; i < 9; i++)
+	for (s32 waterVertexIndex = 0; waterVertexIndex < 9; waterVertexIndex++)
 	{
-		DrawLevelOvr1P_WritePackedWord(projected[i].color_hi, Ovr226_800a2234_ApplyWaterListColorFade(DrawLevelOvr1P_GetProjectedColorWord(&projected[i]),
-		                                                                                              projected[i].pos[0], projected[i].pos[2]));
+		DrawLevelOvr1P_WritePackedWord(projected[waterVertexIndex].color_hi,
+		                               Ovr226_800a2234_ApplyWaterListColorFade(DrawLevelOvr1P_GetProjectedColorWord(&projected[waterVertexIndex]),
+		                                                                       projected[waterVertexIndex].pos[0], projected[waterVertexIndex].pos[2]));
 	}
 }
 
 static void Ovr226_800a2c4c_ApplyWaterRenderedColorFades(struct DrawLevelOvr1PScratchVertex *projected)
 {
-	for (int i = 0; i < 9; i++)
+	for (s32 waterVertexIndex = 0; waterVertexIndex < 9; waterVertexIndex++)
 	{
-		DrawLevelOvr1P_WritePackedWord(projected[i].color_hi, Ovr226_800a2d30_ApplyWaterRenderedColorFade(DrawLevelOvr1P_GetProjectedColorWord(&projected[i]),
-		                                                                                                  projected[i].pos[0], projected[i].pos[2]));
+		DrawLevelOvr1P_WritePackedWord(projected[waterVertexIndex].color_hi,
+		                               Ovr226_800a2d30_ApplyWaterRenderedColorFade(DrawLevelOvr1P_GetProjectedColorWord(&projected[waterVertexIndex]),
+		                                                                           projected[waterVertexIndex].pos[0], projected[waterVertexIndex].pos[2]));
 	}
 }
 
@@ -1741,9 +1362,9 @@ static int DrawLevelOvr1P_IsProjectedPolyOffscreenPacked(const struct DrawLevelO
 	u32 packedAnd = 0xffffffff;
 	u32 packedSubOr = 0;
 
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		u32 packedSxy = DrawLevelOvr1P_PackProjectedSxy(&projected[indices[i]]);
+		u32 packedSxy = DrawLevelOvr1P_PackProjectedSxy(&projected[indices[vertexIndex]]);
 
 		packedAnd &= packedSxy;
 		packedSubOr |= packedSxy - packedWindow;
@@ -1780,11 +1401,11 @@ static u32 DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(const struct DrawL
 	u32 threshold = *CTR_SCRATCHPAD_PTR(u32, scratchOffset);
 	u32 mask = 0;
 
-	for (int i = 0; i < 4; i++)
+	for (s32 bitIndex = 0; bitIndex < 4; bitIndex++)
 	{
-		if (DrawLevelOvr1P_MipsSubuSignBit(projected[indices[i]].depth, threshold))
+		if (DrawLevelOvr1P_MipsSubuSignBit(projected[indices[bitIndex]].depth, threshold))
 		{
-			mask |= bits[i];
+			mask |= bits[bitIndex];
 		}
 	}
 
@@ -1830,7 +1451,7 @@ static void DrawLevelOvr1P_StoreProjectedDepthWord(struct DrawLevelOvr1PScratchV
 	projected->clipHalfNear = (u8)(depth >> 24);
 }
 
-static void DrawLevelOvr1P_ProjectCopiedGridListMidpoint_800a74a0_800a90c0(struct DrawLevelOvr1PScratchVertex *projected)
+static void DrawLevelOvr1P_ProjectCopiedGridListMidpoint(struct DrawLevelOvr1PScratchVertex *projected)
 {
 	u32 depth;
 
@@ -1843,7 +1464,7 @@ static void DrawLevelOvr1P_ProjectCopiedGridListMidpoint_800a74a0_800a90c0(struc
 	DrawLevelOvr1P_StoreProjectedDepthWord(projected, depth);
 }
 
-static void DrawLevelOvr1P_ProjectCopiedGridRenderedMidpoint_800a8150_800a9d70(struct DrawLevelOvr1PScratchVertex *projected)
+static void DrawLevelOvr1P_ProjectCopiedGridRenderedMidpoint(struct DrawLevelOvr1PScratchVertex *projected)
 {
 	u32 depth;
 	u32 threshold = (u32)DrawLevelOvr1P_GetDepthClipThreshold();
@@ -1861,9 +1482,9 @@ static void DrawLevelOvr1P_ProjectCopiedGridRenderedMidpoint_800a8150_800a9d70(s
 static void DrawLevelOvr1P_BuildMidpointValue(struct DrawLevelOvr1PScratchVertex *dstMid, const struct DrawLevelOvr1PScratchVertex *srcA,
                                               const struct DrawLevelOvr1PScratchVertex *srcB, int writeClipBytes)
 {
-	for (int i = 0; i < 3; i++)
+	for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
 	{
-		dstMid->pos[i] = (s16)(((s32)srcA->pos[i] + (s32)srcB->pos[i]) >> 1);
+		dstMid->pos[axisIndex] = (s16)(((s32)srcA->pos[axisIndex] + (s32)srcB->pos[axisIndex]) >> 1);
 	}
 
 	u8 *dstUv = (u8 *)&dstMid->flags;
@@ -1872,9 +1493,9 @@ static void DrawLevelOvr1P_BuildMidpointValue(struct DrawLevelOvr1PScratchVertex
 	dstUv[0] = (u8)(((u32)srcAUv[0] + (u32)srcBUv[0]) >> 1);
 	dstUv[1] = (u8)(((u32)srcAUv[1] + (u32)srcBUv[1]) >> 1);
 
-	for (int i = 0; i < 3; i++)
+	for (s32 colorChannel = 0; colorChannel < 3; colorChannel++)
 	{
-		dstMid->color_hi[i] = (u8)(((u32)srcA->color_hi[i] + (u32)srcB->color_hi[i]) >> 1);
+		dstMid->color_hi[colorChannel] = (u8)(((u32)srcA->color_hi[colorChannel] + (u32)srcB->color_hi[colorChannel]) >> 1);
 	}
 
 	// NOTE(aalhendi): Retail midpoint helpers only write RGB at 0x8..0xa; model
@@ -1882,11 +1503,11 @@ static void DrawLevelOvr1P_BuildMidpointValue(struct DrawLevelOvr1PScratchVertex
 	dstMid->color_hi[3] = 0;
 	if (writeClipBytes)
 	{
-		DrawLevelOvr1P_ProjectCopiedGridRenderedMidpoint_800a8150_800a9d70(dstMid);
+		DrawLevelOvr1P_ProjectCopiedGridRenderedMidpoint(dstMid);
 	}
 	else
 	{
-		DrawLevelOvr1P_ProjectCopiedGridListMidpoint_800a74a0_800a90c0(dstMid);
+		DrawLevelOvr1P_ProjectCopiedGridListMidpoint(dstMid);
 	}
 }
 
@@ -1901,11 +1522,11 @@ static void Ovr226_800a3a78_BuildGround4x1ListMidpointPair(struct DrawLevelOvr1P
 	const u8 *srcBBytes = (const u8 *)srcB;
 	u32 depth;
 
-	for (int i = 0; i < 3; i++)
+	for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
 	{
-		dstA->pos[i] = srcA->pos[i];
-		dstB->pos[i] = srcB->pos[i];
-		dstMid->pos[i] = (s16)(((s32)srcA->pos[i] + (s32)srcB->pos[i]) >> 1);
+		dstA->pos[axisIndex] = srcA->pos[axisIndex];
+		dstB->pos[axisIndex] = srcB->pos[axisIndex];
+		dstMid->pos[axisIndex] = (s16)(((s32)srcA->pos[axisIndex] + (s32)srcB->pos[axisIndex]) >> 1);
 	}
 
 	CTR_GteLoadS16TripletV0(&dstMid->pos[0]);
@@ -1948,10 +1569,10 @@ static void Ovr226_800a560c_BuildGround4x2ListEdgeMidpoint(struct DrawLevelOvr1P
 	const u8 *srcBBytes = (const u8 *)srcB;
 	u32 depth;
 
-	for (int i = 0; i < 3; i++)
+	for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
 	{
-		dstA->pos[i] = srcA->pos[i];
-		dstMid->pos[i] = (s16)(((s32)srcA->pos[i] + (s32)srcB->pos[i]) >> 1);
+		dstA->pos[axisIndex] = srcA->pos[axisIndex];
+		dstMid->pos[axisIndex] = (s16)(((s32)srcA->pos[axisIndex] + (s32)srcB->pos[axisIndex]) >> 1);
 	}
 
 	CTR_GteLoadS16TripletV0(&dstMid->pos[0]);
@@ -1986,11 +1607,11 @@ static void Ovr226_800a56f4_BuildGround4x2ListPairMidpoint(struct DrawLevelOvr1P
 	const u8 *srcBBytes = (const u8 *)srcB;
 	u32 depth;
 
-	for (int i = 0; i < 3; i++)
+	for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
 	{
-		dstA->pos[i] = srcA->pos[i];
-		dstB->pos[i] = srcB->pos[i];
-		dstMid->pos[i] = (s16)(((s32)srcA->pos[i] + (s32)srcB->pos[i]) >> 1);
+		dstA->pos[axisIndex] = srcA->pos[axisIndex];
+		dstB->pos[axisIndex] = srcB->pos[axisIndex];
+		dstMid->pos[axisIndex] = (s16)(((s32)srcA->pos[axisIndex] + (s32)srcB->pos[axisIndex]) >> 1);
 	}
 
 	CTR_GteLoadS16TripletV0(&dstMid->pos[0]);
@@ -2042,10 +1663,10 @@ static void Ovr226_800a6510_BuildGround4x2RenderedEdgeMidpoint(struct DrawLevelO
 	const u8 *srcBBytes = (const u8 *)srcB;
 	u32 depth;
 
-	for (int i = 0; i < 3; i++)
+	for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
 	{
-		dstA->pos[i] = srcA->pos[i];
-		dstMid->pos[i] = (s16)(((s32)srcA->pos[i] + (s32)srcB->pos[i]) >> 1);
+		dstA->pos[axisIndex] = srcA->pos[axisIndex];
+		dstMid->pos[axisIndex] = (s16)(((s32)srcA->pos[axisIndex] + (s32)srcB->pos[axisIndex]) >> 1);
 	}
 
 	CTR_GteLoadS16TripletV0(&dstMid->pos[0]);
@@ -2088,25 +1709,25 @@ static void Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(struct DrawLevelOv
 	u8 *dstMidUv = (u8 *)&dstMid->flags;
 	u32 depth;
 
-	for (int i = 0; i < 3; i++)
+	for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
 	{
-		dstA->pos[i] = srcA->pos[i];
-		dstMid->pos[i] = (s16)(((s32)srcA->pos[i] + (s32)srcB->pos[i]) >> 1);
+		dstA->pos[axisIndex] = srcA->pos[axisIndex];
+		dstMid->pos[axisIndex] = (s16)(((s32)srcA->pos[axisIndex] + (s32)srcB->pos[axisIndex]) >> 1);
 	}
 
 	CTR_GteLoadS16TripletV0(&dstMid->pos[0]);
 	gte_rtps();
 
-	for (int i = 0; i < 3; i++)
+	for (s32 colorChannel = 0; colorChannel < 3; colorChannel++)
 	{
-		dstA->color_hi[i] = srcA->color_hi[i];
-		dstMid->color_hi[i] = (u8)(((u32)srcA->color_hi[i] + (u32)srcB->color_hi[i]) >> 1);
+		dstA->color_hi[colorChannel] = srcA->color_hi[colorChannel];
+		dstMid->color_hi[colorChannel] = (u8)(((u32)srcA->color_hi[colorChannel] + (u32)srcB->color_hi[colorChannel]) >> 1);
 	}
 
-	for (int i = 0; i < 2; i++)
+	for (s32 uvByte = 0; uvByte < 2; uvByte++)
 	{
-		dstAUv[i] = srcAUv[i];
-		dstMidUv[i] = (u8)(((u32)srcAUv[i] + (u32)srcBUv[i]) >> 1);
+		dstAUv[uvByte] = srcAUv[uvByte];
+		dstMidUv[uvByte] = (u8)(((u32)srcAUv[uvByte] + (u32)srcBUv[uvByte]) >> 1);
 	}
 
 	DrawLevelOvr1P_CopyProjectedScreenDepth(dstA, srcA);
@@ -2125,20 +1746,14 @@ static void Ovr226_800a74a0_BuildDynamicListSubdivisionFrame(struct DrawLevelOvr
 	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[1], &sub[6], &projected[indices[1]], &projected[indices[2]]);
 }
 
-static void Ovr226_800a90c0_BuildWideDynamicSubdivideMidpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstMid,
-                                                              const struct DrawLevelOvr1PScratchVertex *srcA, const struct DrawLevelOvr1PScratchVertex *srcB)
-{
-	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(dstA, dstMid, srcA, srcB);
-}
-
 static void Ovr226_800a90c0_BuildWideDynamicSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
                                                              const int *indices)
 {
-	Ovr226_800a90c0_BuildWideDynamicSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
-	Ovr226_800a90c0_BuildWideDynamicSubdivideMidpoint(&sub[1], &sub[7], &projected[indices[1]], &projected[indices[3]]);
-	Ovr226_800a90c0_BuildWideDynamicSubdivideMidpoint(&sub[2], &sub[5], &projected[indices[2]], &projected[indices[0]]);
-	Ovr226_800a90c0_BuildWideDynamicSubdivideMidpoint(&sub[3], &sub[8], &projected[indices[3]], &projected[indices[2]]);
-	Ovr226_800a90c0_BuildWideDynamicSubdivideMidpoint(&sub[4], &sub[6], &sub[4], &sub[8]);
+	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
+	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[1], &sub[7], &projected[indices[1]], &projected[indices[3]]);
+	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[2], &sub[5], &projected[indices[2]], &projected[indices[0]]);
+	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[3], &sub[8], &projected[indices[3]], &projected[indices[2]]);
+	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[4], &sub[6], &sub[4], &sub[8]);
 }
 
 static void Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstMid,
@@ -2151,25 +1766,25 @@ static void Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(struct DrawLev
 	u8 *dstMidUv = (u8 *)&dstMid->flags;
 	u32 depth;
 
-	for (int i = 0; i < 3; i++)
+	for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
 	{
-		dstA->pos[i] = srcA->pos[i];
-		dstMid->pos[i] = (s16)(((s32)srcA->pos[i] + (s32)srcB->pos[i]) >> 1);
+		dstA->pos[axisIndex] = srcA->pos[axisIndex];
+		dstMid->pos[axisIndex] = (s16)(((s32)srcA->pos[axisIndex] + (s32)srcB->pos[axisIndex]) >> 1);
 	}
 
 	CTR_GteLoadS16TripletV0(&dstMid->pos[0]);
 	gte_rtps();
 
-	for (int i = 0; i < 3; i++)
+	for (s32 colorChannel = 0; colorChannel < 3; colorChannel++)
 	{
-		dstA->color_hi[i] = srcA->color_hi[i];
-		dstMid->color_hi[i] = (u8)(((u32)srcA->color_hi[i] + (u32)srcB->color_hi[i]) >> 1);
+		dstA->color_hi[colorChannel] = srcA->color_hi[colorChannel];
+		dstMid->color_hi[colorChannel] = (u8)(((u32)srcA->color_hi[colorChannel] + (u32)srcB->color_hi[colorChannel]) >> 1);
 	}
 
-	for (int i = 0; i < 2; i++)
+	for (s32 uvByte = 0; uvByte < 2; uvByte++)
 	{
-		dstAUv[i] = srcAUv[i];
-		dstMidUv[i] = (u8)(((u32)srcAUv[i] + (u32)srcBUv[i]) >> 1);
+		dstAUv[uvByte] = srcAUv[uvByte];
+		dstMidUv[uvByte] = (u8)(((u32)srcAUv[uvByte] + (u32)srcBUv[uvByte]) >> 1);
 	}
 
 	DrawLevelOvr1P_CopyProjectedScreenDepth(dstA, srcA);
@@ -2188,21 +1803,14 @@ static void Ovr226_800a8150_BuildDynamicRenderedSubdivisionFrame(struct DrawLeve
 	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[1], &sub[6], &projected[indices[1]], &projected[indices[2]]);
 }
 
-static void Ovr226_800a9d70_BuildQuad4x4RenderedSubdivideMidpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstMid,
-                                                                  const struct DrawLevelOvr1PScratchVertex *srcA,
-                                                                  const struct DrawLevelOvr1PScratchVertex *srcB)
-{
-	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(dstA, dstMid, srcA, srcB);
-}
-
 static void Ovr226_800a9d70_BuildQuad4x4RenderedSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
                                                                  const int *indices)
 {
-	Ovr226_800a9d70_BuildQuad4x4RenderedSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
-	Ovr226_800a9d70_BuildQuad4x4RenderedSubdivideMidpoint(&sub[1], &sub[7], &projected[indices[1]], &projected[indices[3]]);
-	Ovr226_800a9d70_BuildQuad4x4RenderedSubdivideMidpoint(&sub[2], &sub[5], &projected[indices[2]], &projected[indices[0]]);
-	Ovr226_800a9d70_BuildQuad4x4RenderedSubdivideMidpoint(&sub[3], &sub[8], &projected[indices[3]], &projected[indices[2]]);
-	Ovr226_800a9d70_BuildQuad4x4RenderedSubdivideMidpoint(&sub[4], &sub[6], &sub[4], &sub[8]);
+	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
+	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[1], &sub[7], &projected[indices[1]], &projected[indices[3]]);
+	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[2], &sub[5], &projected[indices[2]], &projected[indices[0]]);
+	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[3], &sub[8], &projected[indices[3]], &projected[indices[2]]);
+	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[4], &sub[6], &sub[4], &sub[8]);
 }
 
 static void Ovr226_800a4594_BuildGround4x1RenderedMidpointPair(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstB,
@@ -2216,11 +1824,11 @@ static void Ovr226_800a4594_BuildGround4x1RenderedMidpointPair(struct DrawLevelO
 	const u8 *srcBBytes = (const u8 *)srcB;
 	u32 depth;
 
-	for (int i = 0; i < 3; i++)
+	for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
 	{
-		dstA->pos[i] = srcA->pos[i];
-		dstB->pos[i] = srcB->pos[i];
-		dstMid->pos[i] = (s16)(((s32)srcA->pos[i] + (s32)srcB->pos[i]) >> 1);
+		dstA->pos[axisIndex] = srcA->pos[axisIndex];
+		dstB->pos[axisIndex] = srcB->pos[axisIndex];
+		dstMid->pos[axisIndex] = (s16)(((s32)srcA->pos[axisIndex] + (s32)srcB->pos[axisIndex]) >> 1);
 	}
 
 	CTR_GteLoadS16TripletV0(&dstMid->pos[0]);
@@ -2272,25 +1880,25 @@ static void Ovr226_800a17d8_BuildFullDynamicSubdivideMidpoint(struct DrawLevelOv
 	u8 *dstMidBytes = (u8 *)&dstMid->flags;
 	u32 depth;
 
-	for (int i = 0; i < 3; i++)
+	for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
 	{
-		dstA->pos[i] = srcA->pos[i];
-		dstMid->pos[i] = (s16)(((s32)srcA->pos[i] + (s32)srcB->pos[i]) >> 1);
+		dstA->pos[axisIndex] = srcA->pos[axisIndex];
+		dstMid->pos[axisIndex] = (s16)(((s32)srcA->pos[axisIndex] + (s32)srcB->pos[axisIndex]) >> 1);
 	}
 
 	CTR_GteLoadS16TripletV0(&dstMid->pos[0]);
 	gte_rtps();
 
-	for (int i = 0; i < 3; i++)
+	for (s32 colorChannel = 0; colorChannel < 3; colorChannel++)
 	{
-		dstA->color_hi[i] = srcA->color_hi[i];
-		dstMid->color_hi[i] = (u8)(((u32)srcA->color_hi[i] + (u32)srcB->color_hi[i]) >> 1);
+		dstA->color_hi[colorChannel] = srcA->color_hi[colorChannel];
+		dstMid->color_hi[colorChannel] = (u8)(((u32)srcA->color_hi[colorChannel] + (u32)srcB->color_hi[colorChannel]) >> 1);
 	}
 
-	for (int i = 0; i < 2; i++)
+	for (s32 uvByte = 0; uvByte < 2; uvByte++)
 	{
-		dstABytes[i] = srcABytes[i];
-		dstMidBytes[i] = (u8)(((u32)srcABytes[i] + (u32)srcBBytes[i]) >> 1);
+		dstABytes[uvByte] = srcABytes[uvByte];
+		dstMidBytes[uvByte] = (u8)(((u32)srcABytes[uvByte] + (u32)srcBBytes[uvByte]) >> 1);
 	}
 
 	DrawLevelOvr1P_CopyProjectedScreenDepth(dstA, srcA);
@@ -2313,11 +1921,11 @@ static u32 DrawLevelOvr1P_GetProjectedMaxDepth(const struct DrawLevelOvr1PScratc
 {
 	u32 maxDepth = projected[indices[0]].depth;
 
-	for (int i = 1; i < 4; i++)
+	for (s32 vertexIndex = 1; vertexIndex < 4; vertexIndex++)
 	{
-		if (maxDepth < projected[indices[i]].depth)
+		if (maxDepth < projected[indices[vertexIndex]].depth)
 		{
-			maxDepth = projected[indices[i]].depth;
+			maxDepth = projected[indices[vertexIndex]].depth;
 		}
 	}
 
@@ -2328,11 +1936,11 @@ static u32 DrawLevelOvr1P_GetProjectedTriMaxDepth(const struct DrawLevelOvr1PScr
 {
 	u32 maxDepth = projected[indices[0]].depth;
 
-	for (int i = 1; i < 3; i++)
+	for (s32 vertexIndex = 1; vertexIndex < 3; vertexIndex++)
 	{
-		if (maxDepth < projected[indices[i]].depth)
+		if (maxDepth < projected[indices[vertexIndex]].depth)
 		{
-			maxDepth = projected[indices[i]].depth;
+			maxDepth = projected[indices[vertexIndex]].depth;
 		}
 	}
 
@@ -2368,12 +1976,12 @@ static int DrawLevelOvr1P_GetProjectedOtIndex(const struct QuadBlock *block, con
 	return otIndex;
 }
 
-static void Ovr226_800a108c_800a1b10_SetFullDynamicInheritedOtIndex(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected,
-                                                                    u32 maxDepth, int faceIndex)
+static void DrawLevelOvr1P_SetFullDynamicInheritedOtIndex(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected, u32 maxDepth,
+                                                          int faceIndex)
 {
 	// NOTE(aalhendi): Retail full-dynamic paths keep the selected OT entry in `gp`
 	// until 0x800a1cc4 links the direct primitive.
-	sOvr226_800a1cc4_InheritedOtIndex = DrawLevelOvr1P_GetProjectedOtIndex(block, projected, maxDepth, faceIndex);
+	sDrawLevelOvr1P_FullDynamicInheritedOtIndex = DrawLevelOvr1P_GetProjectedOtIndex(block, projected, maxDepth, faceIndex);
 }
 
 static int DrawLevelOvr1P_ResolveProjectedOtIndex(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected, u32 maxDepth,
@@ -2387,7 +1995,7 @@ static int DrawLevelOvr1P_ResolveProjectedOtIndex(const struct QuadBlock *block,
 	return DrawLevelOvr1P_GetProjectedOtIndex(block, projected, maxDepth, faceIndex);
 }
 
-static u32 DrawLevelOvr1P_GetWaterTopFrameOtDepth_800a2690_800a31f0(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static u32 DrawLevelOvr1P_GetWaterTopFrameOtDepth(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
 {
 	s32 depth0 = projected[indices[0]].depth;
 	s32 depth1 = projected[indices[1]].depth;
@@ -2442,7 +2050,7 @@ static uint32_t *Ovr226_800a2690_ResolveWaterListInheritedOtEntry(struct PushBuf
 		return NULL;
 	}
 
-	selectedDepth = DrawLevelOvr1P_GetWaterTopFrameOtDepth_800a2690_800a31f0(projected, indices);
+	selectedDepth = DrawLevelOvr1P_GetWaterTopFrameOtDepth(projected, indices);
 	slotWord = DrawLevelOvr1P_GetProjectedOtSlotWord(projected, faceIndex);
 	drawOrder = DrawLevelOvr1P_ReadRetailQuadBlockByte(block, 0x18 + (slotWord >> 2));
 	otIndex = (s32)(selectedDepth >> 6) + drawOrder;
@@ -2576,9 +2184,9 @@ static int DrawLevelOvr1P_IsClipByteSet(u8 clipByte)
 
 static int DrawLevelOvr1P_AreProjectedVerticesHalfNear(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count)
 {
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		if (!DrawLevelOvr1P_IsClipByteSet(projected[indices[i]].clipHalfNear))
+		if (!DrawLevelOvr1P_IsClipByteSet(projected[indices[vertexIndex]].clipHalfNear))
 		{
 			return 0;
 		}
@@ -2589,9 +2197,9 @@ static int DrawLevelOvr1P_AreProjectedVerticesHalfNear(const struct DrawLevelOvr
 
 static int DrawLevelOvr1P_HasProjectedVertexNear(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count)
 {
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		if (DrawLevelOvr1P_IsClipByteSet(projected[indices[i]].clipNear))
+		if (DrawLevelOvr1P_IsClipByteSet(projected[indices[vertexIndex]].clipNear))
 		{
 			return 1;
 		}
@@ -2647,9 +2255,9 @@ static void Ovr226_800a1408_AdjustFullDynamicMidVertex(struct DrawLevelOvr1PScra
 		return;
 	}
 
-	for (int i = 0; i < 3; i++)
+	for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
 	{
-		midpoint[i] = (s16)(((s32)endpointA->pos[i] + (s32)endpointB->pos[i]) >> 1);
+		midpoint[axisIndex] = (s16)(((s32)endpointA->pos[axisIndex] + (s32)endpointB->pos[axisIndex]) >> 1);
 	}
 
 	u32 color = DrawLevelOvr1P_ReadWord(levMid, 0xc);
@@ -2709,11 +2317,11 @@ static u32 DrawLevelOvr1P_GetPreparedProjectedMaxDepthCount(const struct DrawLev
 {
 	u32 maxDepth = projected[indices[0]].depth;
 
-	for (int i = 1; i < count; i++)
+	for (s32 vertexIndex = 1; vertexIndex < count; vertexIndex++)
 	{
-		if (maxDepth < projected[indices[i]].depth)
+		if (maxDepth < projected[indices[vertexIndex]].depth)
 		{
-			maxDepth = projected[indices[i]].depth;
+			maxDepth = projected[indices[vertexIndex]].depth;
 		}
 	}
 
@@ -2750,9 +2358,9 @@ static int DrawLevelOvr1P_SourceInsideClipRecordWindow(const struct DrawLevelOvr
 
 static int DrawLevelOvr1P_ShouldWriteRenderedClippedRecord(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count)
 {
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		if (DrawLevelOvr1P_SourceInsideClipRecordWindow(&projected[indices[i]]))
+		if (DrawLevelOvr1P_SourceInsideClipRecordWindow(&projected[indices[vertexIndex]]))
 		{
 			return 1;
 		}
@@ -2828,9 +2436,9 @@ static int DrawLevelOvr1P_WriteRenderedClippedRecordAtOt(struct PushBuffer *pb, 
 	record->tpage = DrawLevelOvr1P_Scratch()->uv.tpage;
 	record->clut = DrawLevelOvr1P_Scratch()->uv.clut;
 
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		DrawLevelOvr1P_CopyClipRecordVertex(&record->vertex[i], &projected[indices[i]]);
+		DrawLevelOvr1P_CopyClipRecordVertex(&record->vertex[vertexIndex], &projected[indices[vertexIndex]]);
 	}
 
 	DrawLevelOvr1P_SetClipRecordCursor(cursor + recordSize);
@@ -2868,9 +2476,9 @@ static int DrawLevelOvr1P_WriteWaterRenderedClippedRecordAtOt(struct PushBuffer 
 	record->tpage = DrawLevelOvr1P_Scratch()->uv.tpage;
 	record->clut = DrawLevelOvr1P_Scratch()->uv.clut;
 
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		DrawLevelOvr1P_CopyClipRecordVertex(&record->vertex[i], &projected[indices[i]]);
+		DrawLevelOvr1P_CopyClipRecordVertex(&record->vertex[vertexIndex], &projected[indices[vertexIndex]]);
 	}
 
 	DrawLevelOvr1P_SetClipRecordCursor(cursor + recordSize);
@@ -2899,9 +2507,9 @@ static int Ovr226_800a34d4_WriteWaterRenderedClippedRecordAtOtEntry(struct PushB
 	record->tpage = DrawLevelOvr1P_Scratch()->uv.tpage;
 	record->clut = DrawLevelOvr1P_Scratch()->uv.clut;
 
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		DrawLevelOvr1P_CopyClipRecordVertex(&record->vertex[i], &projected[indices[i]]);
+		DrawLevelOvr1P_CopyClipRecordVertex(&record->vertex[vertexIndex], &projected[indices[vertexIndex]]);
 	}
 
 	DrawLevelOvr1P_SetClipRecordCursor(cursor + recordSize);
@@ -3022,10 +2630,10 @@ static s32 DrawLevelOvr1P_ProjectClipRecordEmitVertices(struct DrawLevelOvr1PScr
 	SVECTOR source[4];
 	s32 nclip;
 
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		dst[i] = projected[indices[i]];
-		DrawLevelOvr1P_GetClipRecordSourceVector(&projected[indices[i]], &source[i]);
+		dst[vertexIndex] = projected[indices[vertexIndex]];
+		DrawLevelOvr1P_GetClipRecordSourceVector(&projected[indices[vertexIndex]], &source[vertexIndex]);
 	}
 
 	CTR_GteLoadSV3(&source[0], &source[1], &source[2]);
@@ -3189,9 +2797,9 @@ static void DrawLevelOvr1P_PrepareClipRecordDepthScratchRange(struct DrawLevelOv
 {
 	s32 threshold = DrawLevelOvr1P_GetDepthClipThreshold();
 
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		Ovr226_800aaad0_PrepareClipRecordDepthScratch(&projected[i], threshold);
+		Ovr226_800aaad0_PrepareClipRecordDepthScratch(&projected[vertexIndex], threshold);
 	}
 }
 
@@ -3200,11 +2808,11 @@ static u32 DrawLevelOvr1P_GetClipRecordProjectedNearMask(const struct DrawLevelO
 	static const u32 bits[4] = {0x4, 0x8, 0x10, 0x20};
 	u32 mask = 0;
 
-	for (int i = 0; i < count; i++)
+	for (s32 bitIndex = 0; bitIndex < count; bitIndex++)
 	{
-		if (DrawLevelOvr1P_IsClipByteSet(projected[i].color_hi[3]))
+		if (DrawLevelOvr1P_IsClipByteSet(projected[bitIndex].color_hi[3]))
 		{
-			mask |= bits[i];
+			mask |= bits[bitIndex];
 		}
 	}
 
@@ -3213,9 +2821,9 @@ static u32 DrawLevelOvr1P_GetClipRecordProjectedNearMask(const struct DrawLevelO
 
 static void DrawLevelOvr1P_ClearClipRecordProjectedNearBytes(struct DrawLevelOvr1PScratchVertex *projected, int count)
 {
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		projected[i].color_hi[3] = 0;
+		projected[vertexIndex].color_hi[3] = 0;
 	}
 }
 
@@ -3237,9 +2845,9 @@ static void Ovr226_800aab00_InterpolateClipRecordVertex(struct DrawLevelOvr1PScr
 	dstUv[0] = DrawLevelOvr1P_LerpU8_16(insideUv[0], outsideUv[0], factor);
 	dstUv[1] = DrawLevelOvr1P_LerpU8_16(insideUv[1], outsideUv[1], factor);
 
-	for (int i = 0; i < 3; i++)
+	for (s32 colorChannel = 0; colorChannel < 3; colorChannel++)
 	{
-		dst->color_hi[i] = DrawLevelOvr1P_LerpU8_16(inside->color_hi[i], outside->color_hi[i], factor);
+		dst->color_hi[colorChannel] = DrawLevelOvr1P_LerpU8_16(inside->color_hi[colorChannel], outside->color_hi[colorChannel], factor);
 	}
 }
 
@@ -3261,12 +2869,12 @@ static int Ovr226_800aa96c_DispatchGT3ClipRecordLabel(struct PushBuffer *pb, str
 	//  Work records live at retail scratch 0x1b4/0x1c8/0x1dc/0x204/0x218.
 	switch (handlerAddress)
 	{
-	case 0x800aa96c:
+	case OVR226_RETAIL_LABEL_GT3_CLIP_NEAR_NONE:
 	{
 		int tri[3] = {0, 1, 2};
 		return Ovr226_800aac00_EmitClipRecordGT3(pb, primMem, otEntry, work, tri, record);
 	}
-	case 0x800aa984:
+	case OVR226_RETAIL_LABEL_GT3_CLIP_NEAR_V0:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[1], &work[0]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[2], &work[0]);
 		indices[0] = 1;
@@ -3274,7 +2882,7 @@ static int Ovr226_800aa96c_DispatchGT3ClipRecordLabel(struct PushBuffer *pb, str
 		indices[2] = 4;
 		indices[3] = 5;
 		return Ovr226_800aad44_EmitClipRecordGT4(pb, primMem, otEntry, work, indices, record);
-	case 0x800aa9bc:
+	case OVR226_RETAIL_LABEL_GT3_CLIP_NEAR_V1:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[2], &work[1]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[0], &work[1]);
 		indices[0] = 2;
@@ -3282,14 +2890,14 @@ static int Ovr226_800aa96c_DispatchGT3ClipRecordLabel(struct PushBuffer *pb, str
 		indices[2] = 4;
 		indices[3] = 5;
 		return Ovr226_800aad44_EmitClipRecordGT4(pb, primMem, otEntry, work, indices, record);
-	case 0x800aa9f4:
+	case OVR226_RETAIL_LABEL_GT3_CLIP_NEAR_V0_V1:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[2], &work[1]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[2], &work[0]);
 		indices[0] = 2;
 		indices[1] = 5;
 		indices[2] = 4;
 		return Ovr226_800aac00_EmitClipRecordGT3(pb, primMem, otEntry, work, indices, record);
-	case 0x800aaa28:
+	case OVR226_RETAIL_LABEL_GT3_CLIP_NEAR_V2:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[0], &work[2]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[1], &work[2]);
 		indices[0] = 0;
@@ -3297,21 +2905,21 @@ static int Ovr226_800aa96c_DispatchGT3ClipRecordLabel(struct PushBuffer *pb, str
 		indices[2] = 4;
 		indices[3] = 5;
 		return Ovr226_800aad44_EmitClipRecordGT4(pb, primMem, otEntry, work, indices, record);
-	case 0x800aaa60:
+	case OVR226_RETAIL_LABEL_GT3_CLIP_NEAR_V0_V2:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[1], &work[0]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[1], &work[2]);
 		indices[0] = 1;
 		indices[1] = 5;
 		indices[2] = 4;
 		return Ovr226_800aac00_EmitClipRecordGT3(pb, primMem, otEntry, work, indices, record);
-	case 0x800aaa94:
+	case OVR226_RETAIL_LABEL_GT3_CLIP_NEAR_V1_V2:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[0], &work[2]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[0], &work[1]);
 		indices[0] = 0;
 		indices[1] = 5;
 		indices[2] = 4;
 		return Ovr226_800aac00_EmitClipRecordGT3(pb, primMem, otEntry, work, indices, record);
-	case 0x800aaac8:
+	case OVR226_RETAIL_LABEL_GT3_CLIP_NEAR_ALL:
 		return 1;
 	default:
 		return 1;
@@ -3366,9 +2974,9 @@ static int Ovr226_800aaf70_DispatchGT4ClipRecordLabel(struct PushBuffer *pb, str
 	//  Work records live at retail scratch 0x1b4..0x22c.
 	switch (handlerAddress)
 	{
-	case 0x800aaf70:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_NONE:
 		return DrawLevelOvr1P_EmitClipRecordTableQuad(pb, primMem, otEntry, work, record, 0, 1, 2, 3);
-	case 0x800aaf8c:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_V0:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[1], &work[0]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[2], &work[0]);
 		if (!DrawLevelOvr1P_EmitClipRecordTableTri(pb, primMem, otEntry, work, record, 3, 2, 1))
@@ -3376,7 +2984,7 @@ static int Ovr226_800aaf70_DispatchGT4ClipRecordLabel(struct PushBuffer *pb, str
 			return 0;
 		}
 		return DrawLevelOvr1P_EmitClipRecordTableQuad(pb, primMem, otEntry, work, record, 1, 2, 4, 5);
-	case 0x800aafd4:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_V1:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[3], &work[1]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[2], &work[1]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[6], &work[0], &work[1]);
@@ -3385,7 +2993,7 @@ static int Ovr226_800aaf70_DispatchGT4ClipRecordLabel(struct PushBuffer *pb, str
 			return 0;
 		}
 		return DrawLevelOvr1P_EmitClipRecordTableQuad(pb, primMem, otEntry, work, record, 2, 0, 5, 6);
-	case 0x800ab02c:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_V0_V1:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[3], &work[1]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[2], &work[1]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[6], &work[2], &work[0]);
@@ -3394,7 +3002,7 @@ static int Ovr226_800aaf70_DispatchGT4ClipRecordLabel(struct PushBuffer *pb, str
 			return 0;
 		}
 		return DrawLevelOvr1P_EmitClipRecordTableTri(pb, primMem, otEntry, work, record, 2, 6, 5);
-	case 0x800ab080:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_V2:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[0], &work[2]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[1], &work[2]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[6], &work[3], &work[2]);
@@ -3403,7 +3011,7 @@ static int Ovr226_800aaf70_DispatchGT4ClipRecordLabel(struct PushBuffer *pb, str
 			return 0;
 		}
 		return DrawLevelOvr1P_EmitClipRecordTableQuad(pb, primMem, otEntry, work, record, 1, 3, 5, 6);
-	case 0x800ab0d8:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_V0_V2:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[1], &work[0]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[1], &work[2]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[6], &work[3], &work[2]);
@@ -3412,7 +3020,7 @@ static int Ovr226_800aaf70_DispatchGT4ClipRecordLabel(struct PushBuffer *pb, str
 			return 0;
 		}
 		return DrawLevelOvr1P_EmitClipRecordTableQuad(pb, primMem, otEntry, work, record, 1, 3, 5, 6);
-	case 0x800ab12c:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_V1_V2:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[0], &work[2]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[0], &work[1]);
 		if (!DrawLevelOvr1P_EmitClipRecordTableTri(pb, primMem, otEntry, work, record, 0, 5, 4))
@@ -3422,11 +3030,11 @@ static int Ovr226_800aaf70_DispatchGT4ClipRecordLabel(struct PushBuffer *pb, str
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[3], &work[2]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[3], &work[1]);
 		return DrawLevelOvr1P_EmitClipRecordTableTri(pb, primMem, otEntry, work, record, 3, 5, 4);
-	case 0x800ab18c:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_V0_V1_V2:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[3], &work[1]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[3], &work[2]);
 		return DrawLevelOvr1P_EmitClipRecordTableTri(pb, primMem, otEntry, work, record, 3, 5, 4);
-	case 0x800ab1c0:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_V3:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[2], &work[3]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[1], &work[3]);
 		if (!DrawLevelOvr1P_EmitClipRecordTableTri(pb, primMem, otEntry, work, record, 0, 1, 2))
@@ -3434,7 +3042,7 @@ static int Ovr226_800aaf70_DispatchGT4ClipRecordLabel(struct PushBuffer *pb, str
 			return 0;
 		}
 		return DrawLevelOvr1P_EmitClipRecordTableQuad(pb, primMem, otEntry, work, record, 2, 1, 4, 5);
-	case 0x800ab208:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_V0_V3:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[1], &work[0]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[2], &work[0]);
 		if (!DrawLevelOvr1P_EmitClipRecordTableQuad(pb, primMem, otEntry, work, record, 1, 2, 4, 5))
@@ -3444,7 +3052,7 @@ static int Ovr226_800aaf70_DispatchGT4ClipRecordLabel(struct PushBuffer *pb, str
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[1], &work[3]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[2], &work[3]);
 		return DrawLevelOvr1P_EmitClipRecordTableQuad(pb, primMem, otEntry, work, record, 1, 2, 4, 5);
-	case 0x800ab270:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_V1_V3:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[2], &work[3]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[2], &work[1]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[6], &work[0], &work[1]);
@@ -3453,12 +3061,12 @@ static int Ovr226_800aaf70_DispatchGT4ClipRecordLabel(struct PushBuffer *pb, str
 			return 0;
 		}
 		return DrawLevelOvr1P_EmitClipRecordTableQuad(pb, primMem, otEntry, work, record, 2, 0, 5, 6);
-	case 0x800ab2c4:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_V0_V1_V3:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[2], &work[3]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[2], &work[1]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[6], &work[2], &work[0]);
 		return DrawLevelOvr1P_EmitClipRecordTableQuad(pb, primMem, otEntry, work, record, 4, 2, 5, 6);
-	case 0x800ab308:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_V2_V3:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[0], &work[2]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[1], &work[2]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[6], &work[1], &work[3]);
@@ -3467,16 +3075,16 @@ static int Ovr226_800aaf70_DispatchGT4ClipRecordLabel(struct PushBuffer *pb, str
 			return 0;
 		}
 		return DrawLevelOvr1P_EmitClipRecordTableTri(pb, primMem, otEntry, work, record, 1, 6, 5);
-	case 0x800ab35c:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_V0_V2_V3:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[1], &work[0]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[1], &work[2]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[6], &work[1], &work[3]);
 		return DrawLevelOvr1P_EmitClipRecordTableQuad(pb, primMem, otEntry, work, record, 4, 1, 5, 6);
-	case 0x800ab3a0:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_V1_V2_V3:
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[4], &work[0], &work[2]);
 		Ovr226_800aab00_InterpolateClipRecordVertex(&work[5], &work[0], &work[1]);
 		return DrawLevelOvr1P_EmitClipRecordTableTri(pb, primMem, otEntry, work, record, 0, 5, 4);
-	case 0x800ab3d4:
+	case OVR226_RETAIL_LABEL_GT4_CLIP_NEAR_ALL:
 		return Ovr226_800ab3d4_EmptyGT4ClipRecordLabel();
 	default:
 		return 1;
@@ -3536,9 +3144,9 @@ static int Ovr226_800aa848_ProjectFirstThreeClipRecordsAndDispatch(struct PushBu
 
 	DrawLevelOvr1P_SetClipRecordPageScratch(record);
 
-	for (int i = 0; i < 3; i++)
+	for (s32 vertexIndex = 0; vertexIndex < 3; vertexIndex++)
 	{
-		Ovr226_800aa858_ProjectClipRecordRawVertex(&projected[i], &record->vertex[i]);
+		Ovr226_800aa858_ProjectClipRecordRawVertex(&projected[vertexIndex], &record->vertex[vertexIndex]);
 	}
 
 	// NOTE(aalhendi): Retail delay-slot stores the clipped-record header at
@@ -3563,16 +3171,16 @@ static int Ovr226_800aa790_TerminalPreamble(struct PushBuffer *pb, const u8 *cur
 	// NOTE(aalhendi): Retail saves the terminal call return address at scratch
 	// 0x2a0 before the empty-queue branch. Native models the scratch side
 	// effect with the retail return PC; the host ABI owns the real return.
-	*DrawLevelOvr1P_TerminalReturnPcScratch() = 0x800a0eb4;
+	*DrawLevelOvr1P_TerminalReturnPcScratch() = DRAW_LEVEL_OVR_RETAIL_LABEL_TERMINAL_RETURN;
 
 	if (cursor == end)
 	{
 		return 0;
 	}
 
-	for (int i = 0; i < 8; i++)
+	for (s32 controlWordIndex = 0; controlWordIndex < 8; controlWordIndex++)
 	{
-		CTC2(DrawLevelOvr1P_ReadWord(&pb->matrix_ViewProj, i * 4), 8 + i);
+		CTC2(DrawLevelOvr1P_ReadWord(&pb->matrix_ViewProj, controlWordIndex * 4), 8 + controlWordIndex);
 	}
 
 	CTC2((u32)(s32)pb->rect.w << 15, 24);
@@ -3581,9 +3189,9 @@ static int Ovr226_800aa790_TerminalPreamble(struct PushBuffer *pb, const u8 *cur
 
 	// NOTE(aalhendi): Retail 0x800aa7f8 mirrors the clip threshold into the
 	// temporary vertices used by the 0x800aab00 interpolation helper.
-	for (int i = 0; i < 3; i++)
+	for (s32 vertexIndex = 0; vertexIndex < 3; vertexIndex++)
 	{
-		struct DrawLevelOvr1PScratchVertex *vertex = DrawLevelOvr1P_TerminalClipVertex(i);
+		struct DrawLevelOvr1PScratchVertex *vertex = DrawLevelOvr1P_TerminalClipVertex(vertexIndex);
 
 		vertex->pos[2] = threshold;
 		vertex->clipNear = 0;
@@ -3788,24 +3396,24 @@ static int DrawLevelOvr1P_IsRawListDirectHandlerAddress(u32 handlerAddress)
 {
 	switch (handlerAddress)
 	{
-	case 0x800a1ce8:
-	case 0x800a1ce0:
-	case 0x800a1d6c:
-	case 0x800a27dc:
-	case 0x800a27d4:
-	case 0x800a2850:
-	case 0x800a4034:
-	case 0x800a402c:
-	case 0x800a40b8:
-	case 0x800a5d14:
-	case 0x800a5d0c:
-	case 0x800a5d98:
-	case 0x800a7a60:
-	case 0x800a7a58:
-	case 0x800a7ae4:
-	case 0x800a9680:
-	case 0x800a9678:
-	case 0x800a9704:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_PRIMARY_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_SECOND_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT4_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_PRIMARY_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_SECOND_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT4_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT4:
 		return 1;
 	default:
 		return 0;
@@ -3816,16 +3424,16 @@ static int DrawLevelOvr1P_IsSignedClipTerminalTriHandlerAddress(u32 handlerAddre
 {
 	switch (handlerAddress)
 	{
-	case 0x800a333c:
-	case 0x800a3334:
-	case 0x800a4c14:
-	case 0x800a4c0c:
-	case 0x800a6bb4:
-	case 0x800a6bac:
-	case 0x800a87d4:
-	case 0x800a87cc:
-	case 0x800aa3f4:
-	case 0x800aa3ec:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_PRIMARY_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_SECOND_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT3_SECOND:
 		return 1;
 	default:
 		return 0;
@@ -3836,11 +3444,11 @@ static int DrawLevelOvr1P_IsNonzeroClipTerminalQuadHandlerAddress(u32 handlerAdd
 {
 	switch (handlerAddress)
 	{
-	case 0x800a33e0:
-	case 0x800a4cc8:
-	case 0x800a6c68:
-	case 0x800a8888:
-	case 0x800aa4a8:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT4_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT4:
 		return 1;
 	default:
 		return 0;
@@ -3851,12 +3459,12 @@ static int DrawLevelOvr1P_IsTargetGridTerminalHandlerAddress(u32 handlerAddress)
 {
 	switch (handlerAddress)
 	{
-	case 0x800a87d4:
-	case 0x800a87cc:
-	case 0x800a8888:
-	case 0x800aa3f4:
-	case 0x800aa3ec:
-	case 0x800aa4a8:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT4:
 		return 1;
 	default:
 		return 0;
@@ -3876,7 +3484,7 @@ static int DrawLevelOvr1P_EmitPreparedProjectedDirectMaskAtOt(struct PushBuffer 
 	}
 
 	// NOTE(aalhendi): Retail list-bucket direct handlers outside the target
-	// 0x800a87d4/0x800a8888 family are raw packet writers after the caller's
+	// grid terminal family are raw packet writers after the caller's
 	// cull/direct-mask checks. The target family keeps local terminal clip
 	// checks even though list-projected clip bytes normally make them inert.
 	if (writeClipBytes == DRAW_LEVEL_OVR1P_CLIP_BYTES_LIST && !waterRenderedDirect && DrawLevelOvr1P_IsRawListDirectHandlerAddress(handlerAddress) &&
@@ -3886,23 +3494,26 @@ static int DrawLevelOvr1P_EmitPreparedProjectedDirectMaskAtOt(struct PushBuffer 
 	}
 
 	// NOTE(aalhendi): Retail direct table offsets 4/8/12 map to GT3 primary,
-	// GT3 secondary, and GT4 handlers through scratch 0x188.
+	// GT3 secondary, and GT4 handlers through the copied setup1 scratch slot.
 	switch (handlerAddress)
 	{
-	case 0x800a1ce8:
-	case 0x800a27dc:
-	case 0x800a333c:
-	case 0x800a4034:
-	case 0x800a4c14:
-	case 0x800a5d14:
-	case 0x800a6bb4:
-	case 0x800a7a60:
-	case 0x800a87d4:
-	case 0x800a9680:
-	case 0x800aa3f4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_PRIMARY_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_PRIMARY_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_PRIMARY_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT3_PRIMARY:
 	{
 		int triIndices[3] = {indices[0], indices[1], indices[2]};
-		int primCodeOverride = (handlerAddress == 0x800a27dc || handlerAddress == 0x800a333c) ? 0x36 : DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO;
+		int primCodeOverride = (handlerAddress == DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_PRIMARY_226 ||
+		                        handlerAddress == DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_PRIMARY_226)
+		                           ? 0x36
+		                           : DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO;
 
 		if (DrawLevelOvr1P_IsSignedClipTerminalTriHandlerAddress(handlerAddress))
 		{
@@ -3914,20 +3525,23 @@ static int DrawLevelOvr1P_EmitPreparedProjectedDirectMaskAtOt(struct PushBuffer 
 		                                                             waterRenderedDirect, otIndexOverride, primCodeOverride);
 	}
 
-	case 0x800a1ce0:
-	case 0x800a27d4:
-	case 0x800a3334:
-	case 0x800a402c:
-	case 0x800a4c0c:
-	case 0x800a5d0c:
-	case 0x800a6bac:
-	case 0x800a7a58:
-	case 0x800a87cc:
-	case 0x800a9678:
-	case 0x800aa3ec:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_SECOND_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_SECOND_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_SECOND_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT3_SECOND:
 	{
 		int triIndices[3] = {indices[1], indices[3], indices[2]};
-		int primCodeOverride = (handlerAddress == 0x800a27d4 || handlerAddress == 0x800a3334) ? 0x36 : DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO;
+		int primCodeOverride = (handlerAddress == DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_SECOND_226 ||
+		                        handlerAddress == DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_SECOND_226)
+		                           ? 0x36
+		                           : DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO;
 
 		if (DrawLevelOvr1P_IsSignedClipTerminalTriHandlerAddress(handlerAddress))
 		{
@@ -3939,19 +3553,22 @@ static int DrawLevelOvr1P_EmitPreparedProjectedDirectMaskAtOt(struct PushBuffer 
 		                                                             waterRenderedDirect, otIndexOverride, primCodeOverride);
 	}
 
-	case 0x800a1d6c:
-	case 0x800a2850:
-	case 0x800a33e0:
-	case 0x800a40b8:
-	case 0x800a4cc8:
-	case 0x800a5d98:
-	case 0x800a6c68:
-	case 0x800a7ae4:
-	case 0x800a8888:
-	case 0x800a9704:
-	case 0x800aa4a8:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT4_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT4_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT4_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT4:
 	{
-		int primCodeOverride = (handlerAddress == 0x800a2850 || handlerAddress == 0x800a33e0) ? 0x3e : DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO;
+		int primCodeOverride = (handlerAddress == DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT4_226 ||
+		                        handlerAddress == DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT4_226)
+		                           ? 0x3e
+		                           : DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO;
 
 		if (DrawLevelOvr1P_IsNonzeroClipTerminalQuadHandlerAddress(handlerAddress))
 		{
@@ -3983,46 +3600,46 @@ static int DrawLevelOvr1P_EmitPreparedProjectedDirectMaskRawAtOt(struct PushBuff
 	// offscreen/direct/near decisions and write raw packets.
 	switch (handlerAddress)
 	{
-	case 0x800a1ce8:
-	case 0x800a27dc:
-	case 0x800a4034:
-	case 0x800a5d14:
-	case 0x800a7a60:
-	case 0x800a87d4:
-	case 0x800a9680:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_PRIMARY_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_PRIMARY_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT3_PRIMARY:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT3_PRIMARY:
 	{
 		int triIndices[3] = {indices[0], indices[1], indices[2]};
 
-		return DrawLevelOvr1P_EmitPreparedProjectedTriRawCodeAtOt(pb, primMem, block, projected, triIndices, faceIndex, texture,
-		                                                          DrawLevelOvr1P_GetProjectedTriMaxDepth(projected, triIndices), otIndexOverride,
-		                                                          handlerAddress == 0x800a27dc ? 0x36 : DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO);
+		return DrawLevelOvr1P_EmitPreparedProjectedTriRawCodeAtOt(
+		    pb, primMem, block, projected, triIndices, faceIndex, texture, DrawLevelOvr1P_GetProjectedTriMaxDepth(projected, triIndices), otIndexOverride,
+		    handlerAddress == DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_PRIMARY_226 ? 0x36 : DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO);
 	}
 
-	case 0x800a1ce0:
-	case 0x800a27d4:
-	case 0x800a402c:
-	case 0x800a5d0c:
-	case 0x800a7a58:
-	case 0x800a87cc:
-	case 0x800a9678:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_SECOND_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_SECOND_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT3_SECOND:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT3_SECOND:
 	{
 		int triIndices[3] = {indices[1], indices[3], indices[2]};
 
-		return DrawLevelOvr1P_EmitPreparedProjectedTriRawCodeAtOt(pb, primMem, block, projected, triIndices, faceIndex, texture,
-		                                                          DrawLevelOvr1P_GetProjectedTriMaxDepth(projected, triIndices), otIndexOverride,
-		                                                          handlerAddress == 0x800a27d4 ? 0x36 : DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO);
+		return DrawLevelOvr1P_EmitPreparedProjectedTriRawCodeAtOt(
+		    pb, primMem, block, projected, triIndices, faceIndex, texture, DrawLevelOvr1P_GetProjectedTriMaxDepth(projected, triIndices), otIndexOverride,
+		    handlerAddress == DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_SECOND_226 ? 0x36 : DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO);
 	}
 
-	case 0x800a1d6c:
-	case 0x800a2850:
-	case 0x800a40b8:
-	case 0x800a5d98:
-	case 0x800a7ae4:
-	case 0x800a8888:
-	case 0x800a9704:
-		return DrawLevelOvr1P_EmitPreparedProjectedQuadRawCodeAtOt(pb, primMem, block, projected, indices, faceIndex, texture,
-		                                                           DrawLevelOvr1P_GetProjectedMaxDepth(projected, indices), otIndexOverride,
-		                                                           handlerAddress == 0x800a2850 ? 0x3e : DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO);
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT4_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT4_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT4:
+		return DrawLevelOvr1P_EmitPreparedProjectedQuadRawCodeAtOt(
+		    pb, primMem, block, projected, indices, faceIndex, texture, DrawLevelOvr1P_GetProjectedMaxDepth(projected, indices), otIndexOverride,
+		    handlerAddress == DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT4_226 ? 0x3e : DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO);
 
 	default:
 		return DrawLevelOvr1P_EmitPreparedProjectedDirectMaskAtOt(pb, primMem, block, projected, indices, faceIndex, texture, directMask,
@@ -4050,9 +3667,9 @@ static int DrawLevelOvr1P_AreProjectedVerticesHalfNearSigned(const struct DrawLe
 {
 	int value = (s8)projected[indices[0]].clipHalfNear;
 
-	for (int i = 1; i < count; i++)
+	for (s32 vertexIndex = 1; vertexIndex < count; vertexIndex++)
 	{
-		value &= (s8)projected[indices[i]].clipHalfNear;
+		value &= (s8)projected[indices[vertexIndex]].clipHalfNear;
 	}
 
 	return value < 0;
@@ -4062,9 +3679,9 @@ static int DrawLevelOvr1P_HasProjectedVertexNearSigned(const struct DrawLevelOvr
 {
 	int value = 0;
 
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		value |= (s8)projected[indices[i]].clipNear;
+		value |= (s8)projected[indices[vertexIndex]].clipNear;
 	}
 
 	return value < 0;
@@ -4164,7 +3781,7 @@ static u32 DrawLevelOvr1P_GetNearSubdivisionHandlerAddress(u32 nearMask, int wri
 
 	if (tableIndex >= 15)
 	{
-		return writeClipBytes ? 0x800a4550 : 0x800a3a34;
+		return writeClipBytes ? DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_HELPER_DEFAULT : DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_HELPER_DEFAULT;
 	}
 
 	return *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_NEAR_SUBDIVISION_HANDLER_TABLE_OFFSET + (int)(tableIndex * sizeof(u32)));
@@ -4184,8 +3801,8 @@ static int DrawLevelOvr1P_GetNearSubdivisionTableSlot(u32 nearMask)
 
 static void DrawLevelOvr1P_SetPreviousRecursiveHandler(u32 handlerAddress)
 {
-	// NOTE(aalhendi): Retail stores the active recursive handler at scratch
-	// 0x9c immediately before jumping through the copied table at scratch 0x14c.
+	// NOTE(aalhendi): Retail stores the active recursive handler immediately
+	// before jumping through the copied setup0 scratch table.
 	DrawLevelOvr1P_Scratch()->previousDirectHandlerAddress = handlerAddress;
 }
 
@@ -4221,14 +3838,14 @@ static int DrawLevelOvr1P_EmitDeepestProjectedDirectStoredMaskAtOt(struct PushBu
 	return result;
 }
 
-static int Ovr226_800a78a8_800a861c_800a94c8_800aa23c_DispatchCopiedGridNear(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
-                                                                             int faceIndex, const struct TextureLayout *texture, u32 nearMask, int depth,
-                                                                             int writeClipBytes, u32 allowedMask, int inheritedOtIndex);
+static int DrawLevelOvr1P_DispatchCopiedGridNear(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
+                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                 const struct TextureLayout *texture, u32 nearMask, int depth, int writeClipBytes, u32 allowedMask,
+                                                 int inheritedOtIndex);
 
-static int Ovr226_800a8360_800a9f80_CopiedGridRenderedNearBranch(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
-                                                                 const struct TextureLayout *texture, int depth, int writeClipBytes, int inheritedOtIndex)
+static int DrawLevelOvr1P_DispatchCopiedGridRenderedNearBranch(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
+                                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                               const struct TextureLayout *texture, int depth, int writeClipBytes, int inheritedOtIndex)
 {
 	const u32 directMask = DRAW_LEVEL_OVR1P_DIRECT_QUAD;
 
@@ -4245,18 +3862,17 @@ static int Ovr226_800a8360_800a9f80_CopiedGridRenderedNearBranch(struct PushBuff
 	u32 nearMask = DrawLevelOvr1P_GetProjectedCopiedGridNearMask(projected, indices);
 	if (nearMask != 0)
 	{
-		return Ovr226_800a78a8_800a861c_800a94c8_800aa23c_DispatchCopiedGridNear(pb, primMem, block, projected, indices, faceIndex, texture, nearMask, depth,
-		                                                                         writeClipBytes, directMask, inheritedOtIndex);
+		return DrawLevelOvr1P_DispatchCopiedGridNear(pb, primMem, block, projected, indices, faceIndex, texture, nearMask, depth, writeClipBytes, directMask,
+		                                             inheritedOtIndex);
 	}
 
 	return DrawLevelOvr1P_EmitPreparedProjectedDirectMaskAtOt(pb, primMem, block, projected, indices, faceIndex, texture, directMask, writeClipBytes, 0,
 	                                                          inheritedOtIndex);
 }
 
-static int Ovr226_800a7588_800a91a8_CopiedGridDirectPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                              const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
-                                                              const struct TextureLayout *texture, int depth, int writeClipBytes, u32 allowedMask,
-                                                              int inheritedOtIndex)
+static int DrawLevelOvr1P_CopiedGridDirectPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
+                                                    const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                    const struct TextureLayout *texture, int depth, int writeClipBytes, u32 allowedMask, int inheritedOtIndex)
 {
 	u32 directMask;
 
@@ -4289,18 +3905,17 @@ static int Ovr226_800a7588_800a91a8_CopiedGridDirectPreflight(struct PushBuffer 
 	u32 nearMask = DrawLevelOvr1P_GetProjectedCopiedGridNearMask(projected, indices);
 	if (nearMask != 0)
 	{
-		return Ovr226_800a78a8_800a861c_800a94c8_800aa23c_DispatchCopiedGridNear(pb, primMem, block, projected, indices, faceIndex, texture, nearMask, depth,
-		                                                                         writeClipBytes, directMask, inheritedOtIndex);
+		return DrawLevelOvr1P_DispatchCopiedGridNear(pb, primMem, block, projected, indices, faceIndex, texture, nearMask, depth, writeClipBytes, directMask,
+		                                             inheritedOtIndex);
 	}
 
 	return DrawLevelOvr1P_EmitPreparedProjectedDirectMaskAtOt(pb, primMem, block, projected, indices, faceIndex, texture, directMask, writeClipBytes, 0,
 	                                                          inheritedOtIndex);
 }
 
-static int Ovr226_800a7588_800a825c_800a91a8_800a9e7c_CopiedGridFace(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                     const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
-                                                                     const struct TextureLayout *texture, int depth, int writeClipBytes, u32 allowedMask,
-                                                                     int inheritedOtIndex)
+static int DrawLevelOvr1P_DispatchCopiedGridFace(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
+                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                 const struct TextureLayout *texture, int depth, int writeClipBytes, u32 allowedMask, int inheritedOtIndex)
 {
 	// NOTE(aalhendi): The branch-level retail split is modeled here:
 	// 0x800a7588/0x800a91a8 skip clip bytes, while 0x800a825c/0x800a9e7c
@@ -4319,20 +3934,20 @@ static int Ovr226_800a7588_800a825c_800a91a8_800a9e7c_CopiedGridFace(struct Push
 	// reduction. The clipped-record header scratch word is inherited here.
 	if (writeClipBytes && DrawLevelOvr1P_HasProjectedVertexNear(projected, indices, 4))
 	{
-		return Ovr226_800a8360_800a9f80_CopiedGridRenderedNearBranch(pb, primMem, block, projected, indices, faceIndex, texture, depth, writeClipBytes,
-		                                                             inheritedOtIndex);
+		return DrawLevelOvr1P_DispatchCopiedGridRenderedNearBranch(pb, primMem, block, projected, indices, faceIndex, texture, depth, writeClipBytes,
+		                                                           inheritedOtIndex);
 	}
 
-	return Ovr226_800a7588_800a91a8_CopiedGridDirectPreflight(pb, primMem, block, projected, indices, faceIndex, texture, depth, writeClipBytes, allowedMask,
-	                                                          inheritedOtIndex);
+	return DrawLevelOvr1P_CopiedGridDirectPreflight(pb, primMem, block, projected, indices, faceIndex, texture, depth, writeClipBytes, allowedMask,
+	                                                inheritedOtIndex);
 }
 
 static int DrawLevelOvr1P_EmitProjectedGridFace(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
                                                 const struct TextureLayout *texture, int depth, int writeClipBytes, u32 allowedMask, int inheritedOtIndex)
 {
-	return Ovr226_800a7588_800a825c_800a91a8_800a9e7c_CopiedGridFace(pb, primMem, block, projected, indices, faceIndex, texture, depth, writeClipBytes,
-	                                                                 allowedMask, inheritedOtIndex);
+	return DrawLevelOvr1P_DispatchCopiedGridFace(pb, primMem, block, projected, indices, faceIndex, texture, depth, writeClipBytes, allowedMask,
+	                                             inheritedOtIndex);
 }
 
 static int DrawLevelOvr1P_IsDeepestSubdivisionFrame(const struct DrawLevelOvr1PScratchVertex *projected)
@@ -4346,24 +3961,24 @@ static int DrawLevelOvr1P_HandlerUsesDeepestCompactGrid(u32 handlerAddress)
 	// scratch frame 0x324 back to the compact topology labels.
 	switch (handlerAddress)
 	{
-	case 0x800a535c:
-	case 0x800a53a4:
-	case 0x800a5404:
-	case 0x800a5464:
-	case 0x800a54ac:
-	case 0x800a54e0:
-	case 0x800a5514:
-	case 0x800a5548:
-	case 0x800a557c:
-	case 0x800a6260:
-	case 0x800a62a8:
-	case 0x800a6308:
-	case 0x800a6368:
-	case 0x800a63b0:
-	case 0x800a63e4:
-	case 0x800a6418:
-	case 0x800a644c:
-	case 0x800a6480:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_HELPER_SLOT0:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_HELPER_SLOT1:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_HELPER_SLOT3:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_HELPER_SLOT7:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_HELPER_SLOT2:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_HELPER_SLOT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_HELPER_SLOT9:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_HELPER_SLOT11:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_HELPER_DEFAULT:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_HELPER_SLOT0:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_HELPER_SLOT1:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_HELPER_SLOT3:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_HELPER_SLOT7:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_HELPER_SLOT2:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_HELPER_SLOT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_HELPER_SLOT9:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_HELPER_SLOT11:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_HELPER_DEFAULT:
 		return 1;
 
 	default:
@@ -4377,24 +3992,24 @@ static int DrawLevelOvr1P_HandlerUses4x4GridFrame(u32 handlerAddress)
 	// normal 3x3 builder despite wide slot strides.
 	switch (handlerAddress)
 	{
-	case 0x800a8f1c:
-	case 0x800a8f5c:
-	case 0x800a8fdc:
-	case 0x800a8f7c:
-	case 0x800a9004:
-	case 0x800a907c:
-	case 0x800a8f9c:
-	case 0x800a902c:
-	case 0x800a9054:
-	case 0x800a9bcc:
-	case 0x800a9c0c:
-	case 0x800a9c8c:
-	case 0x800a9c2c:
-	case 0x800a9cb4:
-	case 0x800a9d2c:
-	case 0x800a9c4c:
-	case 0x800a9cdc:
-	case 0x800a9d04:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_HELPER_SLOT0:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_HELPER_SLOT1:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_HELPER_SLOT2:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_HELPER_SLOT3:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_HELPER_SLOT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_HELPER_DEFAULT:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_HELPER_SLOT7:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_HELPER_SLOT9:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_HELPER_SLOT11:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_HELPER_SLOT0:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_HELPER_SLOT1:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_HELPER_SLOT2:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_HELPER_SLOT3:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_HELPER_SLOT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_HELPER_DEFAULT:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_HELPER_SLOT7:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_HELPER_SLOT9:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_HELPER_SLOT11:
 		return 1;
 
 	default:
@@ -4430,24 +4045,24 @@ static int DrawLevelOvr1P_DispatchProjectedGridDeepestCompact(struct PushBuffer 
 
 	(void)allowedMask;
 
-	for (int i = 0; i < 2; i++)
+	for (s32 subdivisionIndex = 0; subdivisionIndex < 2; subdivisionIndex++)
 	{
 		int subIndices[4];
 
-		for (int j = 0; j < 4; j++)
+		for (s32 vertexIndex = 0; vertexIndex < 4; vertexIndex++)
 		{
-			subIndices[j] = subdivisionCase->subIndices[i][j];
+			subIndices[vertexIndex] = subdivisionCase->subIndices[subdivisionIndex][vertexIndex];
 		}
 
 		// NOTE(aalhendi): Retail deepest generic-grid handlers branch back to
 		// the compact topology labels, including the special +0xb4 writes.
-		if (subdivisionCase->slotWords[i] != DRAW_LEVEL_OVR1P_SLOT_WORD_PRESERVE)
+		if (subdivisionCase->slotWords[subdivisionIndex] != DRAW_LEVEL_OVR1P_SLOT_WORD_PRESERVE)
 		{
-			DrawLevelOvr1P_SetGridFaceSlotWord(projected, subdivisionCase->slotWords[i]);
+			DrawLevelOvr1P_SetGridFaceSlotWord(projected, subdivisionCase->slotWords[subdivisionIndex]);
 		}
 
 		if (!DrawLevelOvr1P_EmitProjectedGridFace(pb, primMem, block, projected, subIndices, faceIndex, texture, depth, writeClipBytes,
-		                                          subdivisionCase->directMasks[i], inheritedOtIndex))
+		                                          subdivisionCase->directMasks[subdivisionIndex], inheritedOtIndex))
 		{
 			return 0;
 		}
@@ -4629,10 +4244,10 @@ static int DrawLevelOvr1P_DispatchProjectedGridHelper(struct PushBuffer *pb, str
 	                                            allowedQuad, inheritedOtIndex);
 }
 
-static int Ovr226_800a78a8_800a861c_800a94c8_800aa23c_DispatchCopiedGridNear(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
-                                                                             int faceIndex, const struct TextureLayout *texture, u32 nearMask, int depth,
-                                                                             int writeClipBytes, u32 allowedMask, int inheritedOtIndex)
+static int DrawLevelOvr1P_DispatchCopiedGridNear(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
+                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                 const struct TextureLayout *texture, u32 nearMask, int depth, int writeClipBytes, u32 allowedMask,
+                                                 int inheritedOtIndex)
 {
 	// NOTE(aalhendi): Retail reaches these continuations only after the caller's
 	// deepest-frame branch has failed, then builds the next frame and jumps
@@ -4732,11 +4347,9 @@ static int Ovr226_800a39c4_DispatchGround4x1HelperWrappers(struct PushBuffer *pb
                                                            struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
                                                            int depth, u32 handlerAddress, int inheritedOtIndex)
 {
-	const int writeClipBytes = DRAW_LEVEL_OVR1P_CLIP_BYTES_LIST;
-
 	switch (handlerAddress)
 	{
-	case 0x800a39c4:
+	case OVR226_RETAIL_LABEL_GROUND_4X1_LIST_SUBDIV_A:
 	{
 		const int firstIndices[4] = {0, 4, 2, 3};
 		const int secondIndices[4] = {1, 3, 4, 2};
@@ -4751,7 +4364,7 @@ static int Ovr226_800a39c4_DispatchGround4x1HelperWrappers(struct PushBuffer *pb
 		                                                DRAW_LEVEL_OVR1P_DIRECT_TRI_PRIMARY, inheritedOtIndex);
 	}
 
-	case 0x800a39fc:
+	case OVR226_RETAIL_LABEL_GROUND_4X1_LIST_SUBDIV_B:
 	{
 		const int firstIndices[4] = {1, 8, 0, 2};
 		const int secondIndices[4] = {0, 1, 8, 3};
@@ -4766,7 +4379,7 @@ static int Ovr226_800a39c4_DispatchGround4x1HelperWrappers(struct PushBuffer *pb
 		                                                DRAW_LEVEL_OVR1P_DIRECT_TRI_SECONDARY, inheritedOtIndex);
 	}
 
-	case 0x800a3a34:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_HELPER_DEFAULT:
 	{
 		const int firstIndices[4] = {0, 4, 2, 8};
 		const int secondIndices[4] = {4, 1, 8, 3};
@@ -4903,7 +4516,7 @@ static void Ovr226_800a3f74_PrepareGround4x1DeepestUv(const struct DrawLevelOvr1
 		return;
 	}
 
-	if (DrawLevelOvr1P_Scratch()->previousDirectHandlerAddress != 0x800a3a34)
+	if (DrawLevelOvr1P_Scratch()->previousDirectHandlerAddress != DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_HELPER_DEFAULT)
 	{
 		DrawLevelOvr1P_RestoreProjectedUvScratch();
 		return;
@@ -5033,11 +4646,11 @@ static int Ovr226_800a402c_DispatchGround4x1DirectTail(struct PushBuffer *pb, st
 
 	switch (handlerAddress)
 	{
-	case 0x800a4034:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT3_PRIMARY:
 		return Ovr226_800a4034_EmitGround4x1GT3Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex, 0);
-	case 0x800a402c:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT3_SECOND:
 		return Ovr226_800a4034_EmitGround4x1GT3Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex, 1);
-	case 0x800a40b8:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_DIRECT_GT4:
 		return Ovr226_800a40b8_EmitGround4x1GT4Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex);
 	default:
 		return 1;
@@ -5117,9 +4730,9 @@ static int Ovr226_800a4dcc_WriteGround4x1RenderedClippedRecordAtOtEntry(struct P
 	record->tpage = DrawLevelOvr1P_Scratch()->uv.tpage;
 	record->clut = DrawLevelOvr1P_Scratch()->uv.clut;
 
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		DrawLevelOvr1P_CopyClipRecordVertex(&record->vertex[i], &projected[indices[i]]);
+		DrawLevelOvr1P_CopyClipRecordVertex(&record->vertex[vertexIndex], &projected[indices[vertexIndex]]);
 	}
 
 	DrawLevelOvr1P_SetClipRecordCursor(cursor + recordSize);
@@ -5198,11 +4811,11 @@ static int Ovr226_800a4c0c_DispatchGround4x1RenderedDirectTail(struct PushBuffer
 
 	switch (handlerAddress)
 	{
-	case 0x800a4c14:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_DIRECT_GT3_PRIMARY:
 		return Ovr226_800a4c14_EmitGround4x1RenderedGT3RawOrClip(pb, primMem, block, projected, indices, texture, inheritedOtEntry, 0);
-	case 0x800a4c0c:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_DIRECT_GT3_SECOND:
 		return Ovr226_800a4c14_EmitGround4x1RenderedGT3RawOrClip(pb, primMem, block, projected, indices, texture, inheritedOtEntry, 1);
-	case 0x800a4cc8:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_DIRECT_GT4:
 		return Ovr226_800a4cc8_EmitGround4x1RenderedGT4RawOrClip(pb, primMem, block, projected, indices, texture, inheritedOtEntry);
 	default:
 		return 1;
@@ -5232,7 +4845,7 @@ static void Ovr226_800a4b54_PrepareGround4x1RenderedDeepestUv(const struct DrawL
 		return;
 	}
 
-	if (DrawLevelOvr1P_Scratch()->previousDirectHandlerAddress != 0x800a4550)
+	if (DrawLevelOvr1P_Scratch()->previousDirectHandlerAddress != DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_HELPER_DEFAULT)
 	{
 		DrawLevelOvr1P_RestoreProjectedUvScratch();
 		return;
@@ -5325,7 +4938,7 @@ static int Ovr226_800a44e0_DispatchGround4x1RenderedHelperWrappers(struct PushBu
 {
 	switch (handlerAddress)
 	{
-	case 0x800a44e0:
+	case OVR226_RETAIL_LABEL_GROUND_4X1_RENDERED_SUBDIV_A:
 	{
 		const int firstIndices[4] = {0, 4, 2, 3};
 		const int secondIndices[4] = {1, 3, 4, 2};
@@ -5340,7 +4953,7 @@ static int Ovr226_800a44e0_DispatchGround4x1RenderedHelperWrappers(struct PushBu
 		                                                  DRAW_LEVEL_OVR1P_DIRECT_TRI_PRIMARY, inheritedOtEntry);
 	}
 
-	case 0x800a4518:
+	case OVR226_RETAIL_LABEL_GROUND_4X1_RENDERED_SUBDIV_B:
 	{
 		const int firstIndices[4] = {1, 8, 0, 2};
 		const int secondIndices[4] = {0, 1, 8, 3};
@@ -5355,7 +4968,7 @@ static int Ovr226_800a44e0_DispatchGround4x1RenderedHelperWrappers(struct PushBu
 		                                                  DRAW_LEVEL_OVR1P_DIRECT_TRI_SECONDARY, inheritedOtEntry);
 	}
 
-	case 0x800a4550:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_HELPER_DEFAULT:
 	{
 		const int firstIndices[4] = {0, 4, 2, 8};
 		const int secondIndices[4] = {4, 1, 8, 3};
@@ -5449,22 +5062,22 @@ static int Ovr226_800a52bc_DispatchGround4x2DeepestCompact(struct PushBuffer *pb
 {
 	const struct DrawLevelOvr1PNearSubdivisionCase *subdivisionCase = DrawLevelOvr1P_GetDeepestGridCompactCase(handlerSlot);
 
-	for (int i = 0; i < 2; i++)
+	for (s32 subdivisionIndex = 0; subdivisionIndex < 2; subdivisionIndex++)
 	{
 		int subIndices[4];
 
-		for (int j = 0; j < 4; j++)
+		for (s32 vertexIndex = 0; vertexIndex < 4; vertexIndex++)
 		{
-			subIndices[j] = subdivisionCase->subIndices[i][j];
+			subIndices[vertexIndex] = subdivisionCase->subIndices[subdivisionIndex][vertexIndex];
 		}
 
-		if (subdivisionCase->slotWords[i] != DRAW_LEVEL_OVR1P_SLOT_WORD_PRESERVE)
+		if (subdivisionCase->slotWords[subdivisionIndex] != DRAW_LEVEL_OVR1P_SLOT_WORD_PRESERVE)
 		{
-			DrawLevelOvr1P_SetGridFaceSlotWord(projected, subdivisionCase->slotWords[i]);
+			DrawLevelOvr1P_SetGridFaceSlotWord(projected, subdivisionCase->slotWords[subdivisionIndex]);
 		}
 
-		if (!Ovr226_800a580c_Ground4x2DirectPreflight(pb, primMem, block, projected, subIndices, faceIndex, texture, depth, subdivisionCase->directMasks[i],
-		                                              inheritedOtIndex))
+		if (!Ovr226_800a580c_Ground4x2DirectPreflight(pb, primMem, block, projected, subIndices, faceIndex, texture, depth,
+		                                              subdivisionCase->directMasks[subdivisionIndex], inheritedOtIndex))
 		{
 			return 0;
 		}
@@ -5747,11 +5360,11 @@ static int Ovr226_800a5d0c_DispatchGround4x2DirectTail(struct PushBuffer *pb, st
 
 	switch (handlerAddress)
 	{
-	case 0x800a5d14:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT3_PRIMARY:
 		return Ovr226_800a5d14_EmitGround4x2GT3Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex, 0);
-	case 0x800a5d0c:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT3_SECOND:
 		return Ovr226_800a5d14_EmitGround4x2GT3Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex, 1);
-	case 0x800a5d98:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_LIST_DIRECT_GT4:
 		return Ovr226_800a5d98_EmitGround4x2GT4Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex);
 	default:
 		return 1;
@@ -6045,11 +5658,11 @@ static int Ovr226_800a7a58_DispatchDynamicListDirectTail(struct PushBuffer *pb, 
 
 	switch (handlerAddress)
 	{
-	case 0x800a7a60:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT3_PRIMARY:
 		return Ovr226_800a7a60_EmitDynamicListGT3Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex, 0);
-	case 0x800a7a58:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT3_SECOND:
 		return Ovr226_800a7a60_EmitDynamicListGT3Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex, 1);
-	case 0x800a7ae4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_DIRECT_GT4:
 		return Ovr226_800a7ae4_EmitDynamicListGT4Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex);
 	default:
 		return 1;
@@ -6343,11 +5956,11 @@ static int Ovr226_800a9678_DispatchWideDynamicDirectTail(struct PushBuffer *pb, 
 
 	switch (handlerAddress)
 	{
-	case 0x800a9680:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT3_PRIMARY:
 		return Ovr226_800a9680_EmitWideDynamicGT3Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex, 0);
-	case 0x800a9678:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT3_SECOND:
 		return Ovr226_800a9680_EmitWideDynamicGT3Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex, 1);
-	case 0x800a9704:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_LIST_DIRECT_GT4:
 		return Ovr226_800a9704_EmitWideDynamicGT4Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex);
 	default:
 		return 1;
@@ -6443,9 +6056,9 @@ static int Ovr226_800a6d6c_WriteGround4x2RenderedClippedRecordAtOtEntry(struct P
 	record->tpage = DrawLevelOvr1P_Scratch()->uv.tpage;
 	record->clut = DrawLevelOvr1P_Scratch()->uv.clut;
 
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		DrawLevelOvr1P_CopyClipRecordVertex(&record->vertex[i], &projected[indices[i]]);
+		DrawLevelOvr1P_CopyClipRecordVertex(&record->vertex[vertexIndex], &projected[indices[vertexIndex]]);
 	}
 
 	DrawLevelOvr1P_SetClipRecordCursor(cursor + recordSize);
@@ -6524,11 +6137,11 @@ static int Ovr226_800a6bac_DispatchGround4x2RenderedDirectTail(struct PushBuffer
 
 	switch (handlerAddress)
 	{
-	case 0x800a6bb4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_DIRECT_GT3_PRIMARY:
 		return Ovr226_800a6bb4_EmitGround4x2RenderedGT3RawOrClip(pb, primMem, block, projected, indices, texture, inheritedOtEntry, 0);
-	case 0x800a6bac:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_DIRECT_GT3_SECOND:
 		return Ovr226_800a6bb4_EmitGround4x2RenderedGT3RawOrClip(pb, primMem, block, projected, indices, texture, inheritedOtEntry, 1);
-	case 0x800a6c68:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X2_RENDERED_DIRECT_GT4:
 		return Ovr226_800a6c68_EmitGround4x2RenderedGT4RawOrClip(pb, primMem, block, projected, indices, texture, inheritedOtEntry);
 	default:
 		return 1;
@@ -6614,22 +6227,22 @@ static int Ovr226_800a6260_DispatchGround4x2RenderedDeepestCompact(struct PushBu
 {
 	const struct DrawLevelOvr1PNearSubdivisionCase *subdivisionCase = DrawLevelOvr1P_GetDeepestGridCompactCase(handlerSlot);
 
-	for (int i = 0; i < 2; i++)
+	for (s32 subdivisionIndex = 0; subdivisionIndex < 2; subdivisionIndex++)
 	{
 		int subIndices[4];
 
-		for (int j = 0; j < 4; j++)
+		for (s32 vertexIndex = 0; vertexIndex < 4; vertexIndex++)
 		{
-			subIndices[j] = subdivisionCase->subIndices[i][j];
+			subIndices[vertexIndex] = subdivisionCase->subIndices[subdivisionIndex][vertexIndex];
 		}
 
-		if (subdivisionCase->slotWords[i] != DRAW_LEVEL_OVR1P_SLOT_WORD_PRESERVE)
+		if (subdivisionCase->slotWords[subdivisionIndex] != DRAW_LEVEL_OVR1P_SLOT_WORD_PRESERVE)
 		{
-			DrawLevelOvr1P_SetGridFaceSlotWord(projected, subdivisionCase->slotWords[i]);
+			DrawLevelOvr1P_SetGridFaceSlotWord(projected, subdivisionCase->slotWords[subdivisionIndex]);
 		}
 
-		if (!Ovr226_800a661c_Ground4x2RenderedPreflight(pb, primMem, block, projected, subIndices, faceIndex, texture, depth, subdivisionCase->directMasks[i],
-		                                                inheritedOtEntry))
+		if (!Ovr226_800a661c_Ground4x2RenderedPreflight(pb, primMem, block, projected, subIndices, faceIndex, texture, depth,
+		                                                subdivisionCase->directMasks[subdivisionIndex], inheritedOtEntry))
 		{
 			return 0;
 		}
@@ -6905,9 +6518,9 @@ static int Ovr226_800a898c_WriteDynamicRenderedClippedRecordAtOtEntry(struct Pus
 	record->tpage = DrawLevelOvr1P_Scratch()->uv.tpage;
 	record->clut = DrawLevelOvr1P_Scratch()->uv.clut;
 
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		DrawLevelOvr1P_CopyClipRecordVertex(&record->vertex[i], &projected[indices[i]]);
+		DrawLevelOvr1P_CopyClipRecordVertex(&record->vertex[vertexIndex], &projected[indices[vertexIndex]]);
 	}
 
 	DrawLevelOvr1P_SetClipRecordCursor(cursor + recordSize);
@@ -6986,11 +6599,11 @@ static int Ovr226_800a87cc_DispatchDynamicRenderedDirectTail(struct PushBuffer *
 
 	switch (handlerAddress)
 	{
-	case 0x800a87d4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT3_PRIMARY:
 		return Ovr226_800a87d4_EmitDynamicRenderedGT3RawOrClip(pb, primMem, block, projected, indices, texture, inheritedOtEntry, 0);
-	case 0x800a87cc:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT3_SECOND:
 		return Ovr226_800a87d4_EmitDynamicRenderedGT3RawOrClip(pb, primMem, block, projected, indices, texture, inheritedOtEntry, 1);
-	case 0x800a8888:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_RENDERED_DIRECT_GT4:
 		return Ovr226_800a8888_EmitDynamicRenderedGT4RawOrClip(pb, primMem, block, projected, indices, texture, inheritedOtEntry);
 	default:
 		return 1;
@@ -7333,9 +6946,9 @@ static int Ovr226_800aa5ac_WriteQuad4x4RenderedClippedRecordAtOtEntry(struct Pus
 	record->tpage = DrawLevelOvr1P_Scratch()->uv.tpage;
 	record->clut = DrawLevelOvr1P_Scratch()->uv.clut;
 
-	for (int i = 0; i < count; i++)
+	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
-		DrawLevelOvr1P_CopyClipRecordVertex(&record->vertex[i], &projected[indices[i]]);
+		DrawLevelOvr1P_CopyClipRecordVertex(&record->vertex[vertexIndex], &projected[indices[vertexIndex]]);
 	}
 
 	DrawLevelOvr1P_SetClipRecordCursor(cursor + recordSize);
@@ -7414,11 +7027,11 @@ static int Ovr226_800aa3ec_DispatchQuad4x4RenderedDirectTail(struct PushBuffer *
 
 	switch (handlerAddress)
 	{
-	case 0x800aa3f4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT3_PRIMARY:
 		return Ovr226_800aa3f4_EmitQuad4x4RenderedGT3RawOrClip(pb, primMem, block, projected, indices, texture, inheritedOtEntry, 0);
-	case 0x800aa3ec:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT3_SECOND:
 		return Ovr226_800aa3f4_EmitQuad4x4RenderedGT3RawOrClip(pb, primMem, block, projected, indices, texture, inheritedOtEntry, 1);
-	case 0x800aa4a8:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_QUAD_4X4_RENDERED_DIRECT_GT4:
 		return Ovr226_800aa4a8_EmitQuad4x4RenderedGT4RawOrClip(pb, primMem, block, projected, indices, texture, inheritedOtEntry);
 	default:
 		return 1;
@@ -7715,6 +7328,37 @@ static void DrawLevelOvr1P_SetRenderedOverflowBase(struct QuadBlock **renderedLi
 	sDrawLevelOvr1P_RenderedOverflowBase = renderedList;
 }
 
+static void DrawLevelOvr1P_SetViewportScratchContext(struct PushBuffer *pb, const int *visFaceList, u8 *clipStart, u8 *clipCursor,
+                                                     struct QuadBlock **renderedOverflowBase)
+{
+	DrawLevelOvr1P_SetRenderedListCursor(renderedOverflowBase);
+	DrawLevelOvr1P_SetClipRecordCursor(clipCursor);
+	DrawLevelOvr1P_Scratch()->visFaceListPtr32 = (u32)(uintptr_t)visFaceList;
+	DrawLevelOvr1P_SetClipRecordStart(clipStart);
+	DrawLevelOvr1P_SetRenderedOverflowBase(renderedOverflowBase);
+	Ovr226_800a0d34_SetEntryGteAndCameraScratch(pb);
+}
+
+static void DrawLevelOvr_ClearRenderedOverflowBase(int playerIndex)
+{
+	struct QuadBlock **renderedOverflowBase = (struct QuadBlock **)data.ptrRenderedQuadblockDestination_forEachPlayer[playerIndex];
+
+	if (renderedOverflowBase != NULL)
+	{
+		*renderedOverflowBase = NULL;
+	}
+}
+
+static int DrawLevelOvr_ConsumeClipRecordsForViewport(struct PushBuffer *pb, struct PrimMem *primMem, u8 *clipCursor, int playerIndex,
+                                                      int (*consume)(struct PushBuffer *pb, struct PrimMem *primMem, u8 *clipCursor, int playerIndex))
+{
+	u8 *start = data.PtrClipBuffer[playerIndex];
+
+	DrawLevelOvr1P_SetClipRecordStart(start);
+	DrawLevelOvr1P_SetClipRecordCursor(clipCursor);
+	return consume(pb, primMem, clipCursor, playerIndex);
+}
+
 static struct QuadBlock **DrawLevelOvr1P_GetRenderedOverflowBase(void)
 {
 	if (sDrawLevelOvr1P_RenderedOverflowBase != NULL)
@@ -7752,9 +7396,6 @@ static void DrawLevelOvr1P_TerminateRenderedListCursor(void)
 		*renderedList = NULL;
 	}
 }
-
-static int DrawLevelOvr1P_DrawWaterListQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block,
-                                                 int captureRenderedOverflow);
 
 static struct TextureLayout *Ovr226_800a1058_PrepareFullDynamicLowUv(struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected)
 {
@@ -7796,9 +7437,9 @@ static void DrawLevelOvr1P_AdjustFullDynamicMidUvs(struct DrawLevelOvr1PScratchV
 	projected[8].flags = DrawLevelOvr1P_AverageFullDynamicUv(projected[2].flags, projected[3].flags);
 }
 
-static int Ovr226_800a1534_800a17d8_DispatchFullDynamicHelperSequence(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                                      struct DrawLevelOvr1PScratchVertex *projected, u32 handlerAddress,
-                                                                      struct TextureLayout *texture, int depth);
+static int DrawLevelOvr1P_DispatchFullDynamicHelperSequence(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
+                                                            struct DrawLevelOvr1PScratchVertex *projected, DrawLevelOvrRetailLabel handlerAddress,
+                                                            struct TextureLayout *texture, int depth);
 
 static int Ovr226_800a1ce8_EmitFullDynamicGT3Raw(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
                                                  struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
@@ -7820,15 +7461,15 @@ static int Ovr226_800a1ce8_EmitFullDynamicGT3Raw(struct PushBuffer *pb, struct P
 	}
 
 	return DrawLevelOvr1P_EmitPreparedProjectedTriRawCodeAtOt(pb, primMem, block, projected, triIndices, faceIndex, texture, 0,
-	                                                          sOvr226_800a1cc4_InheritedOtIndex, DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO);
+	                                                          sDrawLevelOvr1P_FullDynamicInheritedOtIndex, DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO);
 }
 
 static int Ovr226_800a1d6c_EmitFullDynamicGT4Raw(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
                                                  struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
                                                  struct TextureLayout *texture)
 {
-	return DrawLevelOvr1P_EmitPreparedProjectedQuadRawCodeAtOt(pb, primMem, block, projected, indices, faceIndex, texture, 0, sOvr226_800a1cc4_InheritedOtIndex,
-	                                                           DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO);
+	return DrawLevelOvr1P_EmitPreparedProjectedQuadRawCodeAtOt(pb, primMem, block, projected, indices, faceIndex, texture, 0,
+	                                                           sDrawLevelOvr1P_FullDynamicInheritedOtIndex, DRAW_LEVEL_OVR1P_PRIM_CODE_AUTO);
 }
 
 static int Ovr226_800a1cc4_EmitFullDynamicDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
@@ -7836,37 +7477,37 @@ static int Ovr226_800a1cc4_EmitFullDynamicDirectTail(struct PushBuffer *pb, stru
                                                      struct TextureLayout *texture)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
-	u32 handlerAddress = DrawLevelOvr1P_GetDirectHandlerAddress(directMask);
+	DrawLevelOvrRetailLabel handlerAddress = DrawLevelOvr1P_GetDirectHandlerAddress(directMask);
 
 	switch (handlerAddress)
 	{
-	case 0x800a1ce8:
-	case 0x800a3670:
-	case 0x800a3724:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_PRIMARY_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_PRIMARY_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_PRIMARY_229:
 		return Ovr226_800a1ce8_EmitFullDynamicGT3Raw(pb, primMem, block, projected, indices, faceIndex, texture, 0);
-	case 0x800a1ce0:
-	case 0x800a3668:
-	case 0x800a371c:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_SECOND_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_SECOND_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_SECOND_229:
 		return Ovr226_800a1ce8_EmitFullDynamicGT3Raw(pb, primMem, block, projected, indices, faceIndex, texture, 1);
-	case 0x800a1d6c:
-	case 0x800a36f4:
-	case 0x800a37a8:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT4_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT4_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT4_229:
 		return Ovr226_800a1d6c_EmitFullDynamicGT4Raw(pb, primMem, block, projected, indices, faceIndex, texture);
 	default:
 		return 1;
 	}
 }
 
-static int Ovr226_800a1cc4_IsSplitGroundListADirectHandler(u32 handlerAddress)
+static int Ovr226_800a1cc4_IsSplitGroundListADirectHandler(DrawLevelOvrRetailLabel handlerAddress)
 {
 	switch (handlerAddress)
 	{
-	case 0x800a3670:
-	case 0x800a3668:
-	case 0x800a36f4:
-	case 0x800a3724:
-	case 0x800a371c:
-	case 0x800a37a8:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_PRIMARY_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_SECOND_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT4_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_PRIMARY_229:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT3_SECOND_229:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_DIRECT_GT4_229:
 		return 1;
 	default:
 		return 0;
@@ -7877,7 +7518,7 @@ static int Ovr226_800a1cc4_EmitFullDynamicDeepestDirectTail(struct PushBuffer *p
                                                             struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
                                                             struct TextureLayout *texture)
 {
-	u32 handlerAddress = DrawLevelOvr1P_GetDirectHandlerAddress(DrawLevelOvr1P_Scratch()->directMask);
+	DrawLevelOvrRetailLabel handlerAddress = DrawLevelOvr1P_GetDirectHandlerAddress(DrawLevelOvr1P_Scratch()->directMask);
 
 	if (!Ovr226_800a1cc4_IsSplitGroundListADirectHandler(handlerAddress))
 	{
@@ -7911,13 +7552,13 @@ static int Ovr226_800a1be8_DispatchFullDynamicNearSubdivision(struct PushBuffer 
 		return Ovr226_800a1cc4_EmitFullDynamicDirectTail(pb, primMem, block, projected, indices, faceIndex, texture);
 	}
 
-	u32 handlerAddress = DrawLevelOvr1P_GetNearSubdivisionHandlerAddress(nearMask, DRAW_LEVEL_OVR1P_CLIP_BYTES_LIST);
+	DrawLevelOvrRetailLabel handlerAddress = DrawLevelOvr1P_GetNearSubdivisionHandlerAddress(nearMask, DRAW_LEVEL_OVR1P_CLIP_BYTES_LIST);
 	DrawLevelOvr1P_SetPreviousRecursiveHandler(handlerAddress);
 
 	struct DrawLevelOvr1PScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
 	Ovr226_800a17d8_BuildFullDynamicSubdivisionFrame(sub, projected, indices);
 
-	return Ovr226_800a1534_800a17d8_DispatchFullDynamicHelperSequence(pb, primMem, block, sub, handlerAddress, texture, depth + 1);
+	return DrawLevelOvr1P_DispatchFullDynamicHelperSequence(pb, primMem, block, sub, handlerAddress, texture, depth + 1);
 }
 
 static int DrawLevelOvr1P_EmitFullDynamicTerminalFaceSlotMode(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
@@ -7972,7 +7613,7 @@ static int Ovr226_800a19a8_SelectFullDynamicDirectSlot(struct QuadBlock *block, 
 	}
 
 	u32 maxDepth = DrawLevelOvr1P_GetProjectedMaxDepth(projected, indices);
-	Ovr226_800a108c_800a1b10_SetFullDynamicInheritedOtIndex(block, projected, maxDepth, faceIndex);
+	DrawLevelOvr1P_SetFullDynamicInheritedOtIndex(block, projected, maxDepth, faceIndex);
 	*texture = DrawLevelOvr1P_GetProjectedMidTexture(block, projected, faceIndex, maxDepth);
 
 	if (*texture != NULL)
@@ -8222,47 +7863,47 @@ static int Ovr226_800a1734_FullDynamicDefaultHelper(struct PushBuffer *pb, struc
 	return Ovr226_800a1570_EmitFullDynamicFace3(pb, primMem, block, projected, texture, depth, DRAW_LEVEL_OVR1P_DIRECT_QUAD);
 }
 
-static int Ovr226_800a1534_800a17d8_DispatchFullDynamicHelperSequence(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                                      struct DrawLevelOvr1PScratchVertex *projected, u32 handlerAddress,
-                                                                      struct TextureLayout *texture, int depth)
+static int DrawLevelOvr1P_DispatchFullDynamicHelperSequence(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
+                                                            struct DrawLevelOvr1PScratchVertex *projected, DrawLevelOvrRetailLabel handlerAddress,
+                                                            struct TextureLayout *texture, int depth)
 {
 	switch (handlerAddress)
 	{
-	case 0x800a15d4:
-	case 0x800a2eb4:
-	case 0x800a2f68:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT0_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT0_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT0_229:
 		return Ovr226_800a15d4_FullDynamicHelperSlot0(pb, primMem, block, projected, texture, depth);
-	case 0x800a1614:
-	case 0x800a2ef4:
-	case 0x800a2fa8:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT1_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT1_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT1_229:
 		return Ovr226_800a1614_FullDynamicHelperSlot1(pb, primMem, block, projected, texture, depth);
-	case 0x800a1634:
-	case 0x800a2f14:
-	case 0x800a2fc8:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT3_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT3_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT3_229:
 		return Ovr226_800a1634_FullDynamicHelperSlot3(pb, primMem, block, projected, texture, depth);
-	case 0x800a1654:
-	case 0x800a2f34:
-	case 0x800a2fe8:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT7_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT7_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT7_229:
 		return Ovr226_800a1654_FullDynamicHelperSlot7(pb, primMem, block, projected, texture, depth);
-	case 0x800a1694:
-	case 0x800a2f74:
-	case 0x800a3028:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT2_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT2_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT2_229:
 		return Ovr226_800a1694_FullDynamicHelperSlot2(pb, primMem, block, projected, texture, depth);
-	case 0x800a16bc:
-	case 0x800a2f9c:
-	case 0x800a3050:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT4_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT4_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT4_229:
 		return Ovr226_800a16bc_FullDynamicHelperSlot4(pb, primMem, block, projected, texture, depth);
-	case 0x800a16e4:
-	case 0x800a2fc4:
-	case 0x800a3078:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT9_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT9_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT9_229:
 		return Ovr226_800a16e4_FullDynamicHelperSlot9(pb, primMem, block, projected, texture, depth);
-	case 0x800a170c:
-	case 0x800a2fec:
-	case 0x800a30a0:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT11_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT11_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_SLOT11_229:
 		return Ovr226_800a170c_FullDynamicHelperSlot11(pb, primMem, block, projected, texture, depth);
-	case 0x800a1734:
-	case 0x800a3014:
-	case 0x800a30c8:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_DEFAULT_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_DEFAULT_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_FULL_DYNAMIC_HELPER_DEFAULT_229:
 		return Ovr226_800a1734_FullDynamicDefaultHelper(pb, primMem, block, projected, texture, depth);
 	default:
 		return 1;
@@ -8333,7 +7974,7 @@ static int Ovr226_800a1128_DispatchFullDynamicTransitionGrid(struct PushBuffer *
 	DrawLevelOvr1P_AdjustFullDynamicMidVertices(projected, vertices, block);
 	DrawLevelOvr1P_AdjustFullDynamicMidUvs(projected);
 
-	return Ovr226_800a1534_800a17d8_DispatchFullDynamicHelperSequence(
+	return DrawLevelOvr1P_DispatchFullDynamicHelperSequence(
 	    pb, primMem, block, projected, DrawLevelOvr1P_GetNearSubdivisionHandlerAddress(nearMask, DRAW_LEVEL_OVR1P_CLIP_BYTES_LIST), texture, 0);
 }
 
@@ -8344,7 +7985,7 @@ static int Ovr226_800a0f78_EmitFullDynamicQuadBlock(struct PushBuffer *pb, struc
 	Ovr226_800a0f78_ProjectFullDynamicLowQuad(vertices, block, projected);
 	struct TextureLayout *texture = Ovr226_800a1058_PrepareFullDynamicLowUv(block, projected);
 	u32 maxDepth = DrawLevelOvr1P_GetProjectedMaxDepth(projected, sDrawLevelOvr1PFullDynamicLowIndices);
-	Ovr226_800a108c_800a1b10_SetFullDynamicInheritedOtIndex(block, projected, maxDepth, -1);
+	DrawLevelOvr1P_SetFullDynamicInheritedOtIndex(block, projected, maxDepth, -1);
 	u32 nearMask = Ovr226_800a10dc_SelectFullDynamicTopNearMask(projected);
 
 	if (nearMask == 0)
@@ -8443,19 +8084,19 @@ static int DrawLevelOvr1P_ProjectSplitGroundListALowGrid(struct LevVertex *verti
                                                          struct DrawLevelOvr1PScratchVertex *projected)
 {
 	DrawLevelOvr1P_SetGridFaceSlot(projected, 0);
-	if (Ovr226_800a3738_ProjectGround4x1ListVertexTriple(vertices, block, projected, 0, 1, 2))
+	if (DrawLevelOvr1P_ProjectListVertexTriple(vertices, block, projected, 0, 1, 2, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS))
 	{
 		return 1;
 	}
 
 	DrawLevelOvr1P_SetActiveDrawOrderLow(block);
-	return Ovr226_800a3738_ProjectGround4x1ListVertexTriple(vertices, block, projected, 3, 4, 5);
+	return DrawLevelOvr1P_ProjectListVertexTriple(vertices, block, projected, 3, 4, 5, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS);
 }
 
 static int DrawLevelOvr1P_ProjectSplitGroundListATransitionGrid(struct LevVertex *vertices, const struct QuadBlock *block,
                                                                 struct DrawLevelOvr1PScratchVertex *projected)
 {
-	if (Ovr226_800a3738_ProjectGround4x1ListVertexTriple(vertices, block, projected, 6, 7, 8))
+	if (DrawLevelOvr1P_ProjectListVertexTriple(vertices, block, projected, 6, 7, 8, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS))
 	{
 		return 1;
 	}
@@ -8477,7 +8118,7 @@ static int DrawLevelOvr1P_EmitSplitGroundListAQuadBlock(struct PushBuffer *pb, s
 
 	struct TextureLayout *texture = Ovr226_800a1058_PrepareFullDynamicLowUv(block, projected);
 	u32 maxDepth = DrawLevelOvr1P_GetProjectedMaxDepth(projected, sDrawLevelOvr1PFullDynamicLowIndices);
-	Ovr226_800a108c_800a1b10_SetFullDynamicInheritedOtIndex(block, projected, maxDepth, -1);
+	DrawLevelOvr1P_SetFullDynamicInheritedOtIndex(block, projected, maxDepth, -1);
 	u32 nearMask = Ovr226_800a10dc_SelectFullDynamicTopNearMask(projected);
 	if (nearMask == 0)
 	{
@@ -8490,7 +8131,7 @@ static int DrawLevelOvr1P_EmitSplitGroundListAQuadBlock(struct PushBuffer *pb, s
 		return 1;
 	}
 
-	return Ovr226_800a1534_800a17d8_DispatchFullDynamicHelperSequence(
+	return DrawLevelOvr1P_DispatchFullDynamicHelperSequence(
 	    pb, primMem, block, projected, DrawLevelOvr1P_GetNearSubdivisionHandlerAddress(nearMask, DRAW_LEVEL_OVR1P_CLIP_BYTES_LIST), texture, 0);
 }
 
@@ -8540,7 +8181,7 @@ static int Ovr226_800a3738_EmitGround4x1ListQuadBlock(struct PushBuffer *pb, str
 	struct LevVertex *vertices = mesh->ptrVertexArray;
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
-	if (Ovr226_800a3738_ProjectGround4x1ListGrid(vertices, block, projected))
+	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_FACE))
 	{
 		DrawLevelOvr1P_AppendRenderedQuadBlock(block);
 		return 1;
@@ -8557,54 +8198,75 @@ static int Ovr226_800a3738_EmitGround4x1ListQuadBlock(struct PushBuffer *pb, str
 	return 1;
 }
 
-static int Ovr226_800a36a8_DrawGround4x1BspList(struct VisMemBspListNode *slot, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
-                                                const int *visFaceList)
+static u32 DrawLevelOvr1P_GetBspListReserve(int role)
 {
-	if (sDrawLevelOvr1P_ListHandlersSeedRenderedCursor)
+	switch (role)
 	{
-		DrawLevelOvr1P_SetRenderedListCursor(DrawLevelOvr1P_GetRenderedOverflowBase());
+	case DRAW_LEVEL_OVR1P_BUCKET_4X1_LIST:
+		return DRAW_LEVEL_OVR1P_BUCKET_RESERVE_4X1;
+
+	case DRAW_LEVEL_OVR1P_BUCKET_4X2_LIST:
+		return DRAW_LEVEL_OVR1P_BUCKET_RESERVE_4X2;
+
+	default:
+		return DRAW_LEVEL_OVR1P_BUCKET_RESERVE_DEFAULT;
 	}
-
-	while (slot != NULL)
-	{
-		struct BSP *bsp = slot->bsp;
-		struct QuadBlock *block = bsp->data.leaf.ptrQuadBlockArray;
-		s32 quadCount = bsp->data.leaf.numQuads;
-
-		DrawLevelOvr1P_Scratch()->quadCount = quadCount;
-		Ovr226_800a0f0c_SeedFullDynamicVisibilityScratch(visFaceList, block);
-
-		while (quadCount > 0)
-		{
-			if (!DrawLevelOvr1P_HasBucketPrimReserve(primMem, DRAW_LEVEL_OVR1P_BUCKET_RESERVE_4X1))
-			{
-				return 0;
-			}
-
-			if (Ovr226_800a0f34_ConsumeFullDynamicVisibilityBit())
-			{
-				if (!Ovr226_800a3738_EmitGround4x1ListQuadBlock(pb, primMem, mesh, block))
-				{
-					return 0;
-				}
-			}
-
-			block++;
-			quadCount--;
-			DrawLevelOvr1P_Scratch()->quadCount = quadCount;
-		}
-
-		slot = slot->next;
-	}
-
-	DrawLevelOvr1P_TerminateRenderedListCursor();
-	return 1;
 }
 
-static int Ovr226_800a417c_DrawGround4x1RenderedList(struct QuadBlock **renderedList, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem)
+static u32 DrawLevelOvr1P_GetNonWaterRenderedListReserve(int role)
+{
+	switch (role)
+	{
+	case DRAW_LEVEL_OVR1P_BUCKET_4X1_RENDERED:
+		return DRAW_LEVEL_OVR1P_BUCKET_RESERVE_4X1;
+
+	case DRAW_LEVEL_OVR1P_BUCKET_4X2_RENDERED:
+		return DRAW_LEVEL_OVR1P_BUCKET_RESERVE_4X2;
+
+	default:
+		return DRAW_LEVEL_OVR1P_BUCKET_RESERVE_DEFAULT;
+	}
+}
+
+static enum DrawLevelOvr1PGridSlotMode DrawLevelOvr1P_GetNonWaterRenderedListSlotMode(int role)
+{
+	switch (role)
+	{
+	case DRAW_LEVEL_OVR1P_BUCKET_4X1_RENDERED:
+	case DRAW_LEVEL_OVR1P_BUCKET_4X2_RENDERED:
+		return DRAW_LEVEL_OVR1P_GRID_SLOT_FACE;
+
+	default:
+		return DRAW_LEVEL_OVR1P_GRID_SLOT_WORD;
+	}
+}
+
+static int DrawLevelOvr1P_NonWaterRenderedSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvr1PScratchVertex *projected,
+                                                           struct QuadBlock *block, int faceIndex, int role)
+{
+	switch (role)
+	{
+	case DRAW_LEVEL_OVR1P_BUCKET_4X1_RENDERED:
+		return Ovr226_800a47f4_Ground4x1RenderedSelectorNearGate(pb, primMem, projected, block, faceIndex);
+
+	case DRAW_LEVEL_OVR1P_BUCKET_4X2_RENDERED:
+		return Ovr226_800a6740_Ground4x2RenderedSelectorNearGate(pb, primMem, projected, block, faceIndex);
+
+	case DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_RENDERED:
+		return Ovr226_800a8380_DynamicRenderedSelectorNearGate(pb, primMem, projected, block, faceIndex);
+
+	default:
+		return Ovr226_800a9fa0_Quad4x4RenderedSelectorNearGate(pb, primMem, projected, block, faceIndex);
+	}
+}
+
+static int DrawLevelOvr1P_DrawNonWaterRenderedList(struct QuadBlock **renderedList, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
+                                                   int role)
 {
 	struct LevVertex *vertices = mesh->ptrVertexArray;
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
+	u32 reserve = DrawLevelOvr1P_GetNonWaterRenderedListReserve(role);
+	enum DrawLevelOvr1PGridSlotMode slotMode = DrawLevelOvr1P_GetNonWaterRenderedListSlotMode(role);
 
 	if (renderedList == NULL)
 	{
@@ -8615,7 +8277,7 @@ static int Ovr226_800a417c_DrawGround4x1RenderedList(struct QuadBlock **rendered
 	{
 		struct QuadBlock *block = *renderedList;
 
-		if (!DrawLevelOvr1P_HasBucketPrimReserve(primMem, DRAW_LEVEL_OVR1P_BUCKET_RESERVE_4X1))
+		if (!DrawLevelOvr1P_HasBucketPrimReserve(primMem, reserve))
 		{
 			return 0;
 		}
@@ -8626,128 +8288,11 @@ static int Ovr226_800a417c_DrawGround4x1RenderedList(struct QuadBlock **rendered
 			return 1;
 		}
 
-		Ovr226_800a417c_ProjectGround4x1RenderedGrid(vertices, block, projected);
+		DrawLevelOvr1P_ProjectRenderedGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS, slotMode);
 
 		for (int faceIndex = 0; faceIndex < 4; faceIndex++)
 		{
-			if (!Ovr226_800a47f4_Ground4x1RenderedSelectorNearGate(pb, primMem, projected, block, faceIndex))
-			{
-				return 0;
-			}
-		}
-
-		renderedList++;
-	}
-}
-
-static int Ovr226_800a5e5c_DrawGround4x2RenderedList(struct QuadBlock **renderedList, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem)
-{
-	struct LevVertex *vertices = mesh->ptrVertexArray;
-	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
-
-	if (renderedList == NULL)
-	{
-		return 1;
-	}
-
-	while (1)
-	{
-		struct QuadBlock *block = *renderedList;
-
-		if (!DrawLevelOvr1P_HasBucketPrimReserve(primMem, DRAW_LEVEL_OVR1P_BUCKET_RESERVE_4X2))
-		{
-			return 0;
-		}
-
-		DrawLevelOvr1P_SetGridFaceSlotWord(projected, 0);
-		if (block == NULL)
-		{
-			return 1;
-		}
-
-		Ovr226_800a5e5c_ProjectGround4x2RenderedGrid(vertices, block, projected);
-
-		for (int faceIndex = 0; faceIndex < 4; faceIndex++)
-		{
-			if (!Ovr226_800a6740_Ground4x2RenderedSelectorNearGate(pb, primMem, projected, block, faceIndex))
-			{
-				return 0;
-			}
-		}
-
-		renderedList++;
-	}
-}
-
-static int Ovr226_800a7ba8_DrawDynamicRenderedList(struct QuadBlock **renderedList, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem)
-{
-	struct LevVertex *vertices = mesh->ptrVertexArray;
-	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
-
-	if (renderedList == NULL)
-	{
-		return 1;
-	}
-
-	while (1)
-	{
-		struct QuadBlock *block = *renderedList;
-
-		if (!DrawLevelOvr1P_HasBucketPrimReserve(primMem, DRAW_LEVEL_OVR1P_BUCKET_RESERVE_DEFAULT))
-		{
-			return 0;
-		}
-
-		DrawLevelOvr1P_SetGridFaceSlotWord(projected, 0);
-		if (block == NULL)
-		{
-			return 1;
-		}
-
-		Ovr226_800a7ba8_ProjectDynamicRenderedGrid(vertices, block, projected);
-
-		for (int faceIndex = 0; faceIndex < 4; faceIndex++)
-		{
-			if (!Ovr226_800a8380_DynamicRenderedSelectorNearGate(pb, primMem, projected, block, faceIndex))
-			{
-				return 0;
-			}
-		}
-
-		renderedList++;
-	}
-}
-
-static int Ovr226_800a97c8_DrawQuad4x4RenderedList(struct QuadBlock **renderedList, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem)
-{
-	struct LevVertex *vertices = mesh->ptrVertexArray;
-	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
-
-	if (renderedList == NULL)
-	{
-		return 1;
-	}
-
-	while (1)
-	{
-		struct QuadBlock *block = *renderedList;
-
-		if (!DrawLevelOvr1P_HasBucketPrimReserve(primMem, DRAW_LEVEL_OVR1P_BUCKET_RESERVE_DEFAULT))
-		{
-			return 0;
-		}
-
-		DrawLevelOvr1P_SetGridFaceSlotWord(projected, 0);
-		if (block == NULL)
-		{
-			return 1;
-		}
-
-		Ovr226_800a97c8_ProjectQuad4x4RenderedGrid(vertices, block, projected);
-
-		for (int faceIndex = 0; faceIndex < 4; faceIndex++)
-		{
-			if (!Ovr226_800a9fa0_Quad4x4RenderedSelectorNearGate(pb, primMem, projected, block, faceIndex))
+			if (!DrawLevelOvr1P_NonWaterRenderedSelectorNearGate(pb, primMem, projected, block, faceIndex, role))
 			{
 				return 0;
 			}
@@ -8762,7 +8307,7 @@ static int Ovr226_800a5030_EmitGround4x2ListQuadBlock(struct PushBuffer *pb, str
 	struct LevVertex *vertices = mesh->ptrVertexArray;
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
-	if (Ovr226_800a5030_ProjectGround4x2ListGrid(vertices, block, projected))
+	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_FACE))
 	{
 		DrawLevelOvr1P_AppendRenderedQuadBlock(block);
 		return 1;
@@ -8779,56 +8324,12 @@ static int Ovr226_800a5030_EmitGround4x2ListQuadBlock(struct PushBuffer *pb, str
 	return 1;
 }
 
-static int Ovr226_800a4fa0_DrawGround4x2BspList(struct VisMemBspListNode *slot, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
-                                                const int *visFaceList)
-{
-	if (sDrawLevelOvr1P_ListHandlersSeedRenderedCursor)
-	{
-		DrawLevelOvr1P_SetRenderedListCursor(DrawLevelOvr1P_GetRenderedOverflowBase());
-	}
-
-	while (slot != NULL)
-	{
-		struct BSP *bsp = slot->bsp;
-		struct QuadBlock *block = bsp->data.leaf.ptrQuadBlockArray;
-		s32 quadCount = bsp->data.leaf.numQuads;
-
-		DrawLevelOvr1P_Scratch()->quadCount = quadCount;
-		Ovr226_800a0f0c_SeedFullDynamicVisibilityScratch(visFaceList, block);
-
-		while (quadCount > 0)
-		{
-			if (!DrawLevelOvr1P_HasBucketPrimReserve(primMem, DRAW_LEVEL_OVR1P_BUCKET_RESERVE_4X2))
-			{
-				return 0;
-			}
-
-			if (Ovr226_800a0f34_ConsumeFullDynamicVisibilityBit())
-			{
-				if (!Ovr226_800a5030_EmitGround4x2ListQuadBlock(pb, primMem, mesh, block))
-				{
-					return 0;
-				}
-			}
-
-			block++;
-			quadCount--;
-			DrawLevelOvr1P_Scratch()->quadCount = quadCount;
-		}
-
-		slot = slot->next;
-	}
-
-	DrawLevelOvr1P_TerminateRenderedListCursor();
-	return 1;
-}
-
 static int Ovr226_800a6fd0_EmitDynamicListQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block)
 {
 	struct LevVertex *vertices = mesh->ptrVertexArray;
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
-	if (Ovr226_800a6fd0_ProjectDynamicListGrid(vertices, block, projected))
+	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_WORD))
 	{
 		DrawLevelOvr1P_AppendRenderedQuadBlock(block);
 		return 1;
@@ -8845,56 +8346,12 @@ static int Ovr226_800a6fd0_EmitDynamicListQuadBlock(struct PushBuffer *pb, struc
 	return 1;
 }
 
-static int Ovr226_800a6f40_DrawDynamicBspList(struct VisMemBspListNode *slot, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
-                                              const int *visFaceList)
-{
-	if (sDrawLevelOvr1P_ListHandlersSeedRenderedCursor)
-	{
-		DrawLevelOvr1P_SetRenderedListCursor(DrawLevelOvr1P_GetRenderedOverflowBase());
-	}
-
-	while (slot != NULL)
-	{
-		struct BSP *bsp = slot->bsp;
-		struct QuadBlock *block = bsp->data.leaf.ptrQuadBlockArray;
-		s32 quadCount = bsp->data.leaf.numQuads;
-
-		DrawLevelOvr1P_Scratch()->quadCount = quadCount;
-		Ovr226_800a0f0c_SeedFullDynamicVisibilityScratch(visFaceList, block);
-
-		while (quadCount > 0)
-		{
-			if (!DrawLevelOvr1P_HasBucketPrimReserve(primMem, DRAW_LEVEL_OVR1P_BUCKET_RESERVE_DEFAULT))
-			{
-				return 0;
-			}
-
-			if (Ovr226_800a0f34_ConsumeFullDynamicVisibilityBit())
-			{
-				if (!Ovr226_800a6fd0_EmitDynamicListQuadBlock(pb, primMem, mesh, block))
-				{
-					return 0;
-				}
-			}
-
-			block++;
-			quadCount--;
-			DrawLevelOvr1P_Scratch()->quadCount = quadCount;
-		}
-
-		slot = slot->next;
-	}
-
-	DrawLevelOvr1P_TerminateRenderedListCursor();
-	return 1;
-}
-
 static int Ovr226_800a8bf0_EmitWideDynamicQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block)
 {
 	struct LevVertex *vertices = mesh->ptrVertexArray;
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
-	if (Ovr226_800a8bf0_ProjectWideDynamicGrid(vertices, block, projected))
+	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_WORD))
 	{
 		DrawLevelOvr1P_AppendRenderedQuadBlock(block);
 		return 1;
@@ -8911,13 +8368,33 @@ static int Ovr226_800a8bf0_EmitWideDynamicQuadBlock(struct PushBuffer *pb, struc
 	return 1;
 }
 
-static int Ovr226_800a8b60_DrawWideDynamicBspList(struct VisMemBspListNode *slot, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
-                                                  const int *visFaceList)
+static int DrawLevelOvr1P_EmitBspListQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block, int role)
+{
+	switch (role)
+	{
+	case DRAW_LEVEL_OVR1P_BUCKET_4X1_LIST:
+		return Ovr226_800a3738_EmitGround4x1ListQuadBlock(pb, primMem, mesh, block);
+
+	case DRAW_LEVEL_OVR1P_BUCKET_4X2_LIST:
+		return Ovr226_800a5030_EmitGround4x2ListQuadBlock(pb, primMem, mesh, block);
+
+	case DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_LIST:
+		return Ovr226_800a6fd0_EmitDynamicListQuadBlock(pb, primMem, mesh, block);
+
+	default:
+		return Ovr226_800a8bf0_EmitWideDynamicQuadBlock(pb, primMem, mesh, block);
+	}
+}
+
+static int DrawLevelOvr1P_DrawBspListQuadBlocks(struct VisMemBspListNode *slot, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
+                                                const int *visFaceList, int role)
 {
 	if (sDrawLevelOvr1P_ListHandlersSeedRenderedCursor)
 	{
 		DrawLevelOvr1P_SetRenderedListCursor(DrawLevelOvr1P_GetRenderedOverflowBase());
 	}
+
+	u32 reserve = DrawLevelOvr1P_GetBspListReserve(role);
 
 	while (slot != NULL)
 	{
@@ -8930,14 +8407,14 @@ static int Ovr226_800a8b60_DrawWideDynamicBspList(struct VisMemBspListNode *slot
 
 		while (quadCount > 0)
 		{
-			if (!DrawLevelOvr1P_HasBucketPrimReserve(primMem, DRAW_LEVEL_OVR1P_BUCKET_RESERVE_DEFAULT))
+			if (!DrawLevelOvr1P_HasBucketPrimReserve(primMem, reserve))
 			{
 				return 0;
 			}
 
 			if (Ovr226_800a0f34_ConsumeFullDynamicVisibilityBit())
 			{
-				if (!Ovr226_800a8bf0_EmitWideDynamicQuadBlock(pb, primMem, mesh, block))
+				if (!DrawLevelOvr1P_EmitBspListQuadBlock(pb, primMem, mesh, block, role))
 				{
 					return 0;
 				}
@@ -9041,25 +8518,25 @@ static void Ovr226_800a24e8_BuildWaterListSubdivideMidpoint(struct DrawLevelOvr1
 	u8 *dstMidUv = (u8 *)&dstMid->flags;
 	u32 depth;
 
-	for (int i = 0; i < 3; i++)
+	for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
 	{
-		dstA->pos[i] = srcA->pos[i];
-		dstMid->pos[i] = (s16)(((s32)srcA->pos[i] + (s32)srcB->pos[i]) >> 1);
+		dstA->pos[axisIndex] = srcA->pos[axisIndex];
+		dstMid->pos[axisIndex] = (s16)(((s32)srcA->pos[axisIndex] + (s32)srcB->pos[axisIndex]) >> 1);
 	}
 
 	CTR_GteLoadS16TripletV0(&dstMid->pos[0]);
 	gte_rtps();
 
-	for (int i = 0; i < 3; i++)
+	for (s32 colorChannel = 0; colorChannel < 3; colorChannel++)
 	{
-		dstA->color_hi[i] = srcA->color_hi[i];
-		dstMid->color_hi[i] = (u8)(((u32)srcA->color_hi[i] + (u32)srcB->color_hi[i]) >> 1);
+		dstA->color_hi[colorChannel] = srcA->color_hi[colorChannel];
+		dstMid->color_hi[colorChannel] = (u8)(((u32)srcA->color_hi[colorChannel] + (u32)srcB->color_hi[colorChannel]) >> 1);
 	}
 
-	for (int i = 0; i < 2; i++)
+	for (s32 uvByte = 0; uvByte < 2; uvByte++)
 	{
-		dstAUv[i] = srcAUv[i];
-		dstMidUv[i] = (u8)(((u32)srcAUv[i] + (u32)srcBUv[i]) >> 1);
+		dstAUv[uvByte] = srcAUv[uvByte];
+		dstMidUv[uvByte] = (u8)(((u32)srcAUv[uvByte] + (u32)srcBUv[uvByte]) >> 1);
 	}
 
 	DrawLevelOvr1P_CopyProjectedScreenDepth(dstA, srcA);
@@ -9087,25 +8564,25 @@ static void Ovr226_800a2fe4_BuildWaterRenderedSubdivideMidpoint(struct DrawLevel
 	u8 *dstMidUv = (u8 *)&dstMid->flags;
 	u32 depth;
 
-	for (int i = 0; i < 3; i++)
+	for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
 	{
-		dstA->pos[i] = srcA->pos[i];
-		dstMid->pos[i] = (s16)(((s32)srcA->pos[i] + (s32)srcB->pos[i]) >> 1);
+		dstA->pos[axisIndex] = srcA->pos[axisIndex];
+		dstMid->pos[axisIndex] = (s16)(((s32)srcA->pos[axisIndex] + (s32)srcB->pos[axisIndex]) >> 1);
 	}
 
 	CTR_GteLoadS16TripletV0(&dstMid->pos[0]);
 	gte_rtps();
 
-	for (int i = 0; i < 3; i++)
+	for (s32 colorChannel = 0; colorChannel < 3; colorChannel++)
 	{
-		dstA->color_hi[i] = srcA->color_hi[i];
-		dstMid->color_hi[i] = (u8)(((u32)srcA->color_hi[i] + (u32)srcB->color_hi[i]) >> 1);
+		dstA->color_hi[colorChannel] = srcA->color_hi[colorChannel];
+		dstMid->color_hi[colorChannel] = (u8)(((u32)srcA->color_hi[colorChannel] + (u32)srcB->color_hi[colorChannel]) >> 1);
 	}
 
-	for (int i = 0; i < 2; i++)
+	for (s32 uvByte = 0; uvByte < 2; uvByte++)
 	{
-		dstAUv[i] = srcAUv[i];
-		dstMidUv[i] = (u8)(((u32)srcAUv[i] + (u32)srcBUv[i]) >> 1);
+		dstAUv[uvByte] = srcAUv[uvByte];
+		dstMidUv[uvByte] = (u8)(((u32)srcAUv[uvByte] + (u32)srcBUv[uvByte]) >> 1);
 	}
 
 	DrawLevelOvr1P_CopyProjectedScreenDepth(dstA, srcA);
@@ -9139,81 +8616,87 @@ static int Ovr226_800a25d0_WaterListFaceGate(struct PushBuffer *pb, struct PrimM
                                              const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex, int depth, u32 allowedMask,
                                              uint32_t *inheritedOtEntry);
 
+static const int *Ovr226_800a22a4_GetWaterListLeafWrapperIndices(DrawLevelOvrRetailLabel handlerLabel)
+{
+	// NOTE(aalhendi): Retail water-list leaf wrappers 0x800a22a4..0x800a2330
+	// are contiguous 0x14-byte labels selecting Face[0..3], then Extra[0..3].
+	if ((handlerLabel < DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_LEAF_FACE0) || (handlerLabel > DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_LEAF_EXTRA3))
+	{
+		return NULL;
+	}
+
+	u32 offset = handlerLabel - DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_LEAF_FACE0;
+	if ((offset % DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_STRIDE) != 0)
+	{
+		return NULL;
+	}
+
+	u32 index = offset / DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_STRIDE;
+	if (index < 4)
+	{
+		return sDrawLevelOvr1PGridFaceIndices[index];
+	}
+
+	return sDrawLevelOvr1PGridExtraFaceIndices[index - 4];
+}
+
 static int Ovr226_800a22a4_DispatchWaterListHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                           const struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, int depth, u32 handlerAddress,
-                                                           int handlerSlot, u32 allowedMask, uint32_t *inheritedOtEntry)
+                                                           const struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, int depth,
+                                                           DrawLevelOvrRetailLabel handlerLabel, int handlerSlot, u32 allowedMask, uint32_t *inheritedOtEntry)
 {
 	int slot = handlerSlot;
+	const int *leafIndices = Ovr226_800a22a4_GetWaterListLeafWrapperIndices(handlerLabel);
 
-	switch (handlerAddress)
+	if (leafIndices != NULL)
 	{
-	case 0x800a22a4:
-		return Ovr226_800a25d0_WaterListFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridFaceIndices[0], faceIndex, depth, allowedMask,
-		                                         inheritedOtEntry);
-	case 0x800a22b8:
-		return Ovr226_800a25d0_WaterListFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridFaceIndices[1], faceIndex, depth, allowedMask,
-		                                         inheritedOtEntry);
-	case 0x800a22cc:
-		return Ovr226_800a25d0_WaterListFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridFaceIndices[2], faceIndex, depth, allowedMask,
-		                                         inheritedOtEntry);
-	case 0x800a22e0:
-		return Ovr226_800a25d0_WaterListFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridFaceIndices[3], faceIndex, depth, allowedMask,
-		                                         inheritedOtEntry);
-	case 0x800a22f4:
-		return Ovr226_800a25d0_WaterListFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridExtraFaceIndices[0], faceIndex, depth, allowedMask,
-		                                         inheritedOtEntry);
-	case 0x800a2308:
-		return Ovr226_800a25d0_WaterListFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridExtraFaceIndices[1], faceIndex, depth, allowedMask,
-		                                         inheritedOtEntry);
-	case 0x800a231c:
-		return Ovr226_800a25d0_WaterListFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridExtraFaceIndices[2], faceIndex, depth, allowedMask,
-		                                         inheritedOtEntry);
-	case 0x800a2330:
-		return Ovr226_800a25d0_WaterListFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridExtraFaceIndices[3], faceIndex, depth, allowedMask,
-		                                         inheritedOtEntry);
-	case 0x800a2344:
-	case 0x800a15cc:
-	case 0x800a1680:
+		return Ovr226_800a25d0_WaterListFaceGate(pb, primMem, block, projected, leafIndices, faceIndex, depth, allowedMask, inheritedOtEntry);
+	}
+
+	switch (handlerLabel)
+	{
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT0:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT0_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT0_ALIAS_B:
 		slot = 0;
 		break;
-	case 0x800a2384:
-	case 0x800a160c:
-	case 0x800a16c0:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT1:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT1_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT1_ALIAS_B:
 		slot = 1;
 		break;
-	case 0x800a2404:
-	case 0x800a168c:
-	case 0x800a1740:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT2:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT2_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT2_ALIAS_B:
 		slot = 2;
 		break;
-	case 0x800a23a4:
-	case 0x800a162c:
-	case 0x800a16e0:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT3:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT3_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT3_ALIAS_B:
 		slot = 3;
 		break;
-	case 0x800a242c:
-	case 0x800a16b4:
-	case 0x800a1768:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT4_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT4_ALIAS_B:
 		slot = 4;
 		break;
-	case 0x800a23c4:
-	case 0x800a164c:
-	case 0x800a1700:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT7:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT7_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT7_ALIAS_B:
 		slot = 7;
 		break;
-	case 0x800a2454:
-	case 0x800a16dc:
-	case 0x800a1790:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT9:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT9_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT9_ALIAS_B:
 		slot = 9;
 		break;
-	case 0x800a247c:
-	case 0x800a1704:
-	case 0x800a17b8:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT11:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT11_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT11_ALIAS_B:
 		slot = 11;
 		break;
-	case 0x800a24a4:
-	case 0x800a172c:
-	case 0x800a17e0:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT5:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT5_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT5_ALIAS_B:
 		slot = 5;
 		break;
 	default:
@@ -9221,8 +8704,8 @@ static int Ovr226_800a22a4_DispatchWaterListHelperWrappers(struct PushBuffer *pb
 	}
 
 	// NOTE(aalhendi): Retail 0x800a22a4..0x800a24a4 wrappers are selected by
-	// copied scratch 0x14c addresses and pass their own t2 direct-mask constants
-	// into shared face helper 0x800a25d0.
+	// copied setup0 scratch addresses and pass their own t2 direct-mask
+	// constants into shared face helper 0x800a25d0.
 	switch (slot)
 	{
 	case 0:
@@ -9459,32 +8942,32 @@ static int Ovr226_800a27b8_EmitWaterListDirectTail(struct PushBuffer *pb, struct
                                                    uint32_t *inheritedOtEntry)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
-	u32 handlerAddress = DrawLevelOvr1P_GetDirectHandlerAddress(directMask);
+	DrawLevelOvrRetailLabel handlerLabel = DrawLevelOvr1P_GetDirectHandlerAddress(directMask);
 
 	// NOTE(aalhendi): 227/228/229 water-list direct tables use shifted retail
 	// labels with the same packet ABI; alias them to the owned native writers.
-	switch (handlerAddress)
+	switch (handlerLabel)
 	{
-	case 0x800a27dc:
-	case 0x800a28d0:
-	case 0x800a1a60:
-	case 0x800a1b14:
-	case 0x800a25bc:
-	case 0x800a2670:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_PRIMARY_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_PRIMARY_227:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_PRIMARY_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_PRIMARY_229:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_PRIMARY_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_PRIMARY_229:
 		return Ovr226_800a27dc_EmitWaterListGT3Raw(pb, primMem, block, projected, indices, faceIndex, 0, inheritedOtEntry);
-	case 0x800a27d4:
-	case 0x800a28c8:
-	case 0x800a1a58:
-	case 0x800a1b0c:
-	case 0x800a25b4:
-	case 0x800a2668:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_SECOND_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_SECOND_227:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_SECOND_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT3_SECOND_229:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_SECOND_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_SECOND_229:
 		return Ovr226_800a27dc_EmitWaterListGT3Raw(pb, primMem, block, projected, indices, faceIndex, 1, inheritedOtEntry);
-	case 0x800a2850:
-	case 0x800a2944:
-	case 0x800a1ad4:
-	case 0x800a1b88:
-	case 0x800a2660:
-	case 0x800a2714:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT4_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT4_227:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT4_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_DIRECT_GT4_229:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT4_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT4_229:
 		return Ovr226_800a2850_EmitWaterListGT4Raw(pb, primMem, block, projected, indices, faceIndex, inheritedOtEntry);
 	default:
 		return 1;
@@ -9493,7 +8976,7 @@ static int Ovr226_800a27b8_EmitWaterListDirectTail(struct PushBuffer *pb, struct
 
 static int Ovr226_800a2660_WaterListNearDispatch(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
                                                  const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex, int depth,
-                                                 u32 handlerAddress, int handlerSlot, u32 allowedMask, uint32_t *inheritedOtEntry)
+                                                 DrawLevelOvrRetailLabel handlerLabel, int handlerSlot, u32 allowedMask, uint32_t *inheritedOtEntry)
 {
 	if (DrawLevelOvr1P_IsDeepestSubdivisionFrame(projected))
 	{
@@ -9509,7 +8992,7 @@ static int Ovr226_800a2660_WaterListNearDispatch(struct PushBuffer *pb, struct P
 	// builds five 0x800a24e8 midpoint pairs, then jumps through scratch 0x148.
 	Ovr226_800a24e8_BuildWaterListSubdivisionFrame(sub, projected, indices);
 
-	return Ovr226_800a22a4_DispatchWaterListHelperWrappers(pb, primMem, block, sub, faceIndex, depth + 1, handlerAddress, handlerSlot, allowedMask,
+	return Ovr226_800a22a4_DispatchWaterListHelperWrappers(pb, primMem, block, sub, faceIndex, depth + 1, handlerLabel, handlerSlot, allowedMask,
 	                                                       inheritedOtEntry);
 }
 
@@ -9535,40 +9018,14 @@ static int Ovr226_800a25d0_WaterListFaceGate(struct PushBuffer *pb, struct PrimM
 	u32 nearMask = DrawLevelOvr1P_GetProjectedWaterNearMask(projected, indices);
 	if (nearMask != 0)
 	{
-		u32 handlerAddress = DrawLevelOvr1P_GetNearSubdivisionHandlerAddress(nearMask, DRAW_LEVEL_OVR1P_CLIP_BYTES_LIST);
+		DrawLevelOvrRetailLabel handlerLabel = DrawLevelOvr1P_GetNearSubdivisionHandlerAddress(nearMask, DRAW_LEVEL_OVR1P_CLIP_BYTES_LIST);
 		int handlerSlot = DrawLevelOvr1P_GetNearSubdivisionTableSlot(nearMask);
 
-		return Ovr226_800a2660_WaterListNearDispatch(pb, primMem, block, projected, indices, faceIndex, depth, handlerAddress, handlerSlot, directMask,
+		return Ovr226_800a2660_WaterListNearDispatch(pb, primMem, block, projected, indices, faceIndex, depth, handlerLabel, handlerSlot, directMask,
 		                                             faceOtEntry);
 	}
 
 	return Ovr226_800a27b8_EmitWaterListDirectTail(pb, primMem, block, projected, indices, faceIndex, faceOtEntry);
-}
-
-static int DrawLevelOvr1P_DrawWaterListQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block,
-                                                 int captureRenderedOverflow)
-{
-	struct LevVertex *vertices = mesh->ptrVertexArray;
-	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
-
-	if ((block->quadFlags & QUADBLOCK_FLAG_SKIP_WATER_LIST) != 0)
-	{
-		return 1;
-	}
-
-	if (DrawLevelOvr1P_ProjectQuadBlockGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_CLIP_BYTES_LIST))
-	{
-		if (captureRenderedOverflow)
-		{
-			DrawLevelOvr1P_AppendRenderedQuadBlock(block);
-		}
-
-		return 1;
-	}
-
-	Ovr226_800a211c_ApplyWaterListColorFades(projected);
-
-	return Ovr226_800a22a4_DispatchWaterListHelperWrappers(pb, primMem, block, projected, 0, 0, 0x800a24a4, 5, DRAW_LEVEL_OVR1P_DIRECT_QUAD, NULL);
 }
 
 static void Ovr226_800a1e30_SeedWaterListState(void)
@@ -9603,7 +9060,7 @@ static int Ovr226_800a1ee0_EmitWaterListQuadBlock(struct PushBuffer *pb, struct 
 	struct LevVertex *vertices = mesh->ptrVertexArray;
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
-	if (Ovr226_800a1ee0_ProjectWaterListGrid(vertices, block, projected))
+	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_WATER_COLOR_LO_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_FACE))
 	{
 		DrawLevelOvr1P_AppendRenderedQuadBlock(block);
 		return 1;
@@ -9611,7 +9068,8 @@ static int Ovr226_800a1ee0_EmitWaterListQuadBlock(struct PushBuffer *pb, struct 
 
 	Ovr226_800a211c_ApplyWaterListColorFades(projected);
 
-	return Ovr226_800a22a4_DispatchWaterListHelperWrappers(pb, primMem, block, projected, 0, 0, 0x800a24a4, 5, DRAW_LEVEL_OVR1P_DIRECT_QUAD, NULL);
+	return Ovr226_800a22a4_DispatchWaterListHelperWrappers(pb, primMem, block, projected, 0, 0, DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_LIST_WRAPPER_SLOT5, 5,
+	                                                       DRAW_LEVEL_OVR1P_DIRECT_QUAD, NULL);
 }
 
 static int Ovr226_800a1e30_DrawWaterBspList(struct VisMemBspListNode *slot, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
@@ -9659,10 +9117,51 @@ static int Ovr226_800a30f0_WaterRenderedFaceGate(struct PushBuffer *pb, struct P
                                                  const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex, int depth,
                                                  u32 allowedMask, uint32_t *inheritedOtEntry);
 
+static const int *Ovr226_800a2da0_GetWaterRenderedLeafWrapperIndices(DrawLevelOvrRetailLabel handlerLabel)
+{
+	DrawLevelOvrRetailLabel baseLabel;
+
+	if ((handlerLabel >= DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE0) && (handlerLabel <= DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_EXTRA3))
+	{
+		baseLabel = DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE0;
+	}
+	else if ((handlerLabel >= DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE0_ALIAS_A) &&
+	         (handlerLabel <= DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_EXTRA3_ALIAS_A))
+	{
+		baseLabel = DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE0_ALIAS_A;
+	}
+	else if ((handlerLabel >= DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE0_ALIAS_B) &&
+	         (handlerLabel <= DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_EXTRA3_ALIAS_B))
+	{
+		baseLabel = DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE0_ALIAS_B;
+	}
+	else
+	{
+		return NULL;
+	}
+
+	u32 offset = handlerLabel - baseLabel;
+	if ((offset % DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_STRIDE) != 0)
+	{
+		return NULL;
+	}
+
+	u32 index = offset / DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_STRIDE;
+	if (index < 4)
+	{
+		return sDrawLevelOvr1PGridFaceIndices[index];
+	}
+
+	return sDrawLevelOvr1PGridExtraFaceIndices[index - 4];
+}
+
 static int Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
                                                                const struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, int depth,
-                                                               u32 handlerAddress, int handlerSlot, u32 allowedMask, uint32_t *inheritedOtEntry)
+                                                               DrawLevelOvrRetailLabel handlerLabel, int handlerSlot, u32 allowedMask,
+                                                               uint32_t *inheritedOtEntry)
 {
+	const int *leafIndices = Ovr226_800a2da0_GetWaterRenderedLeafWrapperIndices(handlerLabel);
+
 	(void)handlerSlot;
 
 	// NOTE(aalhendi): Retail 0x800a2da0..0x800a2fe4 wrapper labels either
@@ -9673,51 +9172,16 @@ static int Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(struct PushBuffer
 	// refreshed NTSC-U 926 objdump for this span.
 	// 228/229 water-rendered RDATA uses shifted copies of this wrapper table;
 	// those labels alias to the same owned helper sequences after target checks.
-	switch (handlerAddress)
+	if (leafIndices != NULL)
 	{
-	case 0x800a2da0:
-	case 0x800a2024:
-	case 0x800a20d8:
-		return Ovr226_800a30f0_WaterRenderedFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridFaceIndices[0], faceIndex, depth, allowedMask,
-		                                             inheritedOtEntry);
-	case 0x800a2db4:
-	case 0x800a2038:
-	case 0x800a20ec:
-		return Ovr226_800a30f0_WaterRenderedFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridFaceIndices[1], faceIndex, depth, allowedMask,
-		                                             inheritedOtEntry);
-	case 0x800a2dc8:
-	case 0x800a204c:
-	case 0x800a2100:
-		return Ovr226_800a30f0_WaterRenderedFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridFaceIndices[2], faceIndex, depth, allowedMask,
-		                                             inheritedOtEntry);
-	case 0x800a2ddc:
-	case 0x800a2060:
-	case 0x800a2114:
-		return Ovr226_800a30f0_WaterRenderedFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridFaceIndices[3], faceIndex, depth, allowedMask,
-		                                             inheritedOtEntry);
-	case 0x800a2df0:
-	case 0x800a2074:
-	case 0x800a2128:
-		return Ovr226_800a30f0_WaterRenderedFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridExtraFaceIndices[0], faceIndex, depth, allowedMask,
-		                                             inheritedOtEntry);
-	case 0x800a2e04:
-	case 0x800a2088:
-	case 0x800a213c:
-		return Ovr226_800a30f0_WaterRenderedFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridExtraFaceIndices[1], faceIndex, depth, allowedMask,
-		                                             inheritedOtEntry);
-	case 0x800a2e18:
-	case 0x800a209c:
-	case 0x800a2150:
-		return Ovr226_800a30f0_WaterRenderedFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridExtraFaceIndices[2], faceIndex, depth, allowedMask,
-		                                             inheritedOtEntry);
-	case 0x800a2e2c:
-	case 0x800a20b0:
-	case 0x800a2164:
-		return Ovr226_800a30f0_WaterRenderedFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridExtraFaceIndices[3], faceIndex, depth, allowedMask,
-		                                             inheritedOtEntry);
-	case 0x800a2e40:
-	case 0x800a20c4:
-	case 0x800a2178:
+		return Ovr226_800a30f0_WaterRenderedFaceGate(pb, primMem, block, projected, leafIndices, faceIndex, depth, allowedMask, inheritedOtEntry);
+	}
+
+	switch (handlerLabel)
+	{
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT0:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT0_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT0_ALIAS_B:
 		if (!Ovr226_800a30f0_WaterRenderedFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridMixedFaceIndices[0], faceIndex, depth,
 		                                           DRAW_LEVEL_OVR1P_DIRECT_QUAD, inheritedOtEntry))
 		{
@@ -9728,41 +9192,48 @@ static int Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(struct PushBuffer
 		{
 			return 0;
 		}
-		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2da0, -1,
-		                                                           DRAW_LEVEL_OVR1P_DIRECT_QUAD, inheritedOtEntry);
-	case 0x800a2e80:
-	case 0x800a2104:
-	case 0x800a21b8:
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2db4, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                           DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE0, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		                                                           inheritedOtEntry);
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT1:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT1_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT1_ALIAS_B:
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE1, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
 		                                                         inheritedOtEntry))
 		{
 			return 0;
 		}
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2e18, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_EXTRA2, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
 		                                                         inheritedOtEntry))
 		{
 			return 0;
 		}
-		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2e2c, -1,
-		                                                           DRAW_LEVEL_OVR1P_DIRECT_QUAD, inheritedOtEntry);
-	case 0x800a2ea0:
-	case 0x800a2124:
-	case 0x800a21d8:
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2df0, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                           DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_EXTRA3, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		                                                           inheritedOtEntry);
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT3:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT3_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT3_ALIAS_B:
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_EXTRA0, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
 		                                                         inheritedOtEntry))
 		{
 			return 0;
 		}
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2dc8, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE2, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
 		                                                         inheritedOtEntry))
 		{
 			return 0;
 		}
-		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2e04, -1,
-		                                                           DRAW_LEVEL_OVR1P_DIRECT_QUAD, inheritedOtEntry);
-	case 0x800a2ec0:
-	case 0x800a2144:
-	case 0x800a21f8:
+		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                           DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_EXTRA1, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		                                                           inheritedOtEntry);
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT7:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT7_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT7_ALIAS_B:
 		if (!Ovr226_800a30f0_WaterRenderedFaceGate(pb, primMem, block, projected, sDrawLevelOvr1PGridMixedFaceIndices[2], faceIndex, depth,
 		                                           DRAW_LEVEL_OVR1P_DIRECT_QUAD, inheritedOtEntry))
 		{
@@ -9773,112 +9244,129 @@ static int Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(struct PushBuffer
 		{
 			return 0;
 		}
-		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2ddc, -1,
-		                                                           DRAW_LEVEL_OVR1P_DIRECT_QUAD, inheritedOtEntry);
-	case 0x800a2f00:
-	case 0x800a2184:
-	case 0x800a2238:
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2e2c, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                           DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE3, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		                                                           inheritedOtEntry);
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT2:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT2_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT2_ALIAS_B:
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_EXTRA3, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
 		                                                         inheritedOtEntry))
 		{
 			return 0;
 		}
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2dc8, -1,
-		                                                         DRAW_LEVEL_OVR1P_DIRECT_TRI_PRIMARY, inheritedOtEntry))
-		{
-			return 0;
-		}
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2da0, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE2, -1, DRAW_LEVEL_OVR1P_DIRECT_TRI_PRIMARY,
 		                                                         inheritedOtEntry))
 		{
 			return 0;
 		}
-		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2db4, -1,
-		                                                           DRAW_LEVEL_OVR1P_DIRECT_QUAD, inheritedOtEntry);
-	case 0x800a2f28:
-	case 0x800a21ac:
-	case 0x800a2260:
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2e04, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE0, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
 		                                                         inheritedOtEntry))
 		{
 			return 0;
 		}
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2db4, -1,
-		                                                         DRAW_LEVEL_OVR1P_DIRECT_TRI_PRIMARY, inheritedOtEntry))
-		{
-			return 0;
-		}
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2da0, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                           DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE1, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		                                                           inheritedOtEntry);
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT4:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT4_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT4_ALIAS_B:
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_EXTRA1, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
 		                                                         inheritedOtEntry))
 		{
 			return 0;
 		}
-		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2dc8, -1,
-		                                                           DRAW_LEVEL_OVR1P_DIRECT_QUAD, inheritedOtEntry);
-	case 0x800a2f50:
-	case 0x800a21d4:
-	case 0x800a2288:
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2e18, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE1, -1, DRAW_LEVEL_OVR1P_DIRECT_TRI_PRIMARY,
 		                                                         inheritedOtEntry))
 		{
 			return 0;
 		}
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2dc8, -1,
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE0, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		                                                         inheritedOtEntry))
+		{
+			return 0;
+		}
+		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                           DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE2, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		                                                           inheritedOtEntry);
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT9:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT9_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT9_ALIAS_B:
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_EXTRA2, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		                                                         inheritedOtEntry))
+		{
+			return 0;
+		}
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE2, -1,
 		                                                         DRAW_LEVEL_OVR1P_DIRECT_TRI_SECONDARY, inheritedOtEntry))
 		{
 			return 0;
 		}
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2db4, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE1, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
 		                                                         inheritedOtEntry))
 		{
 			return 0;
 		}
-		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2ddc, -1,
-		                                                           DRAW_LEVEL_OVR1P_DIRECT_QUAD, inheritedOtEntry);
-	case 0x800a2f78:
-	case 0x800a21fc:
-	case 0x800a22b0:
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2df0, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                           DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE3, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		                                                           inheritedOtEntry);
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT11:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT11_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT11_ALIAS_B:
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_EXTRA0, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
 		                                                         inheritedOtEntry))
 		{
 			return 0;
 		}
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2db4, -1,
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE1, -1,
 		                                                         DRAW_LEVEL_OVR1P_DIRECT_TRI_SECONDARY, inheritedOtEntry))
 		{
 			return 0;
 		}
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2dc8, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                         DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE2, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
 		                                                         inheritedOtEntry))
 		{
 			return 0;
 		}
-		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth, 0x800a2ddc, -1,
-		                                                           DRAW_LEVEL_OVR1P_DIRECT_QUAD, inheritedOtEntry);
-	case 0x800a2fa0:
-	case 0x800a2224:
-	case 0x800a22d8:
+		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, faceIndex, depth,
+		                                                           DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE3, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
+		                                                           inheritedOtEntry);
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT5:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT5_ALIAS_A:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT5_ALIAS_B:
 		DrawLevelOvr1P_SetGridFaceSlot(projected, 0);
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, 0, depth, 0x800a2da0, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
-		                                                         inheritedOtEntry))
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, 0, depth, DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE0,
+		                                                         -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD, inheritedOtEntry))
 		{
 			return 0;
 		}
 		DrawLevelOvr1P_SetGridFaceSlot(projected, 1);
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, 1, depth, 0x800a2db4, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
-		                                                         inheritedOtEntry))
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, 1, depth, DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE1,
+		                                                         -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD, inheritedOtEntry))
 		{
 			return 0;
 		}
 		DrawLevelOvr1P_SetGridFaceSlot(projected, 2);
-		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, 2, depth, 0x800a2dc8, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
-		                                                         inheritedOtEntry))
+		if (!Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, 2, depth, DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE2,
+		                                                         -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD, inheritedOtEntry))
 		{
 			return 0;
 		}
 		DrawLevelOvr1P_SetGridFaceSlot(projected, 3);
-		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, projected, 3, depth, 0x800a2ddc, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD,
-		                                                           inheritedOtEntry);
+		return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(
+		    pb, primMem, block, projected, 3, depth, DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_LEAF_FACE3, -1, DRAW_LEVEL_OVR1P_DIRECT_QUAD, inheritedOtEntry);
 	default:
 		return 1;
 	}
@@ -9900,7 +9388,7 @@ static uint32_t *Ovr226_800a31f0_ResolveWaterRenderedInheritedOtEntry(struct Pus
 		return NULL;
 	}
 
-	u32 selectedDepth = DrawLevelOvr1P_GetWaterTopFrameOtDepth_800a2690_800a31f0(projected, indices);
+	u32 selectedDepth = DrawLevelOvr1P_GetWaterTopFrameOtDepth(projected, indices);
 	u32 slotWord = DrawLevelOvr1P_GetProjectedOtSlotWord(projected, faceIndex);
 	s8 drawOrder = DrawLevelOvr1P_ReadRetailQuadBlockByte(block, 0x18 + (slotWord >> 2));
 	s32 otIndex = (s32)(selectedDepth >> 6) + drawOrder;
@@ -9974,23 +9462,23 @@ static int Ovr226_800a3318_DispatchWaterRenderedDirectTail(struct PushBuffer *pb
                                                            const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, uint32_t *inheritedOtEntry)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
-	u32 handlerAddress = DrawLevelOvr1P_GetDirectHandlerAddress(directMask);
+	DrawLevelOvrRetailLabel handlerLabel = DrawLevelOvr1P_GetDirectHandlerAddress(directMask);
 
 	// NOTE(aalhendi): 228/229 water-rendered direct tables use shifted retail
 	// labels with the same raw/clip packet ABI; alias them to the owned writers.
-	switch (handlerAddress)
+	switch (handlerLabel)
 	{
-	case 0x800a333c:
-	case 0x800a25bc:
-	case 0x800a2670:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_PRIMARY_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_PRIMARY_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_PRIMARY_229:
 		return Ovr226_800a333c_EmitWaterRenderedGT3RawOrClip(pb, primMem, block, projected, indices, 0, inheritedOtEntry);
-	case 0x800a3334:
-	case 0x800a25b4:
-	case 0x800a2668:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_SECOND_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_SECOND_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT3_SECOND_229:
 		return Ovr226_800a333c_EmitWaterRenderedGT3RawOrClip(pb, primMem, block, projected, indices, 1, inheritedOtEntry);
-	case 0x800a33e0:
-	case 0x800a2660:
-	case 0x800a2714:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT4_226:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT4_228:
+	case DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_DIRECT_GT4_229:
 		return Ovr226_800a33e0_EmitWaterRenderedGT4RawOrClip(pb, primMem, block, projected, indices, inheritedOtEntry);
 	default:
 		return 1;
@@ -10020,7 +9508,7 @@ static int Ovr226_800a31bc_WaterRenderedNearDispatch(struct PushBuffer *pb, stru
 	// frame before jumping through the copied recursive-handler table.
 	Ovr226_800a2fe4_BuildWaterRenderedSubdivisionFrame(sub, projected, indices);
 
-	u32 handlerAddress = DrawLevelOvr1P_GetNearSubdivisionHandlerAddress(nearMask, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
+	DrawLevelOvrRetailLabel handlerAddress = DrawLevelOvr1P_GetNearSubdivisionHandlerAddress(nearMask, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
 	int handlerSlot = DrawLevelOvr1P_GetNearSubdivisionTableSlot(nearMask);
 	return Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(pb, primMem, block, sub, faceIndex, depth + 1, handlerAddress, handlerSlot, allowedMask,
 	                                                           faceOtEntry);
@@ -10055,12 +9543,12 @@ static int Ovr226_800a30f0_WaterRenderedFaceGate(struct PushBuffer *pb, struct P
 }
 
 static int DrawLevelOvr1P_DrawRenderedWaterQuadBlockWithDefaultHandler(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh,
-                                                                       struct QuadBlock *block, u32 defaultHandlerAddress)
+                                                                       struct QuadBlock *block, DrawLevelOvrRetailLabel defaultHandlerAddress)
 {
 	struct LevVertex *vertices = mesh->ptrVertexArray;
 	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
-	Ovr226_800a2924_ProjectWaterRenderedGrid(vertices, block, projected);
+	DrawLevelOvr1P_ProjectRenderedGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_WATER_COLOR_LO_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_NONE);
 	Ovr226_800a2c4c_ApplyWaterRenderedColorFades(projected);
 
 	// NOTE(aalhendi): Retail water-rendered helper dispatch enters the current
@@ -10070,7 +9558,7 @@ static int DrawLevelOvr1P_DrawRenderedWaterQuadBlockWithDefaultHandler(struct Pu
 }
 
 static int Ovr226_800a2904_DrawWaterRenderedListWithDefaultHandler(struct QuadBlock **renderedList, struct PushBuffer *pb, struct mesh_info *mesh,
-                                                                   struct PrimMem *primMem, u32 defaultHandlerAddress)
+                                                                   struct PrimMem *primMem, DrawLevelOvrRetailLabel defaultHandlerAddress)
 {
 	if (renderedList == NULL)
 	{
@@ -10103,7 +9591,7 @@ static int Ovr226_800a2904_DrawWaterRenderedListWithDefaultHandler(struct QuadBl
 
 static int Ovr226_800a2904_DrawWaterRenderedList(struct QuadBlock **renderedList, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem)
 {
-	return Ovr226_800a2904_DrawWaterRenderedListWithDefaultHandler(renderedList, pb, mesh, primMem, 0x800a2fa0);
+	return Ovr226_800a2904_DrawWaterRenderedListWithDefaultHandler(renderedList, pb, mesh, primMem, DRAW_LEVEL_OVR_RETAIL_LABEL_WATER_RENDERED_WRAPPER_SLOT5);
 }
 
 static int DrawLevelOvr1P_DrawRenderedQuadBlocks(struct QuadBlock **renderedList, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
@@ -10114,51 +9602,63 @@ static int DrawLevelOvr1P_DrawRenderedQuadBlocks(struct QuadBlock **renderedList
 		return 1;
 	}
 
-	if (role == DRAW_LEVEL_OVR1P_BUCKET_4X1_RENDERED)
+	switch (role)
 	{
-		return Ovr226_800a417c_DrawGround4x1RenderedList(renderedList, pb, mesh, primMem);
-	}
+	case DRAW_LEVEL_OVR1P_BUCKET_4X1_RENDERED:
+	case DRAW_LEVEL_OVR1P_BUCKET_4X2_RENDERED:
+	case DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_RENDERED:
+	case DRAW_LEVEL_OVR1P_BUCKET_4X4_RENDERED:
+		return DrawLevelOvr1P_DrawNonWaterRenderedList(renderedList, pb, mesh, primMem, role);
 
-	if (role == DRAW_LEVEL_OVR1P_BUCKET_4X2_RENDERED)
-	{
-		return Ovr226_800a5e5c_DrawGround4x2RenderedList(renderedList, pb, mesh, primMem);
-	}
-
-	if (role == DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_RENDERED)
-	{
-		return Ovr226_800a7ba8_DrawDynamicRenderedList(renderedList, pb, mesh, primMem);
-	}
-
-	if (role == DRAW_LEVEL_OVR1P_BUCKET_4X4_RENDERED)
-	{
-		return Ovr226_800a97c8_DrawQuad4x4RenderedList(renderedList, pb, mesh, primMem);
-	}
-
-	if (role == DRAW_LEVEL_OVR1P_BUCKET_WATER_RENDERED)
-	{
+	case DRAW_LEVEL_OVR1P_BUCKET_WATER_RENDERED:
 		return Ovr226_800a2904_DrawWaterRenderedList(renderedList, pb, mesh, primMem);
-	}
 
-	return 0;
+	default:
+		return 0;
+	}
 }
 
-static void *DrawLevelOvr1P_GetRenderListField(struct DrawLevelOvr1PRenderList *renderList, int offset)
+static void *DrawLevelOvr1P_GetRenderListBucketValue(struct DrawLevelOvr1PRenderList *renderList, const struct DrawLevelOvr1PBucket *bucket)
 {
-	return *(void **)((u8 *)renderList + offset);
+	int renderListOffset = bucket->renderListOffset;
+
+	if (renderListOffset == offsetof(struct DrawLevelOvr1PRenderList, bspListStart_FullDynamic))
+	{
+		return renderList->bspListStart_FullDynamic;
+	}
+
+	if (renderListOffset == offsetof(struct DrawLevelOvr1PRenderList, ptrQuadBlocksRendered_FullDynamic))
+	{
+		return renderList->ptrQuadBlocksRendered_FullDynamic;
+	}
+
+	u32 slotIndex = (u32)renderListOffset / sizeof(renderList->list[0]);
+
+	if (slotIndex >= DRAW_LEVEL_OVR1P_RENDER_LIST_SLOT_COUNT)
+	{
+		return NULL;
+	}
+
+	if (bucket->kind == DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED)
+	{
+		return renderList->list[slotIndex].ptrQuadBlocksRendered;
+	}
+
+	return renderList->list[slotIndex].bspListStart;
 }
 
 static void Ovr226_800a0d34_SetEntryGteAndCameraScratch(struct PushBuffer *pb)
 {
 	s16 *data6 = DrawLevelOvr1P_Scratch()->projectedCenter.v;
 
-	for (int i = 0; i < 8; i++)
+	for (s32 controlWordIndex = 0; controlWordIndex < 8; controlWordIndex++)
 	{
-		CTC2(DrawLevelOvr1P_ReadWord(&pb->matrix_ViewProj, (u32)(i * 4)), i);
+		CTC2(DrawLevelOvr1P_ReadWord(&pb->matrix_ViewProj, (u32)(controlWordIndex * 4)), controlWordIndex);
 	}
 
-	for (int i = 0; i < 3; i++)
+	for (s32 centerIndex = 0; centerIndex < 3; centerIndex++)
 	{
-		data6[i] = (s16)((u16)(u8)pb->data6[i * 2] | ((u16)(u8)pb->data6[i * 2 + 1] << 8));
+		data6[centerIndex] = (s16)((u16)(u8)pb->data6[centerIndex * 2] | ((u16)(u8)pb->data6[centerIndex * 2 + 1] << 8));
 	}
 
 	CTC2((u32)(s32)pb->rect.w << 15, 24);
@@ -10172,11 +9672,11 @@ static void Ovr226_800a0d34_SetEntryGteAndCameraScratch(struct PushBuffer *pb)
 
 static const struct DrawLevelOvr1PBucket *Ovr226_800a0e78_FindBucketByHandler(u32 handlerAddress)
 {
-	for (int i = 0; i < OVR226_BUCKET_COUNT; i++)
+	for (s32 bucketIndex = 0; bucketIndex < OVR226_BUCKET_COUNT; bucketIndex++)
 	{
-		if (R226.bucketHandlerAddresses[i] == handlerAddress)
+		if (R226.bucketHandlerAddresses[bucketIndex] == handlerAddress)
 		{
-			return &sDrawLevelOvr1PBuckets[i];
+			return &sDrawLevelOvr1PBuckets[bucketIndex];
 		}
 	}
 
@@ -10195,52 +9695,42 @@ static int Ovr226_800a0e78_DispatchBucketHandler(u32 handlerAddress, void *bucke
 
 	if (bucket->kind == DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED)
 	{
-		return DrawLevelOvr1P_DrawRenderedQuadBlocks(bucketValue, pb, mesh, primMem, bucket->role);
+		return DrawLevelOvr1P_DrawRenderedQuadBlocks((struct QuadBlock **)bucketValue, pb, mesh, primMem, bucket->role);
 	}
 
 	if (bucket->role == DRAW_LEVEL_OVR1P_BUCKET_FULL_DYNAMIC_LIST)
 	{
-		return Ovr226_800a0ef4_DrawFullDynamicBspList(bucketValue, pb, mesh, primMem, visFaceList);
+		return Ovr226_800a0ef4_DrawFullDynamicBspList((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList);
 	}
 
 	if (bucket->role == DRAW_LEVEL_OVR1P_BUCKET_WATER_LIST)
 	{
-		return Ovr226_800a1e30_DrawWaterBspList(bucketValue, pb, mesh, primMem, visFaceList);
+		return Ovr226_800a1e30_DrawWaterBspList((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList);
 	}
 
 	// NOTE(aalhendi): Overlay 226 consumes VisMem BSP-list nodes: word zero is
 	// next, word one is the BSP pointer preserved by VisMem initialization.
-	if (bucket->role == DRAW_LEVEL_OVR1P_BUCKET_4X1_LIST)
+	switch (bucket->role)
 	{
-		return Ovr226_800a36a8_DrawGround4x1BspList(bucketValue, pb, mesh, primMem, visFaceList);
-	}
+	case DRAW_LEVEL_OVR1P_BUCKET_4X1_LIST:
+	case DRAW_LEVEL_OVR1P_BUCKET_4X2_LIST:
+	case DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_LIST:
+	case DRAW_LEVEL_OVR1P_BUCKET_4X4_LIST:
+		return DrawLevelOvr1P_DrawBspListQuadBlocks((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList, bucket->role);
 
-	if (bucket->role == DRAW_LEVEL_OVR1P_BUCKET_4X2_LIST)
-	{
-		return Ovr226_800a4fa0_DrawGround4x2BspList(bucketValue, pb, mesh, primMem, visFaceList);
+	default:
+		return 0;
 	}
-
-	if (bucket->role == DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_LIST)
-	{
-		return Ovr226_800a6f40_DrawDynamicBspList(bucketValue, pb, mesh, primMem, visFaceList);
-	}
-
-	if (bucket->role == DRAW_LEVEL_OVR1P_BUCKET_4X4_LIST)
-	{
-		return Ovr226_800a8b60_DrawWideDynamicBspList(bucketValue, pb, mesh, primMem, visFaceList);
-	}
-
-	return 0;
 }
 
 static int Ovr226_800a0e10_DispatchBucketTable(struct DrawLevelOvr1PRenderList *renderList, struct PushBuffer *pb, struct mesh_info *mesh,
                                                struct PrimMem *primMem, const int *visFaceList)
 {
-	for (s32 renderListOffset = 0x28; renderListOffset >= 0; renderListOffset -= (s32)sizeof(u32))
+	for (s32 renderListOffset = DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_FULL_DYNAMIC_LIST; renderListOffset >= 0; renderListOffset -= (s32)sizeof(u32))
 	{
 		u32 bucketIndex = (u32)renderListOffset / sizeof(u32);
 		const struct DrawLevelOvr1PBucket *bucket = &sDrawLevelOvr1PBuckets[bucketIndex];
-		void *bucketValue = DrawLevelOvr1P_GetRenderListField(renderList, renderListOffset);
+		void *bucketValue = DrawLevelOvr1P_GetRenderListBucketValue(renderList, bucket);
 		u32 setupAddress = R226.bucketSetupAddresses[bucketIndex];
 		u32 handlerAddress = R226.bucketHandlerAddresses[bucketIndex];
 
@@ -10265,12 +9755,12 @@ static int Ovr226_800a0e10_DispatchBucketTable(struct DrawLevelOvr1PRenderList *
 	return 1;
 }
 
-static int Ovr226_800a0cbc_Entry(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10,
-                                 const struct TextureLayout *waterEnvMap)
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800a0cbc-0x800ab970
+void DrawLevelOvr1P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, const int *visFaceList,
+                    const struct TextureLayout *waterEnvMap)
 {
 	struct DrawLevelOvr1PRenderList *renderList = LevRenderList;
 	struct mesh_info *mesh = (struct mesh_info *)bspList;
-	const int *visFaceList = VisMem10;
 	u32 hostStackAnchor;
 
 	// NOTE(aalhendi): Retail 0x800a0cf0 saves `sp` in scratch 0x38 and
@@ -10279,18 +9769,18 @@ static int Ovr226_800a0cbc_Entry(void *LevRenderList, struct PushBuffer *pb, str
 	DrawLevelOvr1P_Scratch()->savedStackPtr32 = (u32)(uintptr_t)&hostStackAnchor;
 
 	DrawLevelOvr1P_Scratch()->primMemEndPtr32 = (u32)(uintptr_t)primMem->end;
-	DrawLevelOvr1P_Scratch()->visFaceListPtr32 = (u32)(uintptr_t)VisMem10;
+	DrawLevelOvr1P_Scratch()->visFaceListPtr32 = (u32)(uintptr_t)visFaceList;
 
-	if (VisMem10 == NULL)
+	if (visFaceList == NULL)
 	{
-		return 1;
+		return;
 	}
 
 	DrawLevelOvr1P_Scratch()->waterEnvMapPtr32 = (u32)(uintptr_t)waterEnvMap;
 
 	if (mesh->ptrQuadBlockArray == NULL)
 	{
-		return 1;
+		return;
 	}
 
 	DrawLevelOvr1P_SetClipRecordStart(data.PtrClipBuffer[0]);
@@ -10304,7 +9794,7 @@ static int Ovr226_800a0cbc_Entry(void *LevRenderList, struct PushBuffer *pb, str
 
 	if (!Ovr226_800a0e10_DispatchBucketTable(renderList, pb, mesh, primMem, visFaceList))
 	{
-		return 0;
+		return;
 	}
 
 	// NOTE(aalhendi): Retail 0x800a0e98 reloads 0x800ab910 into scratch
@@ -10312,27 +9802,6 @@ static int Ovr226_800a0cbc_Entry(void *LevRenderList, struct PushBuffer *pb, str
 	Ovr226_800ab3dc_CopyClipRecordJumpTable();
 	if (!DrawLevelOvr1P_ConsumeClipRecords(pb, primMem))
 	{
-		return 0;
+		return;
 	}
-
-	return 1;
-}
-
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800a0cbc-0x800ab970
-void DrawLevelOvr1P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10,
-                    const struct TextureLayout *waterEnvMap)
-{
-	(void)Ovr226_800a0cbc_Entry(LevRenderList, pb, bspList, primMem, VisMem10, waterEnvMap);
-}
-
-void DrawLevelOvr3P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10, void *VisMem14, void *VisMem18,
-                    const struct TextureLayout *waterEnvMap)
-{
-	(void)Ovr228_800a0cbc_Entry(LevRenderList, pb, bspList, primMem, VisMem10, VisMem14, VisMem18, waterEnvMap);
-}
-
-void DrawLevelOvr4P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10, void *VisMem14, void *VisMem18,
-                    void *VisMem1C, const struct TextureLayout *waterEnvMap)
-{
-	(void)Ovr229_800a0cbc_Entry(LevRenderList, pb, bspList, primMem, VisMem10, VisMem14, VisMem18, VisMem1C, waterEnvMap);
 }

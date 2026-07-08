@@ -48,7 +48,7 @@ static struct TrigPair DrawTiresSolid_TrigAngleSinCos(int angle)
 	return pair;
 }
 
-static int DrawTiresSolid_GetLodThreshold(char numPlyr)
+static int DrawTiresSolid_GetLodThreshold(u8 numPlyr)
 {
 	return (((int)numPlyr - 2) > 0) ? 0 : 2;
 }
@@ -58,7 +58,7 @@ static struct InstDrawPerPlayer *DrawTiresSolid_GetIdpp(struct Instance *inst, i
 	return (struct InstDrawPerPlayer *)((char *)INST_GETIDPP(inst) + (playerIndex * sizeof(struct InstDrawPerPlayer)));
 }
 
-static void DrawTiresSolid_InitScratch(struct DrawTiresScratch *scratch, char numPlyr)
+static void DrawTiresSolid_InitScratch(struct DrawTiresScratch *scratch, u8 numPlyr)
 {
 	scratch->numPlyr = numPlyr;
 	scratch->lodThreshold = DrawTiresSolid_GetLodThreshold(numPlyr);
@@ -388,12 +388,12 @@ static struct DrawTiresSolidProjectedWheel DrawTiresSolid_SelectProjectedWheel(s
 
 static void DrawTiresSolid_CopyIconUV(POLY_FT4 *p, struct Icon *icon)
 {
-	u32 uv23 = *(u32 *)&icon->texLayout.u2;
+	u32 uv23 = CTR_ReadU32LE(&icon->texLayout.u2);
 
-	*(u32 *)&p->u0 = *(u32 *)&icon->texLayout.u0;
-	*(u32 *)&p->u1 = *(u32 *)&icon->texLayout.u1;
-	*(u32 *)&p->u2 = uv23;
-	*(u32 *)&p->u3 = uv23 >> 16;
+	CtrGpu_WritePackedUVWord(&p->u0, CTR_ReadU32LE(&icon->texLayout.u0));
+	CtrGpu_WritePackedUVWord(&p->u1, CTR_ReadU32LE(&icon->texLayout.u1));
+	CtrGpu_WritePackedUVWord(&p->u2, uv23);
+	CtrGpu_WritePackedUVWord(&p->u3, uv23 >> 16);
 }
 
 static int DrawTiresSolid_ApplyCornerOrder(struct DrawTiresScratch *scratch, int jumpIndex, int *selectedOTSlot, int sxy[4])
@@ -467,10 +467,10 @@ static int DrawTiresSolid_ApplyCornerOrder(struct DrawTiresScratch *scratch, int
 
 static void DrawTiresSolid_WritePrimitiveCorners(POLY_FT4 *p, int sxy[4])
 {
-	*(u32 *)&p->x0 = sxy[0];
-	*(u32 *)&p->x1 = sxy[1];
-	*(u32 *)&p->x2 = sxy[2];
-	*(u32 *)&p->x3 = sxy[3];
+	CtrGpu_WritePackedXY(&p->x0, (u32)sxy[0]);
+	CtrGpu_WritePackedXY(&p->x1, (u32)sxy[1]);
+	CtrGpu_WritePackedXY(&p->x2, (u32)sxy[2]);
+	CtrGpu_WritePackedXY(&p->x3, (u32)sxy[3]);
 }
 
 static void DrawTiresSolid_LinkPrimitive(struct DrawTiresScratch *scratch, POLY_FT4 *p, int selectedOTSlot)
@@ -500,7 +500,7 @@ static int DrawTiresSolid_EmitProjectedWheel(struct DrawTiresScratch *scratch, s
 	int selectedOTSlot = selected->selectedOTSlot;
 	int sxy[4];
 
-	*(u32 *)&p->r0 = scratch->tireColor;
+	CtrGpu_WriteColorCode(&p->r0, scratch->tireColor);
 
 	if (selected->wheelSprite == 0)
 	{
@@ -609,7 +609,7 @@ static int DrawTiresSolid_StagePlayer(struct DrawTiresScratch *scratch, struct D
 	return 1;
 }
 
-void DrawTires_Solid(struct Thread *thread, struct PrimMem *primMem, char numPlyr)
+void DrawTires_Solid(struct Thread *thread, struct PrimMem *primMem, u8 numPlyr)
 {
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006e588-0x8006ef30;
 	// native uses the accepted explicit DrawTiresScratch stack/scratch ABI.
@@ -660,7 +660,7 @@ struct DrawTiresReflectionProjectedWheel
 	int jumpIndex;
 };
 
-static int DrawTiresReflection_GetLodThreshold(char numPlyr)
+static int DrawTiresReflection_GetLodThreshold(u8 numPlyr)
 {
 	return (((int)numPlyr - 2) > 0) ? 0 : 2;
 }
@@ -675,7 +675,7 @@ static int DrawTiresReflection_ReadMatrixWord(MATRIX *matrix, int offset)
 	return *(int *)((char *)matrix + offset);
 }
 
-static void DrawTiresReflection_InitScratch(struct DrawTiresScratch *scratch, char numPlyr)
+static void DrawTiresReflection_InitScratch(struct DrawTiresScratch *scratch, u8 numPlyr)
 {
 	scratch->numPlyr = numPlyr;
 	scratch->lodThreshold = DrawTiresReflection_GetLodThreshold(numPlyr);
@@ -954,12 +954,12 @@ static struct DrawTiresReflectionProjectedWheel DrawTiresReflection_SelectProjec
 
 static void DrawTiresReflection_CopyIconUV(POLY_FT4 *p, struct Icon *icon)
 {
-	u32 uv23 = *(u32 *)&icon->texLayout.u2;
+	u32 uv23 = CTR_ReadU32LE(&icon->texLayout.u2);
 
-	*(u32 *)&p->u0 = *(u32 *)&icon->texLayout.u0;
-	*(u32 *)&p->u1 = *(u32 *)&icon->texLayout.u1;
-	*(u32 *)&p->u2 = uv23;
-	*(u32 *)&p->u3 = uv23 >> 16;
+	CtrGpu_WritePackedUVWord(&p->u0, CTR_ReadU32LE(&icon->texLayout.u0));
+	CtrGpu_WritePackedUVWord(&p->u1, CTR_ReadU32LE(&icon->texLayout.u1));
+	CtrGpu_WritePackedUVWord(&p->u2, uv23);
+	CtrGpu_WritePackedUVWord(&p->u3, uv23 >> 16);
 }
 
 static int DrawTiresReflection_ApplyCornerOrder(struct DrawTiresScratch *scratch, int jumpIndex, int *selectedOTSlot, int sxy[4])
@@ -1033,10 +1033,10 @@ static int DrawTiresReflection_ApplyCornerOrder(struct DrawTiresScratch *scratch
 
 static void DrawTiresReflection_WritePrimitiveCorners(POLY_FT4 *p, int sxy[4])
 {
-	*(u32 *)&p->x0 = sxy[0];
-	*(u32 *)&p->x1 = sxy[1];
-	*(u32 *)&p->x2 = sxy[2];
-	*(u32 *)&p->x3 = sxy[3];
+	CtrGpu_WritePackedXY(&p->x0, (u32)sxy[0]);
+	CtrGpu_WritePackedXY(&p->x1, (u32)sxy[1]);
+	CtrGpu_WritePackedXY(&p->x2, (u32)sxy[2]);
+	CtrGpu_WritePackedXY(&p->x3, (u32)sxy[3]);
 }
 
 static void DrawTiresReflection_LinkPrimitive(struct DrawTiresScratch *scratch, POLY_FT4 *p, int selectedOTSlot)
@@ -1067,7 +1067,7 @@ static void DrawTiresReflection_EmitProjectedWheel(struct DrawTiresScratch *scra
 	int selectedOTSlot = selected->selectedOTSlot;
 	int sxy[4];
 
-	*(u32 *)&p->r0 = scratch->tireColor;
+	CtrGpu_WriteColorCode(&p->r0, scratch->tireColor);
 
 	if (selected->wheelSprite == 0)
 	{
@@ -1166,7 +1166,7 @@ static int DrawTiresReflection_StagePlayer(struct DrawTiresScratch *scratch, str
 	return 1;
 }
 
-void DrawTires_Reflection(struct Thread *thread, struct PrimMem *primMem, char numPlyr)
+void DrawTires_Reflection(struct Thread *thread, struct PrimMem *primMem, u8 numPlyr)
 {
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006f004-0x8006f9a8;
 	// native uses the accepted explicit DrawTiresScratch stack/scratch ABI.

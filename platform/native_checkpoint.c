@@ -222,7 +222,7 @@ internal int NativeCheckpoint_GetRegionSize(u32 kind)
 	case NATIVE_CHECKPOINT_REGION_GAR3:
 		return (int)sizeof(gGarage);
 	case NATIVE_CHECKPOINT_REGION_CRD3:
-		return (int)sizeof(creditsBSS) - OFFSETOF(struct Ovr233_Credits_BSS, CreditThread);
+		return (int)sizeof(creditsBSS) - OFFSETOF(struct Ovr233_Credits_BSS, creditThread);
 	case NATIVE_CHECKPOINT_REGION_MPAK:
 		return Platform_GetMempackBackingSize();
 	case NATIVE_CHECKPOINT_REGION_SCRP:
@@ -267,7 +267,7 @@ internal void *NativeCheckpoint_GetRegionPtr(u32 kind)
 	case NATIVE_CHECKPOINT_REGION_GAR3:
 		return &gGarage;
 	case NATIVE_CHECKPOINT_REGION_CRD3:
-		return &creditsBSS.CreditThread;
+		return &creditsBSS.creditThread;
 	case NATIVE_CHECKPOINT_REGION_MPAK:
 		return Platform_GetMempackBacking();
 	case NATIVE_CHECKPOINT_REGION_SCRP:
@@ -596,9 +596,9 @@ internal void NativeCheckpoint_RelocateAdventurePauseObject(const struct NativeC
 		return;
 	}
 
-	for (u32 i = 0; i < len(pauseObject->PauseMember); i++)
+	for (u32 i = 0; i < len(pauseObject->members); i++)
 	{
-		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &pauseObject->PauseMember[i].inst);
+		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &pauseObject->members[i].inst);
 	}
 	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &pauseObject->t);
 }
@@ -1455,14 +1455,14 @@ internal void NativeCheckpoint_RelocateHowlLists(const struct NativeCheckpointHe
 	NativeCheckpoint_RelocateLinkedList(oldHeader, liveHeader, &sdata_static.channelFree);
 	for (u32 i = 0; i < len(sdata_static.channelStatsPrev); i++)
 	{
-		NativeCheckpoint_RelocateItemLinks(oldHeader, liveHeader, (struct Item *)&sdata_static.channelStatsPrev[i]);
+		NativeCheckpoint_RelocateItemLinks(oldHeader, liveHeader, &sdata_static.channelStatsPrev[i].item);
 	}
 
 	NativeCheckpoint_RelocateLinkedList(oldHeader, liveHeader, &sdata_static.Voiceline1);
 	NativeCheckpoint_RelocateLinkedList(oldHeader, liveHeader, &sdata_static.Voiceline2);
 	for (u32 i = 0; i < len(sdata_static.voicelinePool); i++)
 	{
-		NativeCheckpoint_RelocateItemLinks(oldHeader, liveHeader, (struct Item *)&sdata_static.voicelinePool[i]);
+		NativeCheckpoint_RelocateItemLinks(oldHeader, liveHeader, &sdata_static.voicelinePool[i].item);
 	}
 }
 
@@ -1607,23 +1607,23 @@ internal void NativeCheckpoint_RelocateD230Pointers(const struct NativeCheckpoin
 	}
 	for (u32 i = 0; i < len(D230.cheats); i++)
 	{
-		NativeCheckpoint_RelocateImagePointerSlot(oldHeader, liveHeader, &D230.cheats[i].funcPtr);
+		NativeCheckpoint_RelocateImagePointerSlot(oldHeader, liveHeader, &D230.cheats[i].handler);
 	}
-	for (u32 i = 0; i < len(D230.ptrSelectWindowPos); i++)
+	for (u32 i = 0; i < len(D230.characterSelectWindowPosByLayout); i++)
 	{
-		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.ptrSelectWindowPos[i]);
+		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.characterSelectWindowPosByLayout[i]);
 	}
-	for (u32 i = 0; i < len(D230.ptrCsmArr); i++)
+	for (u32 i = 0; i < len(D230.characterSelectMetaByLayout); i++)
 	{
-		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.ptrCsmArr[i]);
+		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.characterSelectMetaByLayout[i]);
 	}
-	for (u32 i = 0; i < len(D230.ptr_transitionMeta_csm); i++)
+	for (u32 i = 0; i < len(D230.characterSelectTransitionByPlayerCount); i++)
 	{
-		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.ptr_transitionMeta_csm[i]);
+		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.characterSelectTransitionByPlayerCount[i]);
 	}
-	for (u32 i = 0; i < len(D230.PlayerNumberStrings); i++)
+	for (u32 i = 0; i < len(D230.playerNumberStrings); i++)
 	{
-		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.PlayerNumberStrings[i]);
+		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.playerNumberStrings[i]);
 	}
 
 	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.titleObj);
@@ -1632,10 +1632,10 @@ internal void NativeCheckpoint_RelocateD230Pointers(const struct NativeCheckpoin
 		NativeCheckpoint_RelocateTitle(oldHeader, liveHeader, D230.titleObj);
 	}
 
-	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.characterSelect_ptrWindowXY);
-	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.csm_Active);
-	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.ptrIntroCam);
-	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.ptrTransitionMeta);
+	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.activeCharacterSelectWindowPos);
+	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.activeCharacterSelectMeta);
+	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.titleIntroCameraPath);
+	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D230.characterSelectTransitionMeta);
 }
 
 internal void NativeCheckpoint_RelocateV230Pointers(const struct NativeCheckpointHeader *oldHeader, const struct NativeCheckpointHeader *liveHeader)
@@ -1655,7 +1655,7 @@ internal void NativeCheckpoint_RelocateD231Pointers(const struct NativeCheckpoin
 {
 	for (u32 i = 0; i < len(D231.minePoolItem); i++)
 	{
-		NativeCheckpoint_RelocateItemLinks(oldHeader, liveHeader, (struct Item *)&D231.minePoolItem[i]);
+		NativeCheckpoint_RelocateItemLinks(oldHeader, liveHeader, &D231.minePoolItem[i].item);
 		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &D231.minePoolItem[i].mineWeapon);
 	}
 
@@ -1692,9 +1692,9 @@ internal void NativeCheckpoint_RelocateCreditsObjPointers(const struct NativeChe
 {
 	local_persist const struct NativeCheckpointFieldRelocation fields[] = {
 	    NATIVE_CHECKPOINT_FIELD_PTR(struct CreditsObj, creditDanceInst),
-	    NATIVE_CHECKPOINT_FIELD_PTR(struct CreditsObj, credits_topString),
-	    NATIVE_CHECKPOINT_FIELD_PTR(struct CreditsObj, epilogue_topString),
-	    NATIVE_CHECKPOINT_FIELD_PTR(struct CreditsObj, epilogue_nextString),
+	    NATIVE_CHECKPOINT_FIELD_PTR(struct CreditsObj, creditsTopString),
+	    NATIVE_CHECKPOINT_FIELD_PTR(struct CreditsObj, epilogueTopString),
+	    NATIVE_CHECKPOINT_FIELD_PTR(struct CreditsObj, epilogueNextString),
 	};
 
 	if (creditsObj == NULL)
@@ -1715,8 +1715,8 @@ internal void NativeCheckpoint_RelocateCreditsObjPointers(const struct NativeChe
 
 internal void NativeCheckpoint_RelocateCreditsPointers(const struct NativeCheckpointHeader *oldHeader, const struct NativeCheckpointHeader *liveHeader)
 {
-	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &creditsBSS.CreditThread);
-	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &creditsBSS.DancerThread);
+	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &creditsBSS.creditThread);
+	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &creditsBSS.dancerThread);
 	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &creditsBSS.dancerInst_invisible);
 	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &creditsBSS.ptrStrings);
 
