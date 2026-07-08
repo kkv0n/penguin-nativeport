@@ -27,7 +27,7 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 #endif // def WIN32
 
 #define VRAM_FORMAT GL_RG
-// NOTE(aalhendi): VRAM holds packed 16-bit PSX pixels as two bytes (R=low,
+// NOTE(penta3): VRAM holds packed 16-bit PSX pixels as two bytes (R=low,
 // G=high), uploaded as GL_RG + GL_UNSIGNED_BYTE. RG8 is the faithful storage:
 // 2 bytes/texel = real PS1's 1MB VRAM, vs RG32F's 8 bytes/texel (4MB). With
 // NEAREST sampling RG8 returns byte/255 exactly, identical to what the shader
@@ -54,7 +54,7 @@ global_variable ShaderID s_previousShader = -1;
 
 global_variable TextureID s_vramTexture;
 global_variable TextureID s_rgLutTexture = -1;
-// NOTE(aalhendi): Single persistent VRAM texture, matching real PS1's single
+// NOTE(penta3): Single persistent VRAM texture, matching real PS1's single
 // 1MB VRAM. PS1 page-flips two windows *inside* one VRAM; it never keeps two
 // full copies. The old double buffer existed only to orphan the texture on the
 // per-frame full re-upload, which no longer happens (we upload dirty rects).
@@ -98,7 +98,7 @@ global_variable GLuint s_packQuadVAO = 0;
 global_variable GLuint s_packQuadVBO = 0;
 
 global_variable int s_vramNeedsUpdate = 1;
-// NOTE(aalhendi): PS1 VRAM is persistent host-side: only the rectangles touched
+// NOTE(penta3): PS1 VRAM is persistent host-side: only the rectangles touched
 // by draw/transfer commands change between frames. Track an accumulated dirty
 // rect so UpdateVRAM uploads just those texels (glTexSubImage2D) instead of
 // re-uploading the whole 1MB VRAM every frame.
@@ -1238,7 +1238,7 @@ internal float NativeRenderer_PSXColorComponentFloat(u8 value)
 	return (float)psx8 / 255.0f;
 }
 
-// NOTE(aalhendi): Union a written VRAM rectangle into the dirty box, clamped to
+// NOTE(penta3): Union a written VRAM rectangle into the dirty box, clamped to
 // VRAM bounds. UpdateVRAM flushes just this box, keeping the host VRAM texture
 // persistent like real PS1 VRAM instead of re-uploading all 1MB each frame.
 internal void NativeRenderer_MarkVRAMDirty(int x, int y, int w, int h)
@@ -1553,7 +1553,7 @@ void NativeRenderer_ReadFramebufferDataToVRAM(void)
 	}
 }
 
-// NOTE(aalhendi): Pull the captured frame to an explicit VRAM y (the whole frame,
+// NOTE(penta3): Pull the captured frame to an explicit VRAM y (the whole frame,
 // at the framebuffer's width/height) rather than to s_previousFramebuffer. During
 // gameplay the draw and disp areas are identical and alternate y=0 / y=0x128 each
 // frame, so the per-frame store's label does not match where a screen grab reads.
@@ -1815,7 +1815,7 @@ void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h)
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_STORE);
 }
 
-// NOTE(aalhendi): Deferred store - blit only, then flag the framebuffer region
+// NOTE(penta3): Deferred store - blit only, then flag the framebuffer region
 // dirty. Real PS1 never copies the framebuffer back to VRAM; the readback only
 // matters when a later command samples that region. The existing on-demand
 // consumers (DrawSync, feedback barriers, MoveImage, save-state) pull it via
@@ -1923,7 +1923,7 @@ void NativeRenderer_UpdateVRAM(void)
 
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_RENDERER_UPDATE_VRAM);
 
-	// NOTE(aalhendi): Upload only the rectangle changed since the last flush into
+	// NOTE(penta3): Upload only the rectangle changed since the last flush into
 	// the single persistent VRAM texture, mirroring PS1 VRAM (one memory, only
 	// touched where commands write) instead of re-uploading all 1MB each frame.
 	r = s_vramDirty;

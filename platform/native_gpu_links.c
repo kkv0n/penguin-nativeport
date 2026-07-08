@@ -105,7 +105,7 @@ void NativeGpuLinks_RegisterRangeChecked(const char *label, const void *hostStar
 	abort();
 }
 
-// NOTE(aalhendi): Last-hit cache. DrawOTag validates every linked node's pointer
+// NOTE(penta3): Last-hit cache. DrawOTag validates every linked node's pointer
 // through here, and consecutive OT nodes almost always live in the same arena, so
 // remembering the previous range turns the per-node linear scan into one compare
 // in the common case. Pure hint - falls back to the full scan, so behaviour is

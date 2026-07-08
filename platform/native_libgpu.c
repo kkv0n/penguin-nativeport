@@ -44,7 +44,7 @@ int DrawSync(int mode)
 	{
 		DrawAllSplits();
 	}
-	// NOTE(aalhendi): Real PS1 DrawSync only waits for the GPU; it never copies the
+	// NOTE(penta3): Real PS1 DrawSync only waits for the GPU; it never copies the
 	// framebuffer back into VRAM. We do the same: no per-frame readback here. The
 	// on-demand consumers that actually sample the framebuffer pull it when needed
 	// (StoreImage/ElimBG pause grab, MoveImage, LoadImage2, save-state capture).
@@ -79,7 +79,7 @@ int MoveImage(RECT16 *rect, int x, int y)
 
 int StoreImage(RECT16 *rect, uint32_t *p)
 {
-	// NOTE(aalhendi): On-demand pull so screen grabs (ElimBG pause shot) see the
+	// NOTE(penta3): On-demand pull so screen grabs (ElimBG pause shot) see the
 	// rendered frame even when the per-frame DrawSync readback is skipped (lazy
 	// mode). The framebuffer lives in VRAM's left half (x < VRAM_WIDTH/2); when this
 	// read targets it, pull the captured frame to exactly the y being read - the
