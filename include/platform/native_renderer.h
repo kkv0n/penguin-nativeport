@@ -12,6 +12,7 @@ void NativeRenderer_EndScene(void);
 void NativeRenderer_UpdateSwapIntervalState(int swapInterval);
 void NativeRenderer_SwapWindow(void);
 void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h);
+void NativeRenderer_StoreFrameBufferDeferred(int x, int y, int w, int h);
 void NativeRenderer_PresentVRAMDisplay(void);
 void NativeRenderer_PresentVRAMRect(int x, int y, int w, int h);
 void NativeRenderer_SaveVRAM(const char *outputFileName, int x, int y, int width, int height, int readFromFramebuffer);
@@ -21,6 +22,7 @@ void NativeRenderer_CopyVRAM(u16 *src, int x, int y, int w, int h, int dstX, int
 void NativeRenderer_ReadVRAM(u16 *dst, int x, int y, int dstW, int dstH);
 void NativeRenderer_UpdateVRAM(void);
 void NativeRenderer_ReadFramebufferDataToVRAM(void);
+void NativeRenderer_PullFramebufferToVRAMAt(int targetY);
 void NativeRenderer_DiscardFramebufferReadback(void);
 int NativeRenderer_GetVRAMStateSize(void);
 int NativeRenderer_CaptureVRAMState(void *dst, int dstSize);

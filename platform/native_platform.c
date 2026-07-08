@@ -342,6 +342,14 @@ void Platform_EndScene(void)
 		return;
 	}
 
+	// NOTE(penta3): Pack the presented frame into VRAM every frame - on the GPU, no
+	// readback. This restores the invariant HEAD had (VRAM's display region always
+	// holds the current frame): screen-copy effects that sample VRAM WITHOUT tripping
+	// the framebuffer-feedback barrier - the clock/item flash blur - otherwise read
+	// whatever the last barrier left, or the boot TIM splash if none ever fired. The
+	// deferred (blit-only) store skipped this write, so those effects sampled stale
+	// VRAM. StoreFrameBuffer still only blits + GPU-packs (no GPU->CPU transfer), so
+	// the resource win over HEAD's readback stands.
 	NativeRenderer_StoreFrameBuffer(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
 
 	NativeRenderer_SwapWindow();

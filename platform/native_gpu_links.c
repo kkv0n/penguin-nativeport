@@ -105,13 +105,30 @@ void NativeGpuLinks_RegisterRangeChecked(const char *label, const void *hostStar
 	abort();
 }
 
+// NOTE(aalhendi): Last-hit cache. DrawOTag validates every linked node's pointer
+// through here, and consecutive OT nodes almost always live in the same arena, so
+// remembering the previous range turns the per-node linear scan into one compare
+// in the common case. Pure hint - falls back to the full scan, so behaviour is
+// unchanged. Index (not pointer) so it stays valid if the range array is reset.
+global_variable int s_lastHostRangeHit = 0;
+
 static const struct NativeGpuLinkRange *NativeGpuLinks_FindHostRange(uintptr_t hostPtr)
 {
+	if (s_lastHostRangeHit < s_nativeGpuLinkRangeCount)
+	{
+		const struct NativeGpuLinkRange *cached = &s_nativeGpuLinkRanges[s_lastHostRangeHit];
+		if ((hostPtr >= cached->hostStart) && (hostPtr < cached->hostEnd))
+		{
+			return cached;
+		}
+	}
+
 	for (int i = 0; i < s_nativeGpuLinkRangeCount; i++)
 	{
 		const struct NativeGpuLinkRange *range = &s_nativeGpuLinkRanges[i];
 		if ((hostPtr >= range->hostStart) && (hostPtr < range->hostEnd))
 		{
+			s_lastHostRangeHit = i;
 			return range;
 		}
 	}

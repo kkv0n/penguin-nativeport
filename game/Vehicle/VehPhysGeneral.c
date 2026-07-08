@@ -1113,6 +1113,7 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
 		driver->numHeldItems = 0x3;
 	}
 
+
 	return;
 }
 

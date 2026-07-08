@@ -44,7 +44,10 @@ int DrawSync(int mode)
 	{
 		DrawAllSplits();
 	}
-	NativeRenderer_ReadFramebufferDataToVRAM();
+	// NOTE(aalhendi): Real PS1 DrawSync only waits for the GPU; it never copies the
+	// framebuffer back into VRAM. We do the same: no per-frame readback here. The
+	// on-demand consumers that actually sample the framebuffer pull it when needed
+	// (StoreImage/ElimBG pause grab, MoveImage, LoadImage2, save-state capture).
 
 	if (drawsync_callback != NULL)
 	{
@@ -76,6 +79,17 @@ int MoveImage(RECT16 *rect, int x, int y)
 
 int StoreImage(RECT16 *rect, uint32_t *p)
 {
+	// NOTE(aalhendi): On-demand pull so screen grabs (ElimBG pause shot) see the
+	// rendered frame even when the per-frame DrawSync readback is skipped (lazy
+	// mode). The framebuffer lives in VRAM's left half (x < VRAM_WIDTH/2); when this
+	// read targets it, pull the captured frame to exactly the y being read - the
+	// single VRAM location the grab expects. Texture reads (right half, e.g. ElimBG's
+	// own VRAM backup) don't touch the framebuffer, so leave them alone. Cheap no-op
+	// when no framebuffer capture is pending.
+	if (((int)rect->x + (int)rect->w) <= (VRAM_WIDTH / 2))
+	{
+		NativeRenderer_PullFramebufferToVRAMAt(rect->y);
+	}
 	NativeRenderer_ReadVRAM((unsigned short *)p, rect->x, rect->y, rect->w, rect->h);
 	return 0;
 }
