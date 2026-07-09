@@ -1256,8 +1256,6 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
 		driver->numHeldItems = HELD_ITEM_STACK_COUNT;
 	}
 
-	// TEMP TEST (penta3): force warpball to reproduce the warp distortion easily.
-	//driver->heldItemID = 0x9;
 
 	return;
 }
