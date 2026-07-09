@@ -700,6 +700,34 @@ internal int Native_CatchUpDueVBlanks(void)
 
 	Native_EnsureVBlankTarget();
 
+	// NOTE(penta3): Decide whether the stall was pathological BEFORE emitting
+	// anything. The old code emitted up to CATCHUP_MAX vblanks in one burst and
+	// only then rebased, so resuming after a long stall (window title-bar drag
+	// modal loop, debugger, OS hiccup) fast-forwarded the game by several logic
+	// frames at the clamped 0x40 delta each - a visible speed-up. Long stalls now
+	// rebase the absolute vblank schedule to "now" and replay nothing, resuming
+	// smoothly where the game left off. Ordinary late frames (a few due vblanks)
+	// still catch up exactly, which is the console-faithful behaviour: RCNT keeps
+	// counting wall time while a real frame runs long.
+	{
+		const u64 now = SDL_GetPerformanceCounter();
+
+		if (now >= s_nextVBlankCounter)
+		{
+			const u64 freq = SDL_GetPerformanceFrequency();
+			const u64 step = (freq * NATIVE_VBLANK_GPU_CYCLES) / NATIVE_GPU_CLOCK_HZ;
+			const u64 dueApprox = ((now - s_nextVBlankCounter) / step) + 1;
+
+			if (dueApprox > NATIVE_VSYNC_CATCHUP_MAX)
+			{
+				s_nextVBlankCounter = now;
+				s_vblankRemainder = 0;
+				Native_AdvanceVBlankTarget();
+				return 0;
+			}
+		}
+	}
+
 	while (SDL_GetPerformanceCounter() >= s_nextVBlankCounter)
 	{
 		const u64 now = SDL_GetPerformanceCounter();
@@ -709,9 +737,8 @@ internal int Native_CatchUpDueVBlanks(void)
 
 		if (emittedVBlanks >= NATIVE_VSYNC_CATCHUP_MAX)
 		{
-			// NOTE(aalhendi): Debugger stalls can otherwise replay minutes of
-			// VBlank callbacks at once. Keep normal late frames faithful, but
-			// rebase pathological host pauses.
+			// NOTE(aalhendi): Keep normal late frames faithful, but rebase if the
+			// due count grew past the cap while we were replaying.
 			s_nextVBlankCounter = now;
 			s_vblankRemainder = 0;
 			Native_AdvanceVBlankTarget();
