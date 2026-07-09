@@ -383,6 +383,46 @@ void Platform_EndScene(void)
 	NativeRenderer_StoreFrameBuffer(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
 
 	NativeRenderer_SwapWindow();
+
+	// TEMP DIAGNOSTIC (penta3 timing, PC-side only): every 512 presented frames, log
+	// the frame clock in its PS1 representation. Console NTSC 240p reference:
+	// 2 VBlank fields per game frame @ 59.826Hz, RCNT1 counts 263 hblanks per field
+	// (526/frame), and retail derives elapsedTimeMS = ticks*1000/0x147e*32/100 = 32
+	// (0x20) per frame. Wall FPS reference: 29.913.
+	{
+		local_persist int s_tFrames = 0;
+		local_persist int s_tVBlankBase = 0;
+		local_persist u64 s_tCounterBase = 0;
+
+		if (s_tCounterBase == 0)
+		{
+			s_tCounterBase = SDL_GetPerformanceCounter();
+			s_tVBlankBase = Platform_GetVBlankCount();
+		}
+
+		s_tFrames++;
+		if (s_tFrames == 512)
+		{
+			const u64 now = SDL_GetPerformanceCounter();
+			const u64 freq = SDL_GetPerformanceFrequency();
+			const u64 elapsedCounter = now - s_tCounterBase;
+			const int vbDelta = Platform_GetVBlankCount() - s_tVBlankBase;
+			const int vbMilli = (vbDelta * 1000) / 512;
+			const u64 ticksMilli = ((u64)vbDelta * 263u * 1000u) / 512u;              // RCNT1 hblank ticks/frame x1000
+			const u64 elMilli = (ticksMilli * 320u) / 5246u;                          // retail elapsedTimeMS x1000 (ticks*1000/0x147e*32/100)
+			const u64 fpsMilli = (elapsedCounter > 0) ? ((512000ull * freq) / elapsedCounter) : 0;
+
+			Platform_Log("[timing] 512 frames | vblanks/frame=%d.%03d (PS1: 2 fields @59.826Hz) | RCNT1/frame=%u.%03u hblank ticks (263/field, nominal 526) | retail "
+			             "elapsedTimeMS=%u.%03u (nominal 0x20=32) | fps=%u.%03u (console 29.913)\n",
+			             vbMilli / 1000, vbMilli % 1000, (unsigned)(ticksMilli / 1000), (unsigned)(ticksMilli % 1000), (unsigned)(elMilli / 1000),
+			             (unsigned)(elMilli % 1000), (unsigned)(fpsMilli / 1000), (unsigned)(fpsMilli % 1000));
+
+			s_tFrames = 0;
+			s_tVBlankBase = Platform_GetVBlankCount();
+			s_tCounterBase = now;
+		}
+	}
+
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_PLATFORM_END_SCENE);
 }
 
@@ -540,9 +580,23 @@ int NikoGetEnterKey(void)
 // NOTE(aalhendi): Native owns the CTR VBlank clock instead of PsyCross's
 // autonomous interrupt thread. The retail-shaped VSyncCallback storage lives in
 // native_libetc.c; native VSync emits that callback at each emulated VBlank.
-#define NATIVE_VSYNC_HZ          60
+// NOTE(penta3): PS1 NTSC 240p (non-interlaced, what CTR uses) VBlank is NOT 60Hz.
+// Per psx-spx GPU timings: 263 scanlines/field x 3413 GPU cycles/scanline at the
+// 53.693175MHz video clock = 59.826Hz. The whole game paces off this clock (logic
+// frames, RCNT1 -> elapsedTimeMS, audio step), so emitting at a flat 60Hz ran
+// everything ~0.3% faster than console. Derive the interval from the real cycle
+// counts instead of a rounded Hz value.
+#define NATIVE_VBLANK_GPU_CYCLES 897619ull // 3413 * 263
+#define NATIVE_GPU_CLOCK_HZ      53693175ull
 #define NATIVE_VSYNC_CATCHUP_MAX 8
-#define NATIVE_VSYNC_SPIN_US     1000
+// NOTE(penta3): On console VSync() waits on the VBlank IRQ - the hardware wakes the
+// CPU at the exact instant, for free. The PC equivalent is waking as precisely and
+// as cheaply as possible at the emulated vblank deadline: SDL_DelayPrecise (per-OS
+// optimal primitive: Win32 high-res waitable timer / Linux clock_nanosleep, yielding,
+// no global timer-resolution change) does the bulk of the wait, and only the final
+// window below is spun. Was 1000us of pure busy-wait per vblank (x2 per frame) on
+// top of plain SDL_Delay's ~1ms slop.
+#define NATIVE_VSYNC_SPIN_US     200
 
 global_variable u64 s_nextVBlankCounter = 0;
 global_variable u64 s_vblankRemainder = 0;
@@ -556,14 +610,16 @@ internal u64 Native_CounterFromMicroseconds(u64 freq, u64 microseconds)
 internal void Native_AdvanceVBlankTarget(void)
 {
 	const u64 freq = SDL_GetPerformanceFrequency();
-	const u64 hz = NATIVE_VSYNC_HZ;
+	// counter ticks per vblank = freq * (897619 / 53693175) sec, kept exact with a
+	// running remainder. freq*897619 fits u64 for any realistic QPC frequency.
+	const u64 numer = freq * NATIVE_VBLANK_GPU_CYCLES;
 
-	s_nextVBlankCounter += freq / hz;
-	s_vblankRemainder += freq % hz;
-	if (s_vblankRemainder >= hz)
+	s_nextVBlankCounter += numer / NATIVE_GPU_CLOCK_HZ;
+	s_vblankRemainder += numer % NATIVE_GPU_CLOCK_HZ;
+	if (s_vblankRemainder >= NATIVE_GPU_CLOCK_HZ)
 	{
 		s_nextVBlankCounter++;
-		s_vblankRemainder -= hz;
+		s_vblankRemainder -= NATIVE_GPU_CLOCK_HZ;
 	}
 }
 
@@ -589,7 +645,7 @@ internal void Native_WaitUntilVBlankTarget(void)
 	{
 		const u64 now = SDL_GetPerformanceCounter();
 		u64 remaining;
-		u64 sleepMs;
+		u64 sleepUs;
 
 		if (now >= s_nextVBlankCounter)
 		{
@@ -600,9 +656,10 @@ internal void Native_WaitUntilVBlankTarget(void)
 		remaining = s_nextVBlankCounter - now;
 		if (remaining <= spinWindow)
 		{
-			// NOTE(aalhendi): SDL_Delay can wake late. Sleep while safely far
-			// from the VBlank target, then spin the final small window so the
-			// native VBlank emitter is paced by our clock, not the OS scheduler.
+			// NOTE(penta3): OS sleeps can wake late. Sleep while safely far from
+			// the VBlank target (high-res waitable timer), then spin only this
+			// final small window so the native VBlank emitter is paced by our
+			// clock, not the OS scheduler.
 			while (SDL_GetPerformanceCounter() < s_nextVBlankCounter)
 			{
 			}
@@ -611,10 +668,15 @@ internal void Native_WaitUntilVBlankTarget(void)
 			return;
 		}
 
-		sleepMs = ((remaining - spinWindow) * 1000) / freq;
-		if (sleepMs > 0)
+		sleepUs = ((remaining - spinWindow) * 1000000) / freq;
+		if (sleepUs > 0)
 		{
-			SDL_Delay((u32)sleepMs);
+			// Cross-platform precise sleep: SDL_DelayPrecise uses the best per-OS
+			// primitive (Win32 high-res waitable timer, Linux clock_nanosleep) and
+			// yields the CPU instead of busy-waiting. Waking slightly late is safe:
+			// the vblank schedule is absolute, so no drift accumulates and the loop
+			// re-checks against the target.
+			SDL_DelayPrecise(sleepUs * 1000ull);
 		}
 	}
 }

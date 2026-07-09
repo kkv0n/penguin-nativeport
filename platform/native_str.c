@@ -259,24 +259,65 @@ internal s32 NativeSTR_ReadAcCode(struct NativeSTRBitReader *br, u16 *outCode)
 	return 0;
 }
 
+// NOTE(penta3): Row-column separable IDCT. Bit-identical to the direct 2D sum by
+// integer distributivity: pass 1 keeps the exact (unrounded) per-row 1D transforms
+// in s64, pass 2 accumulates them and applies the same single end rounding/divide
+// the 2D form used, so every intermediate bit matches. This is also how the real
+// MDEC computes it (two 1D matrix passes, psx-spx "MDEC Decompression"), at 8x
+// fewer multiplies (2x512 vs 64x64x2); rows whose dequantized coefficients are all
+// zero (most rows of typical sparse STR blocks) skip both passes outright.
 internal void NativeSTR_IDCT(const s32 *coefficients, s32 *out)
 {
+	s64 rowPass[64];
+	u8 rowNonZero[8];
 	s32 x;
 	s32 y;
+	s32 u;
+	s32 v;
+
+	for (v = 0; v < 8; v++)
+	{
+		const s32 *row = &coefficients[v * 8];
+
+		rowNonZero[v] = 0;
+		for (u = 0; u < 8; u++)
+		{
+			if (row[u] != 0)
+			{
+				rowNonZero[v] = 1;
+				break;
+			}
+		}
+
+		if (!rowNonZero[v])
+		{
+			continue;
+		}
+
+		for (x = 0; x < 8; x++)
+		{
+			s64 sum = 0;
+
+			for (u = 0; u < 8; u++)
+			{
+				sum += (s64)s_idctBasis[x][u] * row[u];
+			}
+
+			rowPass[v * 8 + x] = sum;
+		}
+	}
 
 	for (y = 0; y < 8; y++)
 	{
 		for (x = 0; x < 8; x++)
 		{
 			s64 sum = 0;
-			s32 u;
-			s32 v;
 
 			for (v = 0; v < 8; v++)
 			{
-				for (u = 0; u < 8; u++)
+				if (rowNonZero[v])
 				{
-					sum += (s64)s_idctBasis[x][u] * s_idctBasis[y][v] * coefficients[v * 8 + u];
+					sum += (s64)s_idctBasis[y][v] * rowPass[v * 8 + x];
 				}
 			}
 

@@ -984,12 +984,22 @@ int ParseTaglessPrimitive(u32 *command);
 
 internal bool NativeGpu_IsValidOTLink(uintptr_t link)
 {
+#if defined(CTR_INTERNAL)
+	// Debug builds keep the full registered-range validation: a corrupted OT link
+	// is caught and logged with region info instead of walking garbage.
 	if (NativeGpuLinks_IsRegisteredHostPointer((const void *)link))
 	{
 		return (link & (sizeof(u32) - 1)) == 0;
 	}
 
 	return false;
+#else
+	// NOTE(penta3): Release trusts the OT the way PS1 DMA does (the console just
+	// follows the link chain; it never validates). The per-node range scan is pure
+	// debug overhead in the hottest CPU loop (every prim, every frame). Keep only
+	// the checks that stop a hard crash: null and 32-bit alignment.
+	return (link != 0) && ((link & (sizeof(u32) - 1)) == 0);
+#endif
 }
 
 internal u32 NativeGpu_ReadPacketWordForLog(uintptr_t packet, int wordIndex)
