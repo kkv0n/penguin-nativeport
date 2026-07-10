@@ -13,6 +13,17 @@
 #define NATIVE_AUDIO_CHANNELS               2
 #define NATIVE_AUDIO_SPU_VOICE_COUNT        24
 #define NATIVE_AUDIO_SPU_MEMSIZE            (512 * 1024)
+// NOTE(penta3): Streaming SPU decode, exactly like hardware (psx-spx "SPU
+// ADPCM Samples" / "SPU ADPCM Pitch"): 16-byte blocks of 28 samples decoded
+// on the fly as each voice plays, reading SPU RAM live. The pitch counter
+// keeps the sample index in bits 12+ and the 12-bit fraction below (bits
+// 4..11 form the 8-bit gaussian index); the step is the pitch register
+// clamped to 4000h (max 4x rate).
+#define NATIVE_AUDIO_ADPCM_BLOCK_BYTES        16
+#define NATIVE_AUDIO_ADPCM_SAMPLES_PER_BLOCK  28
+#define NATIVE_AUDIO_PITCH_SAMPLE_SHIFT       12
+#define NATIVE_AUDIO_PITCH_STEP_MAX           0x4000u
+#define NATIVE_AUDIO_PITCH_BLOCK_SPAN         ((u32)NATIVE_AUDIO_ADPCM_SAMPLES_PER_BLOCK << NATIVE_AUDIO_PITCH_SAMPLE_SHIFT)
 #define NATIVE_AUDIO_FP_SHIFT               16
 #define NATIVE_AUDIO_FP_ONE                 (1 << NATIVE_AUDIO_FP_SHIFT)
 #define NATIVE_AUDIO_GAUSS_INDEX_SHIFT      8
@@ -33,7 +44,9 @@
 #define NATIVE_AUDIO_XA_ZIGZAG_INPUTS       6
 // NOTE(aalhendi): Little-endian tag `CTRA` = CTR native Audio snapshot.
 #define NATIVE_AUDIO_STATE_MAGIC            0x41525443
-#define NATIVE_AUDIO_STATE_VERSION          1
+// NOTE(penta3): v2 - voices snapshot their streaming SPU decode state (block
+// addr, pitch counter, decode window) instead of decoded-PCM cache indices.
+#define NATIVE_AUDIO_STATE_VERSION          2
 #define NATIVE_AUDIO_ARENA_ALIGN            16
 #define NATIVE_AUDIO_ADSR_MIN               (-0x8000)
 #define NATIVE_AUDIO_ADSR_MAX               0x7fff
@@ -173,21 +186,31 @@ struct NativeAudioDecodeArena
 	int used;
 };
 
+// NOTE(penta3): Per-voice streaming decode state - the fixed ~100 bytes the
+// real SPU keeps per voice, nothing more. SPU RAM is the single source of
+// truth; blocks are decoded as the pitch counter crosses them, so SPU RAM
+// writes are heard live (hardware behavior) and no decoded-PCM cache, arena,
+// or dirty tracking exists at all.
+struct NativeAudioVoiceStream
+{
+	u32 currentAddr; // byte address of the ADPCM block being played
+	u32 repeatAddr;  // loop/repeat address register
+	u32 pitchCounter; // bits 12+ sample index in block, bits 0..11 fraction
+	u32 blockFlags;  // header flags of the current block
+	b32 valid;
+	s16 decoded[NATIVE_AUDIO_ADPCM_SAMPLES_PER_BLOCK];
+	s16 hist[3]; // last 3 samples of the previous block (gaussian window)
+	s16 adpcmOld;
+	s16 adpcmOlder;
+};
+
 struct NativeAudioVoice
 {
 	SpuVoiceAttr attr;
-	// NOTE(aalhendi): Points into voicePcmArena; the source of truth is compressed SPU RAM at attr.addr.
-	s16 *pcm;
-	int sampleCount;
-	int loopStart;
-	int loopEnd;
-	b32 loopEnabled;
+	struct NativeAudioVoiceStream stream;
 	b32 active;
-	// SPU-backed long samples can exceed the 65,535-frame range of u32 16.16.
-	u64 positionFp;
 	b32 looped;
 	u16 reverb;
-	b32 sampleDirty;
 	s32 adsrLevel;
 	u32 adsrCounter;
 	u8 adsrPhase;
@@ -226,7 +249,6 @@ struct NativeAudioState
 	struct NativeAudioReverbState reverb;
 	SpuCommonAttr commonAttr;
 	struct NativeAudioSpuArena spu;
-	struct NativeAudioDecodeArena voicePcmArena;
 	struct NativeAudioVoice voices[NATIVE_AUDIO_SPU_VOICE_COUNT];
 	struct NativeAudioXA xa;
 	struct NativeAudioDecodeArena xaPcmArena;
@@ -263,15 +285,11 @@ struct NativeAudioXaDecodeState
 struct NativeAudioVoiceState
 {
 	SpuVoiceAttr attr;
-	int sampleCount;
-	int loopStart;
-	int loopEnd;
-	b32 loopEnabled;
+	// streaming decode state is tiny and deterministic - snapshot it verbatim
+	struct NativeAudioVoiceStream stream;
 	b32 active;
-	u64 positionFp;
 	b32 looped;
 	u16 reverb;
-	b32 sampleDirty;
 	s32 adsrLevel;
 	u32 adsrCounter;
 	u8 adsrPhase;
@@ -800,38 +818,26 @@ output_fir:
 	*wetRight = s_audio.reverb.lastOutRight;
 }
 
-internal s16 NativeAudio_GetVoicePcmSample(const struct NativeAudioVoice *voice, int sampleIndex)
+// NOTE(penta3): Fetch from the streaming decode window: the current block's
+// 28 samples plus the previous block's last 3 (hist). Matches hardware, which
+// interpolates over "the 4 most recent 16bit ADPCM samples" - the window
+// carries across block boundaries and loop jumps naturally.
+internal s16 NativeAudio_GetVoiceWindowSample(const struct NativeAudioVoiceStream *stream, int sampleIndex)
 {
-	if (voice->looped && voice->loopEnabled && (voice->loopEnd > voice->loopStart))
-	{
-		int loopLen = voice->loopEnd - voice->loopStart;
-
-		while (sampleIndex < voice->loopStart)
-		{
-			sampleIndex += loopLen;
-		}
-		while (sampleIndex >= voice->loopEnd)
-		{
-			sampleIndex -= loopLen;
-		}
-	}
-
-	if ((sampleIndex < 0) || (sampleIndex >= voice->sampleCount))
-	{
-		return 0;
-	}
-
-	return voice->pcm[sampleIndex];
+	return (sampleIndex >= 0) ? stream->decoded[sampleIndex] : stream->hist[3 + sampleIndex];
 }
 
 internal int NativeAudio_InterpolateVoiceSample(const struct NativeAudioVoice *voice)
 {
-	int sampleIndex = (int)(voice->positionFp >> NATIVE_AUDIO_FP_SHIFT);
-	int gaussIndex = (int)((voice->positionFp >> NATIVE_AUDIO_GAUSS_INDEX_SHIFT) & 0xff);
-	int oldest = NativeAudio_GetVoicePcmSample(voice, sampleIndex - 3);
-	int older = NativeAudio_GetVoicePcmSample(voice, sampleIndex - 2);
-	int old = NativeAudio_GetVoicePcmSample(voice, sampleIndex - 1);
-	int newest = NativeAudio_GetVoicePcmSample(voice, sampleIndex);
+	const struct NativeAudioVoiceStream *stream = &voice->stream;
+	// psx-spx: "Counter.Bit12 and up indicates the current sample (within a
+	// ADPCM block). Counter.Bit4..11 are used as 8bit gaussian interpolation index"
+	int sampleIndex = (int)(stream->pitchCounter >> NATIVE_AUDIO_PITCH_SAMPLE_SHIFT);
+	int gaussIndex = (int)((stream->pitchCounter >> 4) & 0xff);
+	int oldest = NativeAudio_GetVoiceWindowSample(stream, sampleIndex - 3);
+	int older = NativeAudio_GetVoiceWindowSample(stream, sampleIndex - 2);
+	int old = NativeAudio_GetVoiceWindowSample(stream, sampleIndex - 1);
+	int newest = NativeAudio_GetVoiceWindowSample(stream, sampleIndex);
 	int sample;
 
 	sample = (s_gaussTable[0xff - gaussIndex] * oldest) >> 15;
@@ -1375,64 +1381,6 @@ internal void NativeAudio_ArenaSwap(struct NativeAudioDecodeArena *a, struct Nat
 	*b = tmp;
 }
 
-internal int NativeAudio_VoiceArenaEnsureCapacityNoLock(int capacity)
-{
-	struct NativeAudioDecodeArena *arena = &s_audio.voicePcmArena;
-	u8 *oldMemory;
-	u8 *newMemory;
-	int newCapacity;
-	int i;
-
-	if (capacity < 0)
-	{
-		return 0;
-	}
-	if (capacity <= arena->capacity)
-	{
-		return 1;
-	}
-
-	newCapacity = arena->capacity > 0 ? arena->capacity : (256 * 1024);
-	while (newCapacity < capacity)
-	{
-		if (newCapacity > (INT_MAX / 2))
-		{
-			newCapacity = capacity;
-			break;
-		}
-		newCapacity *= 2;
-	}
-
-	oldMemory = arena->memory;
-	newMemory = (u8 *)malloc((size_t)newCapacity);
-	if (newMemory == NULL)
-	{
-		return 0;
-	}
-
-	if ((oldMemory != NULL) && (arena->used > 0))
-	{
-		memcpy(newMemory, oldMemory, (size_t)arena->used);
-	}
-
-	for (i = 0; i < NATIVE_AUDIO_SPU_VOICE_COUNT; i++)
-	{
-		if ((s_audio.voices[i].pcm != NULL) && (oldMemory != NULL))
-		{
-			u8 *pcm = (u8 *)s_audio.voices[i].pcm;
-			if ((pcm >= oldMemory) && (pcm < oldMemory + arena->used))
-			{
-				s_audio.voices[i].pcm = (s16 *)(newMemory + (pcm - oldMemory));
-			}
-		}
-	}
-
-	free(oldMemory);
-	arena->memory = newMemory;
-	arena->capacity = newCapacity;
-	return 1;
-}
-
 internal int NativeAudio_ReadFileBytes(const char *path, struct NativeAudioByteBuffer *bytes)
 {
 	struct NativeAssetsByteBuffer assetBytes;
@@ -1517,208 +1465,90 @@ internal int NativeAudio_DecodeAdpcmNibble(u8 soundParameter, int nibble, int *o
 	return sample;
 }
 
-internal int NativeAudio_DecodeSpuSample(u32 addr, u32 loopAddr, struct NativeAudioPcmBuffer *pcm, int *loopStart, int *loopEnd, int *loopEnabled)
+internal u32 NativeAudio_WrapSpuAddr(u32 addr)
 {
-	int old = 0;
-	int older = 0;
-	int block;
-	int loopStartSample = 0;
-	int loopEndSample = 0;
-	int hasLoopStart = 0;
-	int hasLoopEnd = 0;
-	int hasRepeat = 0;
-
-	if (addr >= NATIVE_AUDIO_SPU_MEMSIZE)
-	{
-		return 0;
-	}
-
-	for (block = (int)addr; block + 16 <= NATIVE_AUDIO_SPU_MEMSIZE; block += 16)
-	{
-		u8 soundParameter = s_audio.spu.memory[block];
-		u8 flags = s_audio.spu.memory[block + 1];
-		int i;
-
-		if ((loopAddr > addr) && (loopAddr == (u32)block))
-		{
-			loopStartSample = pcm->count;
-			hasLoopStart = 1;
-		}
-		else if ((flags & ADPCM_LOOP_START) != 0)
-		{
-			loopStartSample = pcm->count;
-			hasLoopStart = 1;
-		}
-
-		for (i = 0; i < 14; i++)
-		{
-			u8 packed = s_audio.spu.memory[block + 2 + i];
-			if (!NativeAudio_PcmPush(pcm, (s16)NativeAudio_DecodeAdpcmNibble(soundParameter, packed & 0xf, &old, &older)))
-			{
-				return 0;
-			}
-			if (!NativeAudio_PcmPush(pcm, (s16)NativeAudio_DecodeAdpcmNibble(soundParameter, (packed >> 4) & 0xf, &old, &older)))
-			{
-				return 0;
-			}
-		}
-
-		if ((flags & ADPCM_LOOP_END) != 0)
-		{
-			loopEndSample = pcm->count;
-			hasLoopEnd = 1;
-			hasRepeat = (flags & ADPCM_REPEAT) != 0;
-			break;
-		}
-	}
-
-	*loopStart = hasLoopStart ? loopStartSample : 0;
-	*loopEnd = hasLoopEnd ? loopEndSample : pcm->count;
-	*loopEnabled = (hasLoopEnd && hasRepeat && (*loopEnd > *loopStart));
-	return pcm->count > 0;
+	// SPU RAM addressing wraps within the 512KB like hardware
+	return addr & (u32)(NATIVE_AUDIO_SPU_MEMSIZE - 1);
 }
 
-internal void NativeAudio_FreeVoicePcm(struct NativeAudioVoice *voice)
+// NOTE(penta3): Decode the ADPCM block at stream->currentAddr from SPU RAM
+// (read live, like hardware - a game overwriting SPU RAM mid-playback is
+// heard, no staleness possible). A Loop-Start header latches the block
+// address into the repeat register (psx-spx: "If the hardware finds an ADPCM
+// header with Loop-Start-Bit, then it copies the current address to the
+// repeat address register").
+internal void NativeAudio_DecodeVoiceBlock(struct NativeAudioVoiceStream *stream)
 {
-	voice->pcm = NULL;
-	voice->sampleCount = 0;
-	voice->loopStart = 0;
-	voice->loopEnd = 0;
-	voice->loopEnabled = 0;
-	voice->looped = 0;
-}
-
-internal void NativeAudio_ResetVoicePcmArenaNoLock(int markDirty)
-{
+	const u32 base = stream->currentAddr;
+	const u8 soundParameter = s_audio.spu.memory[NativeAudio_WrapSpuAddr(base)];
+	const u8 flags = s_audio.spu.memory[NativeAudio_WrapSpuAddr(base + 1)];
+	int old = stream->adpcmOld;
+	int older = stream->adpcmOlder;
 	int i;
 
-	NativeAudio_ArenaReset(&s_audio.voicePcmArena);
-	for (i = 0; i < NATIVE_AUDIO_SPU_VOICE_COUNT; i++)
+	stream->blockFlags = flags;
+	if ((flags & ADPCM_LOOP_START) != 0)
 	{
-		int wasActive = s_audio.voices[i].active;
-
-		NativeAudio_FreeVoicePcm(&s_audio.voices[i]);
-		if (markDirty && wasActive)
-		{
-			s_audio.voices[i].sampleDirty = 1;
-		}
+		stream->repeatAddr = base;
 	}
+
+	for (i = 0; i < 14; i++)
+	{
+		const u8 packed = s_audio.spu.memory[NativeAudio_WrapSpuAddr(base + 2 + (u32)i)];
+
+		stream->decoded[i * 2] = (s16)NativeAudio_DecodeAdpcmNibble(soundParameter, packed & 0xf, &old, &older);
+		stream->decoded[i * 2 + 1] = (s16)NativeAudio_DecodeAdpcmNibble(soundParameter, (packed >> 4) & 0xf, &old, &older);
+	}
+
+	stream->adpcmOld = (s16)old;
+	stream->adpcmOlder = (s16)older;
 }
 
-internal void NativeAudio_ReclaimVoicePcmArenaIfIdleNoLock(void)
+internal void NativeAudio_VoiceStreamKeyOn(struct NativeAudioVoice *voice)
 {
-	int i;
+	struct NativeAudioVoiceStream *stream = &voice->stream;
 
-	if (s_audio.voicePcmArena.used == 0)
-	{
-		return;
-	}
-
-	for (i = 0; i < NATIVE_AUDIO_SPU_VOICE_COUNT; i++)
-	{
-		struct NativeAudioVoice *voice = &s_audio.voices[i];
-
-		if (voice->active && voice->pcm != NULL && voice->sampleCount > 0 && voice->adsrPhase != NATIVE_AUDIO_ADSR_OFF)
-		{
-			return;
-		}
-	}
-
-	NativeAudio_ResetVoicePcmArenaNoLock(0);
+	memset(stream, 0, sizeof(*stream));
+	stream->currentAddr = NativeAudio_WrapSpuAddr(voice->attr.addr);
+	// preserve the previous native semantics: an explicit SPU_VOICE_LSAX loop
+	// address beyond the start seeds the repeat register; Loop-Start header
+	// flags encountered during playback re-latch it (hardware behavior)
+	stream->repeatAddr = (voice->attr.loop_addr > voice->attr.addr) ? NativeAudio_WrapSpuAddr(voice->attr.loop_addr) : stream->currentAddr;
+	NativeAudio_DecodeVoiceBlock(stream);
+	stream->valid = 1;
 }
 
-internal int NativeAudio_PrepareVoicePcmBuffer(u32 addr, struct NativeAudioPcmBuffer *pcm, int *markerOut)
+// Advance to the next ADPCM block once the pitch counter crosses the current
+// one. Returns 0 when the voice ended (Loop-End without Repeat: hardware
+// jumps to the repeat address AND mutes the envelope).
+internal int NativeAudio_VoiceStreamAdvanceBlock(struct NativeAudioVoice *voice)
 {
-	int maxSamples;
-	int maxBytes;
-	int marker;
+	struct NativeAudioVoiceStream *stream = &voice->stream;
+	int ended = 0;
 
-	if (addr >= NATIVE_AUDIO_SPU_MEMSIZE)
+	stream->hist[0] = stream->decoded[NATIVE_AUDIO_ADPCM_SAMPLES_PER_BLOCK - 3];
+	stream->hist[1] = stream->decoded[NATIVE_AUDIO_ADPCM_SAMPLES_PER_BLOCK - 2];
+	stream->hist[2] = stream->decoded[NATIVE_AUDIO_ADPCM_SAMPLES_PER_BLOCK - 1];
+
+	if ((stream->blockFlags & ADPCM_LOOP_END) != 0)
 	{
-		return 0;
+		// psx-spx: "If the hardware finds an ADPCM header with Loop-Stop-Bit,
+		// then it copies the repeat address register setting to the current
+		// address" - and without the Repeat bit it also releases with Env=0.
+		voice->looped = 1;
+		stream->currentAddr = stream->repeatAddr;
+		ended = (stream->blockFlags & ADPCM_REPEAT) == 0;
+	}
+	else
+	{
+		stream->currentAddr = NativeAudio_WrapSpuAddr(stream->currentAddr + NATIVE_AUDIO_ADPCM_BLOCK_BYTES);
 	}
 
-	maxSamples = ((NATIVE_AUDIO_SPU_MEMSIZE - (int)addr) / 16) * XA_SAMPLES_PER_SOUND_UNIT;
-	if ((maxSamples <= 0) || (maxSamples > (INT_MAX / (int)sizeof(s16))))
-	{
-		return 0;
-	}
-
-	maxBytes = maxSamples * (int)sizeof(s16);
-	marker = NativeAudio_AlignUpInt(s_audio.voicePcmArena.used, NATIVE_AUDIO_ARENA_ALIGN);
-	if ((marker < 0) || (maxBytes > INT_MAX - marker))
-	{
-		return 0;
-	}
-
-	if (!NativeAudio_VoiceArenaEnsureCapacityNoLock(marker + maxBytes))
-	{
-		return 0;
-	}
-
-	pcm->samples = (s16 *)NativeAudio_ArenaPush(&s_audio.voicePcmArena, maxBytes, NATIVE_AUDIO_ARENA_ALIGN, markerOut);
-	if (pcm->samples == NULL)
-	{
-		return 0;
-	}
-
-	pcm->count = 0;
-	pcm->capacity = maxSamples;
-	return 1;
+	NativeAudio_DecodeVoiceBlock(stream);
+	return !ended;
 }
 
 
-internal void NativeAudio_WrapVoiceLoop(struct NativeAudioVoice *voice)
-{
-	u64 loopStartFp = (u64)voice->loopStart << NATIVE_AUDIO_FP_SHIFT;
-	u64 loopEndFp = (u64)voice->loopEnd << NATIVE_AUDIO_FP_SHIFT;
-	u64 loopLenFp = loopEndFp - loopStartFp;
-	u64 overshoot = voice->positionFp - loopEndFp;
-
-	voice->positionFp = loopStartFp + (loopLenFp != 0 ? overshoot % loopLenFp : 0);
-	voice->looped = 1;
-}
-
-internal int NativeAudio_UpdateVoiceSample(struct NativeAudioVoice *voice)
-{
-	struct NativeAudioPcmBuffer pcm;
-	int loopStart;
-	int loopEnd;
-	b32 loopEnabled;
-	int arenaMarker = 0;
-
-	memset(&pcm, 0, sizeof(pcm));
-	if (!NativeAudio_PrepareVoicePcmBuffer(voice->attr.addr, &pcm, &arenaMarker))
-	{
-		NativeAudio_ResetVoicePcmArenaNoLock(1);
-		if (!NativeAudio_PrepareVoicePcmBuffer(voice->attr.addr, &pcm, &arenaMarker))
-		{
-			NativeAudio_FreeVoicePcm(voice);
-			voice->active = 0;
-			voice->sampleDirty = 0;
-			return 0;
-		}
-	}
-
-	if (!NativeAudio_DecodeSpuSample(voice->attr.addr, voice->attr.loop_addr, &pcm, &loopStart, &loopEnd, &loopEnabled))
-	{
-		NativeAudio_ArenaRewind(&s_audio.voicePcmArena, arenaMarker);
-		NativeAudio_FreeVoicePcm(voice);
-		voice->active = 0;
-		voice->sampleDirty = 0;
-		return 0;
-	}
-
-	NativeAudio_ArenaRewind(&s_audio.voicePcmArena, arenaMarker + pcm.count * (int)sizeof(s16));
-	NativeAudio_FreeVoicePcm(voice);
-	voice->pcm = pcm.samples;
-	voice->sampleCount = pcm.count;
-	voice->loopStart = loopStart;
-	voice->loopEnd = loopEnd;
-	voice->loopEnabled = loopEnabled;
-	voice->sampleDirty = 0;
-	return 1;
-}
 
 internal void NativeAudio_FreeXA(void)
 {
@@ -1726,18 +1556,16 @@ internal void NativeAudio_FreeXA(void)
 	NativeAudio_ArenaReset(&s_audio.xaPcmArena);
 }
 
+// NOTE(penta3): The streaming decode state is small, self-contained, and
+// derived only from SPU RAM (snapshotted alongside) - copy it verbatim both
+// ways. No decoded-PCM rebuild pass exists anymore.
 internal void NativeAudio_CopyVoiceToState(struct NativeAudioVoiceState *dst, const struct NativeAudioVoice *src)
 {
 	dst->attr = src->attr;
-	dst->sampleCount = src->sampleCount;
-	dst->loopStart = src->loopStart;
-	dst->loopEnd = src->loopEnd;
-	dst->loopEnabled = src->loopEnabled;
+	dst->stream = src->stream;
 	dst->active = src->active;
-	dst->positionFp = src->positionFp;
 	dst->looped = src->looped;
 	dst->reverb = src->reverb;
-	dst->sampleDirty = src->sampleDirty;
 	dst->adsrLevel = src->adsrLevel;
 	dst->adsrCounter = src->adsrCounter;
 	dst->adsrPhase = src->adsrPhase;
@@ -1746,19 +1574,13 @@ internal void NativeAudio_CopyVoiceToState(struct NativeAudioVoiceState *dst, co
 internal void NativeAudio_CopyStateToVoice(struct NativeAudioVoice *dst, const struct NativeAudioVoiceState *src)
 {
 	dst->attr = src->attr;
-	dst->sampleCount = 0;
-	dst->loopStart = 0;
-	dst->loopEnd = 0;
-	dst->loopEnabled = 0;
+	dst->stream = src->stream;
 	dst->active = src->active;
-	dst->positionFp = src->positionFp;
 	dst->looped = src->looped;
 	dst->reverb = src->reverb;
-	dst->sampleDirty = src->sampleDirty || src->active;
 	dst->adsrLevel = src->adsrLevel;
 	dst->adsrCounter = src->adsrCounter;
 	dst->adsrPhase = src->adsrPhase;
-	dst->pcm = NULL;
 }
 
 internal void NativeAudio_CopyXAToState(struct NativeAudioXAState *dst, const struct NativeAudioXA *src)
@@ -1783,6 +1605,14 @@ internal int NativeAudio_ValidateVoiceSnapshot(const struct NativeAudioVoiceStat
 		return 0;
 	}
 	if (voice->attr.loop_addr >= NATIVE_AUDIO_SPU_MEMSIZE)
+	{
+		return 0;
+	}
+	if ((voice->stream.currentAddr >= NATIVE_AUDIO_SPU_MEMSIZE) || (voice->stream.repeatAddr >= NATIVE_AUDIO_SPU_MEMSIZE))
+	{
+		return 0;
+	}
+	if ((voice->stream.pitchCounter >> NATIVE_AUDIO_PITCH_SAMPLE_SHIFT) >= NATIVE_AUDIO_ADPCM_SAMPLES_PER_BLOCK)
 	{
 		return 0;
 	}
@@ -2903,7 +2733,6 @@ int NativeAudio_RestoreState(const void *src, int srcSize)
 
 	NativeAudio_LockOutput();
 
-	NativeAudio_ResetVoicePcmArenaNoLock(0);
 	NativeAudio_FreeXA();
 
 	s_audio.init = restoreInit;
@@ -2972,7 +2801,6 @@ internal void NativeAudio_MixFrame(s16 *outLeft, s16 *outRight)
 	int reverbSendRight = 0;
 	int reverbWetLeft = 0;
 	int reverbWetRight = 0;
-	int voiceStopped = 0;
 	int i;
 
 	if (s_audio.xa.active && s_audio.xa.pcm != NULL)
@@ -3009,18 +2837,12 @@ internal void NativeAudio_MixFrame(s16 *outLeft, s16 *outRight)
 		for (i = 0; i < NATIVE_AUDIO_SPU_VOICE_COUNT; i++)
 		{
 			struct NativeAudioVoice *voice = &s_audio.voices[i];
-			u64 sampleIndex;
-			u32 stepFp;
+			u32 step;
 			int sample;
 			int left;
 			int right;
 
-			if (voice->active && ((voice->pcm == NULL) || voice->sampleDirty) && !NativeAudio_UpdateVoiceSample(voice))
-			{
-				voiceStopped = 1;
-			}
-
-			if (!voice->active || voice->pcm == NULL || voice->sampleCount <= 0 || voice->adsrPhase == NATIVE_AUDIO_ADSR_OFF)
+			if (!voice->active || !voice->stream.valid || voice->adsrPhase == NATIVE_AUDIO_ADSR_OFF)
 			{
 				continue;
 			}
@@ -3028,27 +2850,7 @@ internal void NativeAudio_MixFrame(s16 *outLeft, s16 *outRight)
 			if (voice->attr.pitch == 0)
 			{
 				NativeAudio_AdsrAdvance(voice);
-				if (!voice->active || voice->adsrPhase == NATIVE_AUDIO_ADSR_OFF)
-				{
-					voiceStopped = 1;
-				}
 				continue;
-			}
-
-			sampleIndex = voice->positionFp >> NATIVE_AUDIO_FP_SHIFT;
-			if (sampleIndex >= (u64)voice->sampleCount)
-			{
-				if (voice->loopEnabled && voice->loopEnd > voice->loopStart)
-				{
-					NativeAudio_WrapVoiceLoop(voice);
-					sampleIndex = voice->positionFp >> NATIVE_AUDIO_FP_SHIFT;
-				}
-				else
-				{
-					NativeAudio_AdsrForceOff(voice);
-					voiceStopped = 1;
-					continue;
-				}
 			}
 
 			sample = NativeAudio_InterpolateVoiceSample(voice);
@@ -3062,23 +2864,26 @@ internal void NativeAudio_MixFrame(s16 *outLeft, s16 *outRight)
 				                      NativeAudio_ApplyMasterVolume(sample, voice->attr.volume.right));
 			}
 			NativeAudio_AdsrAdvance(voice);
-			if (!voice->active || voice->adsrPhase == NATIVE_AUDIO_ADSR_OFF)
+
+			// psx-spx SPU ADPCM Pitch: counter += step (pitch clamped to
+			// 4000h); bits 12+ select the sample, crossing 28 moves to the
+			// next block, decoded on the fly from live SPU RAM.
+			step = (u32)voice->attr.pitch;
+			if (step > NATIVE_AUDIO_PITCH_STEP_MAX)
 			{
-				voiceStopped = 1;
+				step = NATIVE_AUDIO_PITCH_STEP_MAX;
 			}
+			voice->stream.pitchCounter += step;
 
-			stepFp = ((u32)voice->attr.pitch << NATIVE_AUDIO_FP_SHIFT) / 0x1000u;
-			voice->positionFp += stepFp;
-
-			if (voice->loopEnabled && ((voice->positionFp >> NATIVE_AUDIO_FP_SHIFT) >= (u64)voice->loopEnd))
+			while (voice->stream.pitchCounter >= NATIVE_AUDIO_PITCH_BLOCK_SPAN)
 			{
-				NativeAudio_WrapVoiceLoop(voice);
+				voice->stream.pitchCounter -= NATIVE_AUDIO_PITCH_BLOCK_SPAN;
+				if (!NativeAudio_VoiceStreamAdvanceBlock(voice))
+				{
+					NativeAudio_AdsrForceOff(voice);
+					break;
+				}
 			}
-		}
-
-		if (voiceStopped)
-		{
-			NativeAudio_ReclaimVoicePcmArenaIfIdleNoLock();
 		}
 	}
 
@@ -3320,9 +3125,10 @@ u32 NativeAudio_SpuWrite(const u8 *addr, u32 size)
 	}
 
 	memcpy(&s_audio.spu.memory[wptrOfs], addr, size);
-	// NOTE(aalhendi): SPU RAM writes invalidate all decoded voice PCM. Drop cached buffers
-	// so stale samples do not accumulate in the arena during long sessions.
-	NativeAudio_ResetVoicePcmArenaNoLock(1);
+	// NOTE(penta3): Nothing to invalidate - voices decode blocks from SPU RAM
+	// live, so this write is simply heard, exactly like hardware. (The old
+	// decoded-PCM cache reset here re-decoded every active voice per upload,
+	// which was the item-spam RAM ratchet.)
 
 	NativeAudio_UnlockOutput();
 
@@ -3353,20 +3159,20 @@ void NativeAudio_SpuSetVoiceAttr(SpuVoiceAttr *psxAttrib)
 
 		if (psxAttrib->mask & SPU_VOICE_WDSA)
 		{
-			if (voice->attr.addr != psxAttrib->addr)
-			{
-				voice->sampleDirty = 1;
-			}
+			// hardware: the start address register only matters at the next
+			// Key On; the playing stream keeps its current block
 			voice->attr.addr = psxAttrib->addr;
 		}
 
 		if (psxAttrib->mask & SPU_VOICE_LSAX)
 		{
-			if (voice->attr.loop_addr != psxAttrib->loop_addr)
-			{
-				voice->sampleDirty = 1;
-			}
+			// hardware: the repeat address is a live register - writing it
+			// retargets where the playing voice jumps on the next Loop-End
 			voice->attr.loop_addr = psxAttrib->loop_addr;
+			if (voice->stream.valid && (psxAttrib->loop_addr < NATIVE_AUDIO_SPU_MEMSIZE))
+			{
+				voice->stream.repeatAddr = NativeAudio_WrapSpuAddr(psxAttrib->loop_addr);
+			}
 		}
 
 		if (psxAttrib->mask & SPU_VOICE_VOLL)
@@ -3455,20 +3261,20 @@ void NativeAudio_SpuSetKey(s32 on_off, u32 voice_bit)
 		voice = &s_audio.voices[i];
 		if (on_off && !s_audio.muted)
 		{
-			if ((voice->pcm == NULL) || voice->sampleDirty)
-			{
-				NativeAudio_UpdateVoiceSample(voice);
-			}
-
-			voice->positionFp = 0;
+			// hardware Key On: latch the start address as the current block,
+			// restart the pitch counter and ADSR; decoding then streams from
+			// live SPU RAM block by block
 			voice->looped = 0;
-			voice->active = voice->pcm != NULL;
-			if (voice->active)
+			if (voice->attr.addr < NATIVE_AUDIO_SPU_MEMSIZE)
 			{
+				NativeAudio_VoiceStreamKeyOn(voice);
+				voice->active = 1;
 				NativeAudio_AdsrKeyOn(voice);
 			}
 			else
 			{
+				voice->stream.valid = 0;
+				voice->active = 0;
 				NativeAudio_AdsrForceOff(voice);
 			}
 		}
@@ -3484,8 +3290,6 @@ void NativeAudio_SpuSetKey(s32 on_off, u32 voice_bit)
 			}
 		}
 	}
-
-	NativeAudio_ReclaimVoicePcmArenaIfIdleNoLock();
 
 	NativeAudio_UnlockOutput();
 }

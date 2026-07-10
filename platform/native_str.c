@@ -845,10 +845,8 @@ s32 NativeSTR_UploadNextFrame(s32 dstX, s32 dstY)
 	rect.y = dstY;
 	rect.w = s_str.width;
 	rect.h = s_str.height;
+	// NOTE(penta3): GPU-resident VRAM - LoadImage uploads straight into the VRAM
+	// texture, GPU-visible immediately like retail. No flush needed.
 	LoadImage(&rect, s_str.rgb555);
-	// NOTE(aalhendi): Track-preview STR draws these uploaded pixels as same-pass
-	// textured primitives. Retail LoadImage is GPU-visible immediately; refresh
-	// the host VRAM texture at that boundary.
-	NativeRenderer_UpdateVRAM();
 	return 1;
 }

@@ -39,15 +39,14 @@ int DrawSync(int mode)
 {
 	(void)mode;
 
-	NativeRenderer_UpdateVRAM();
 	if (NativeGpu_HasPendingSplits())
 	{
 		DrawAllSplits();
 	}
 	// NOTE(penta3): Real PS1 DrawSync only waits for the GPU; it never copies the
-	// framebuffer back into VRAM. We do the same: no per-frame readback here. The
-	// on-demand consumers that actually sample the framebuffer pull it when needed
-	// (StoreImage/ElimBG pause grab, MoveImage, LoadImage2, save-state capture).
+	// framebuffer back into VRAM. We do the same: no per-frame readback here.
+	// VRAM is GPU-resident (uploads are immediately visible), so there is no
+	// pending-upload flush either.
 
 	if (drawsync_callback != NULL)
 	{
@@ -65,10 +64,9 @@ int LoadImage(RECT16 *rect, void *p)
 
 int LoadImage2(RECT16 *rect, void *p)
 {
-	LoadImage(rect, p);
-	NativeRenderer_UpdateVRAM();
-	NativeRenderer_ReadFramebufferDataToVRAM();
-	return 0;
+	// NOTE(penta3): GPU-resident VRAM makes LoadImage GPU-visible immediately
+	// (retail contract); LoadImage2 needs no extra flush or framebuffer pull.
+	return LoadImage(rect, p);
 }
 
 int MoveImage(RECT16 *rect, int x, int y)
@@ -79,16 +77,15 @@ int MoveImage(RECT16 *rect, int x, int y)
 
 int StoreImage(RECT16 *rect, uint32_t *p)
 {
-	// NOTE(penta3): On-demand pull so screen grabs (ElimBG pause shot) see the
-	// rendered frame even when the per-frame DrawSync readback is skipped (lazy
-	// mode). The framebuffer lives in VRAM's left half (x < VRAM_WIDTH/2); when this
-	// read targets it, pull the captured frame to exactly the y being read - the
-	// single VRAM location the grab expects. Texture reads (right half, e.g. ElimBG's
-	// own VRAM backup) don't touch the framebuffer, so leave them alone. Cheap no-op
-	// when no framebuffer capture is pending.
+	// NOTE(penta3): Screen grabs (ElimBG pause shot) must see the rendered frame
+	// at the exact y they read. The framebuffer lives in VRAM's left half
+	// (x < VRAM_WIDTH/2); when this read targets it, GPU-pack the captured frame
+	// to exactly the y being read - the single VRAM location the grab expects.
+	// Texture reads (right half, e.g. ElimBG's own VRAM backup) don't touch the
+	// framebuffer, so leave them alone. Cheap no-op when nothing is pending.
 	if (((int)rect->x + (int)rect->w) <= (VRAM_WIDTH / 2))
 	{
-		NativeRenderer_PullFramebufferToVRAMAt(rect->y);
+		NativeRenderer_PackFramebufferTexToVRAMAt(rect->y);
 	}
 	NativeRenderer_ReadVRAM((unsigned short *)p, rect->x, rect->y, rect->w, rect->h);
 	return 0;

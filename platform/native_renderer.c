@@ -56,10 +56,10 @@ global_variable TextureID s_vramTexture;
 global_variable TextureID s_rgLutTexture = (TextureID)-1;
 // NOTE(penta3): Single persistent VRAM texture, matching real PS1's single
 // 1MB VRAM. PS1 page-flips two windows *inside* one VRAM; it never keeps two
-// full copies. The old double buffer existed only to orphan the texture on the
-// per-frame full re-upload, which no longer happens (we upload dirty rects).
-global_variable u32 *s_readbackScratch = NULL;
-global_variable size_t s_readbackScratchPixels = 0;
+// full copies. GPU-resident: this texture IS PSX VRAM - there is no CPU-side
+// mirror array. CPU transfers map to the PS1 DMA ops on this one memory:
+// LoadImage = glTexSubImage2D in, StoreImage = regional glReadPixels out,
+// MoveImage = GPU blit within, ClearImage = scissored clear.
 
 global_variable TextureID s_framebufferTexture = (TextureID)-1;
 global_variable TextureID s_offscreenRenderTexture = (TextureID)-1;
@@ -94,16 +94,24 @@ int g_cfg_bilinearFiltering = 0;
 // GPU->CPU readback + CPU pack + re-upload.
 global_variable GLuint s_packShader = 0;
 global_variable GLint s_packSrcLoc = -1;
+global_variable GLint s_packFlipLoc = -1;
 global_variable GLuint s_packQuadVAO = 0;
 global_variable GLuint s_packQuadVBO = 0;
 
-global_variable int s_vramNeedsUpdate = 1;
-// NOTE(penta3): PS1 VRAM is persistent host-side: only the rectangles touched
-// by draw/transfer commands change between frames. Track an accumulated dirty
-// rect so UpdateVRAM uploads just those texels (glTexSubImage2D) instead of
-// re-uploading the whole 1MB VRAM every frame.
-global_variable RECT16 s_vramDirty = {0, 0, VRAM_WIDTH, VRAM_HEIGHT};
-global_variable int s_vramDirtyValid = 1;
+// NOTE(penta3): VRAM display pipeline (boot splash / pinned movie frames).
+// Draws the requested VRAM rect straight from the RG8 VRAM texture through the
+// RG LUT on the GPU, replacing the old CPU 15bit->RGBA chunk expansion.
+global_variable GLuint s_displayShader = 0;
+global_variable GLint s_displaySrcRectLoc = -1;
+
+// NOTE(penta3): Staging texture for MoveImage (GP0(80h) VRAM->VRAM copy).
+// GL forbids blitting a texture onto itself, so copy out then back in - both
+// legs stay on the GPU, like the PS1's own VRAM-to-VRAM DMA. Grows on demand.
+global_variable TextureID s_vramCopyTexture = (TextureID)-1;
+global_variable GLuint s_glVramCopyFramebuffer = 0;
+global_variable int s_vramCopyW = 0;
+global_variable int s_vramCopyH = 0;
+
 global_variable int s_framebufferNeedsUpdate = 0;
 
 internal int NativeRenderer_InitialiseGLContext(char *windowName, int fullscreen);
@@ -117,6 +125,10 @@ internal void NativeRenderer_UpdatePresentationViewport(void);
 internal void NativeRenderer_ClearPresentationBars(void);
 internal void NativeRenderer_SetWireframe(int enable);
 internal void NativeRenderer_BindVertexBuffer(void);
+internal void NativeRenderer_GpuPackTextureToVRAM(GLuint srcTexture, int x, int y, int w, int h, int flipY);
+internal void NativeRenderer_GpuPackFramebufferToVRAM(int x, int y, int w, int h);
+internal void NativeRenderer_UploadVRAMRect(int x, int y, int w, int h, const u16 *src, int srcStride);
+internal void NativeRenderer_ReadVRAMRect(int x, int y, int w, int h, u16 *dst, int dstStride);
 
 global_variable GLuint s_glVertexArray[2];
 global_variable GLuint s_glVertexBuffer[2];
@@ -240,11 +252,14 @@ void NativeRenderer_Shutdown(void)
 	NativeRenderer_DestroyTexture(s_framebufferTexture);
 	NativeRenderer_DestroyTexture(s_offscreenRenderTexture);
 
-	free(s_readbackScratch);
-	s_readbackScratch = NULL;
-	s_readbackScratchPixels = 0;
+	if (s_vramCopyTexture != (TextureID)-1)
+	{
+		NativeRenderer_DestroyTexture(s_vramCopyTexture);
+	}
+	glDeleteFramebuffers(1, &s_glVramCopyFramebuffer);
 
 	glDeleteProgram(s_packShader);
+	glDeleteProgram(s_displayShader);
 	glDeleteVertexArrays(1, &s_packQuadVAO);
 	glDeleteBuffers(1, &s_packQuadVBO);
 }
@@ -263,7 +278,6 @@ void NativeRenderer_BeginScene(void)
 	NativeRenderer_ClearPresentationBars();
 	glClear(GL_STENCIL_BUFFER_BIT);
 
-	NativeRenderer_UpdateVRAM();
 	NativeRenderer_SetViewPort(s_presentViewport.x, s_presentViewport.y, s_presentViewport.w, s_presentViewport.h);
 
 	if (g_dbg_wireframeMode)
@@ -290,7 +304,8 @@ void NativeRenderer_EndScene(void)
 
 //----------------------------------------------------------------------------------------
 
-u16 vram[VRAM_WIDTH * VRAM_HEIGHT];
+// NOTE(penta3): No CPU vram[] mirror - PSX VRAM lives exclusively in
+// s_vramTexture on the GPU, exactly like the real console's dedicated VRAM.
 global_variable u8 rgLUT[LUT_WIDTH * LUT_HEIGHT * sizeof(u32)];
 
 internal int NativeRenderer_IntAbs(int value)
@@ -443,13 +458,11 @@ internal int NativeRenderer_Shader_CheckShaderStatus(GLuint shader);
 internal int NativeRenderer_Shader_CheckProgramStatus(GLuint program);
 internal ShaderID NativeRenderer_Shader_Compile(const char *source, bool isPsxShader);
 internal void NativeRenderer_GenerateCommonTextures(void);
-internal TextureID NativeRenderer_CreateRGBATexture(int width, int height, u8 *data);
 internal void NativeRenderer_CompilePSXShader(GTEShader *sh, const char *source);
 internal void NativeRenderer_InitialisePSXShaders(void);
 internal void NativeRenderer_InitRG8LUT(void);
 internal void NativeRenderer_Ortho2D(float left, float right, float bottom, float top, float znear, float zfar);
 internal void NativeRenderer_SetShader(const ShaderID shader);
-internal void NativeRenderer_CopyRGBAFramebufferToVRAM(u32 *src, int x, int y, int w, int h, int update_vram, int flip_y);
 
 global_variable GTEShader s_gteShader4;
 global_variable GTEShader s_gteShader8;
@@ -796,23 +809,6 @@ internal void NativeRenderer_GenerateCommonTextures(void)
 	}
 }
 
-internal TextureID NativeRenderer_CreateRGBATexture(int width, int height, u8 *data)
-{
-	TextureID newTexture;
-	glGenTextures(1, &newTexture);
-
-	glBindTexture(GL_TEXTURE_2D, newTexture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, g_cfg_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, g_cfg_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-
-	glBindTexture(GL_TEXTURE_2D, 0);
-
-	return newTexture;
-}
-
 internal void NativeRenderer_CompilePSXShader(GTEShader *sh, const char *source)
 {
 	sh->shader = NativeRenderer_Shader_Compile(source, true);
@@ -835,11 +831,12 @@ internal void NativeRenderer_InitialisePSXShaders(void)
 	NativeRenderer_CompilePSXShader(&s_gteShader32Rgba, gte_shader_32_rgba);
 }
 
-// NOTE(penta3): GPU framebuffer pack. Samples the RGBA framebuffer texture and
+// NOTE(penta3): GPU framebuffer pack. Samples an RGBA source texture and
 // writes 16-bit PS1 pixels (r5|g5<<5|b5<<10|stp<<15) into the RG8 VRAM texture,
-// low byte in R and high byte in G - the exact layout CopyRGBAFramebufferToVRAM
-// produces on the CPU. Integer ops keep it bit-exact; NEAREST sampling returns the
-// stored byte so `*255+0.5` recovers it without rounding drift.
+// low byte in R and high byte in G - PS1 VRAM's exact byte layout (validated
+// bit-identical to the old CPU pack). Integer ops keep it bit-exact; NEAREST
+// sampling returns the stored byte so `*255+0.5` recovers it without drift.
+// u_flip flips the source vertically for bottom-up render targets.
 global_variable const char *ctr_pack_shader =
     "#ifdef VERTEX\n"
     "attribute vec2 a_position;\n"
@@ -852,10 +849,40 @@ global_variable const char *ctr_pack_shader =
     "#ifdef FRAGMENT\n"
     "varying vec2 v_uv;\n"
     "uniform sampler2D s_src;\n"
+    "uniform int u_flip;\n"
     "void main() {\n"
-    "	ivec4 c = ivec4(texture2D(s_src, v_uv) * 255.0 + 0.5);\n"
+    "	vec2 uv = vec2(v_uv.x, (u_flip != 0) ? (1.0 - v_uv.y) : v_uv.y);\n"
+    "	ivec4 c = ivec4(texture2D(s_src, uv) * 255.0 + 0.5);\n"
     "	int px16 = (c.r >> 3) | ((c.g >> 3) << 5) | ((c.b >> 3) << 10) | ((c.a >> 7) << 15);\n"
     "	fragColor = vec4(float(px16 & 0xFF) / 255.0, float((px16 >> 8) & 0xFF) / 255.0, 0.0, 0.0);\n"
+    "}\n"
+    "#endif\n";
+
+// NOTE(penta3): Inverse of ctr_pack_shader - display a VRAM rect on screen.
+// Samples the RG8 VRAM texture (raw 16-bit halves) and expands 15-bit color
+// through the same RG LUT the GTE shaders use. u_srcRect is in VRAM texels;
+// v_uv.y is flipped so VRAM row srcRect.y lands at the top of the viewport.
+global_variable const char *ctr_display_shader =
+    "#ifdef VERTEX\n"
+    "attribute vec2 a_position;\n"
+    "varying vec2 v_uv;\n"
+    "void main() {\n"
+    "	v_uv = a_position * 0.5 + 0.5;\n"
+    "	gl_Position = vec4(a_position, 0.0, 1.0);\n"
+    "}\n"
+    "#endif\n"
+    "#ifdef FRAGMENT\n"
+    "varying vec2 v_uv;\n"
+    "uniform sampler2D s_src;\n"
+    "uniform sampler2D s_lut;\n"
+    "uniform vec4 u_srcRect;\n"
+    "const vec2 c_VRAMTexel = vec2(1.0 / 1024.0, 1.0 / 512.0);\n"
+    "const vec2 c_LUTTexel = vec2(1.0 / 256.0, 1.0 / 256.0);\n"
+    "void main() {\n"
+    "	vec2 texel = (u_srcRect.xy + vec2(v_uv.x, 1.0 - v_uv.y) * u_srcRect.zw) * c_VRAMTexel;\n"
+    "	vec2 rg = texture2D(s_src, texel).rg;\n"
+    "	vec4 c = texture2D(s_lut, rg - c_LUTTexel * 0.0001);\n"
+    "	fragColor = vec4(c.rgb, 1.0);\n"
     "}\n"
     "#endif\n";
 
@@ -866,7 +893,16 @@ internal void NativeRenderer_InitPackPipeline(void)
 	s_packShader = NativeRenderer_Shader_Compile(ctr_pack_shader, false);
 	glUseProgram(s_packShader);
 	s_packSrcLoc = glGetUniformLocation(s_packShader, "s_src");
+	s_packFlipLoc = glGetUniformLocation(s_packShader, "u_flip");
 	glUniform1i(s_packSrcLoc, 0);
+	glUniform1i(s_packFlipLoc, 0);
+	glUseProgram(0);
+
+	s_displayShader = NativeRenderer_Shader_Compile(ctr_display_shader, false);
+	glUseProgram(s_displayShader);
+	glUniform1i(glGetUniformLocation(s_displayShader, "s_src"), 0);
+	glUniform1i(glGetUniformLocation(s_displayShader, "s_lut"), 1);
+	s_displaySrcRectLoc = glGetUniformLocation(s_displayShader, "u_srcRect");
 	glUseProgram(0);
 
 	glGenVertexArrays(1, &s_packQuadVAO);
@@ -898,7 +934,6 @@ internal void NativeRenderer_InitRG8LUT(void)
 
 int NativeRenderer_InitialisePSX(void)
 {
-	SDL_memset(vram, 0, VRAM_WIDTH * VRAM_HEIGHT * sizeof(u16));
 	NativeRenderer_InitRG8LUT();
 	NativeRenderer_GenerateCommonTextures();
 	NativeRenderer_InitialisePSXShaders();
@@ -907,6 +942,11 @@ int NativeRenderer_InitialisePSX(void)
 	glDepthFunc(GL_LEQUAL);
 	glEnable(GL_STENCIL_TEST);
 	glBlendColor(0.5f, 0.5f, 0.5f, 0.25f);
+
+	// NOTE(penta3): VRAM transfers are u16 texels; rows are always 2-byte
+	// aligned but odd widths break GL's default 4-byte row alignment.
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
+	glPixelStorei(GL_PACK_ALIGNMENT, 2);
 
 	// gen framebuffer
 	{
@@ -988,8 +1028,17 @@ int NativeRenderer_InitialisePSX(void)
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
 
+			// NOTE(penta3): GPU-resident VRAM has no CPU mirror to memset;
+			// zero the texture itself, like VRAM powering up blank.
+			glDisable(GL_SCISSOR_TEST);
+			glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+			glClear(GL_COLOR_BUFFER_BIT);
+
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		}
+
+		// MoveImage staging framebuffer (texture allocated on first use)
+		glGenFramebuffers(1, &s_glVramCopyFramebuffer);
 	}
 
 	// gen vertex buffer and index buffer
@@ -1238,109 +1287,52 @@ internal float NativeRenderer_PSXColorComponentFloat(u8 value)
 	return (float)psx8 / 255.0f;
 }
 
-// NOTE(penta3): Union a written VRAM rectangle into the dirty box, clamped to
-// VRAM bounds. UpdateVRAM flushes just this box, keeping the host VRAM texture
-// persistent like real PS1 VRAM instead of re-uploading all 1MB each frame.
-internal void NativeRenderer_MarkVRAMDirty(int x, int y, int w, int h)
+// NOTE(penta3): Clip a VRAM transfer rect to the 1024x512 bounds, like the
+// PS1 GPU masks transfer coordinates. Returns 0 when nothing remains.
+internal int NativeRenderer_ClipVRAMRect(int *x, int *y, int *w, int *h)
 {
-	if ((w <= 0) || (h <= 0))
+	if (*x < 0)
 	{
-		return;
+		*w += *x;
+		*x = 0;
 	}
-
-	if (x < 0)
+	if (*y < 0)
 	{
-		w += x;
-		x = 0;
+		*h += *y;
+		*y = 0;
 	}
-	if (y < 0)
+	if (*x + *w > VRAM_WIDTH)
 	{
-		h += y;
-		y = 0;
+		*w = VRAM_WIDTH - *x;
 	}
-	if (x + w > VRAM_WIDTH)
+	if (*y + *h > VRAM_HEIGHT)
 	{
-		w = VRAM_WIDTH - x;
+		*h = VRAM_HEIGHT - *y;
 	}
-	if (y + h > VRAM_HEIGHT)
-	{
-		h = VRAM_HEIGHT - y;
-	}
-	if ((w <= 0) || (h <= 0))
-	{
-		return;
-	}
-
-	if (!s_vramDirtyValid)
-	{
-		s_vramDirty.x = (short)x;
-		s_vramDirty.y = (short)y;
-		s_vramDirty.w = (short)w;
-		s_vramDirty.h = (short)h;
-		s_vramDirtyValid = 1;
-	}
-	else
-	{
-		int cx0 = s_vramDirty.x;
-		int cy0 = s_vramDirty.y;
-		int cx1 = cx0 + s_vramDirty.w;
-		int cy1 = cy0 + s_vramDirty.h;
-
-		if (x < cx0)
-		{
-			cx0 = x;
-		}
-		if (y < cy0)
-		{
-			cy0 = y;
-		}
-		if (x + w > cx1)
-		{
-			cx1 = x + w;
-		}
-		if (y + h > cy1)
-		{
-			cy1 = y + h;
-		}
-
-		s_vramDirty.x = (short)cx0;
-		s_vramDirty.y = (short)cy0;
-		s_vramDirty.w = (short)(cx1 - cx0);
-		s_vramDirty.h = (short)(cy1 - cy0);
-	}
-
-	s_vramNeedsUpdate = 1;
+	return (*w > 0) && (*h > 0);
 }
 
+// NOTE(penta3): ClearImage = GP0(02h) FillRectangle: the PS1 GPU fills the
+// VRAM rect itself. Scissored clear on the VRAM texture, encoding the packed
+// 15-bit color into the RG byte halves - no CPU loop, no mirror.
 void NativeRenderer_ClearVRAM(int x, int y, int w, int h, u8 r, u8 g, u8 b)
 {
-	u16 *dst = vram + x + y * VRAM_WIDTH;
 	const u16 color = NativeRenderer_PackRGB24ToPSX15(r, g, b);
 
-	if (x + w > VRAM_WIDTH)
+	if (!NativeRenderer_ClipVRAMRect(&x, &y, &w, &h))
 	{
-		w = VRAM_WIDTH - x;
+		return;
 	}
 
-	if (y + h > VRAM_HEIGHT)
-	{
-		h = VRAM_HEIGHT - y;
-	}
+	glBindFramebuffer(GL_FRAMEBUFFER, s_glVramFramebuffer);
+	glEnable(GL_SCISSOR_TEST);
+	glScissor(x, y, w, h);
+	glClearColor((float)(color & 0xFF) / 255.0f, (float)((color >> 8) & 0xFF) / 255.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glDisable(GL_SCISSOR_TEST);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-	// clear VRAM region with given color
-	for (int i = 0; i < h; i++)
-	{
-		u16 *tmp = dst;
-
-		for (int j = 0; j < w; j++)
-		{
-			*tmp++ = color;
-		}
-
-		dst += VRAM_WIDTH;
-	}
-
-	NativeRenderer_MarkVRAMDirty(x, y, w, h);
+	s_previousScissorState = 0;
 }
 
 void NativeRenderer_Clear(int x, int y, int w, int h, u8 r, u8 g, u8 b)
@@ -1438,6 +1430,16 @@ void NativeRenderer_SaveVRAM(const char *outputFileName, int x, int y, int width
 		return;
 	}
 
+	// NOTE(penta3): Debug tool - VRAM is GPU-resident, pull the whole texture
+	// once for the dump.
+	u16 *pixels = (u16 *)malloc((size_t)VRAM_WIDTH * VRAM_HEIGHT * sizeof(u16));
+	if (pixels == NULL)
+	{
+		fclose(fp);
+		return;
+	}
+	NativeRenderer_ReadVRAMRect(0, 0, VRAM_WIDTH, VRAM_HEIGHT, pixels, VRAM_WIDTH);
+
 	u8 TGAheader[12] = {0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 	u8 header[6];
 	header[0] = (width % 256);
@@ -1452,122 +1454,25 @@ void NativeRenderer_SaveVRAM(const char *outputFileName, int x, int y, int width
 
 	for (int i = 0; i < VRAM_HEIGHT; i++)
 	{
-		fwrite(vram + VRAM_WIDTH * FLIP_Y, sizeof(u16), VRAM_WIDTH, fp);
+		fwrite(pixels + VRAM_WIDTH * FLIP_Y, sizeof(u16), VRAM_WIDTH, fp);
 	}
 
+	free(pixels);
 	fclose(fp);
 
 #undef FLIP_Y
 }
 
-internal void NativeRenderer_CopyRGBAFramebufferToVRAM(u32 *src, int x, int y, int w, int h, int update_vram, int flip_y)
-{
-	assert(x >= 0);
-	assert(y >= 0);
-	assert(x + w <= VRAM_WIDTH);
-	assert(y + h <= VRAM_HEIGHT);
-
-	// NOTE(penta3): Pack the RGBA readback into 15-bit+STP straight into the CPU
-	// VRAM mirror. VRAM row fy takes source row (flip_y ? h-1-fy : fy), so the flip
-	// lives on the source index and the destination walks VRAM linearly. This drops
-	// the old full-frame pack scratch and the identity-indexed second copy (both ran
-	// on every readback via DrawSync) for a bit-identical result.
-	for (int fy = 0; fy < h; fy++)
-	{
-		const int srcRow = flip_y ? (h - fy - 1) : fy;
-		const u32 *s = src + (size_t)srcRow * w;
-		u16 *dst = vram + (size_t)(y + fy) * VRAM_WIDTH + x;
-
-		for (int fx = 0; fx < w; fx++)
-		{
-			u32 c = s[fx];
-
-			u8 r = ((c >> 3) & 0x1F);
-			u8 g = ((c >> 11) & 0x1F);
-			u8 b = ((c >> 19) & 0x1F);
-			// NOTE(aalhendi): framebuffer alpha carries the PS1 E6 mask/STP bit.
-			u8 a = (c >> 31) & 1;
-
-			dst[fx] = r | (g << 5) | (b << 10) | (a << 15);
-		}
-	}
-
-	if (update_vram)
-	{
-		NativeRenderer_MarkVRAMDirty(x, y, w, h);
-	}
-}
-
-// NOTE(penta3): Shared persistent scratch for GPU->CPU readbacks. Grows on demand to
-// the largest region actually read back (`pixels` = w*h RGBA texels), settling at the
-// real high-water mark instead of pre-reserving a full 2MB VRAM frame. Only reallocs
-// when a bigger readback appears, so hot paths still don't malloc/free per call. The
-// readback paths are never nested, so a single buffer is safe.
-internal u32 *NativeRenderer_GetReadbackScratch(int pixels)
-{
-	if ((size_t)pixels > s_readbackScratchPixels)
-	{
-		u32 *grown = (u32 *)realloc(s_readbackScratch, (size_t)pixels * sizeof(u32));
-		if (grown == NULL)
-		{
-			return NULL;
-		}
-		s_readbackScratch = grown;
-		s_readbackScratchPixels = (size_t)pixels;
-	}
-
-	return s_readbackScratch;
-}
-
-void NativeRenderer_ReadFramebufferDataToVRAM(void)
-{
-	int x, y, w, h;
-	u32 *pixels;
-	if (!s_framebufferNeedsUpdate)
-	{
-		return;
-	}
-
-	s_framebufferNeedsUpdate = 0;
-
-	x = s_previousFramebuffer.x;
-	y = s_previousFramebuffer.y;
-	w = s_previousFramebuffer.w;
-	h = s_previousFramebuffer.h;
-
-	if (w <= 0 || h <= 0)
-	{
-		return;
-	}
-
-	pixels = NativeRenderer_GetReadbackScratch(w * h);
-	if (pixels != NULL)
-	{
-		glBindTexture(GL_TEXTURE_2D, s_framebufferTexture);
-		// NOTE(aalhendi): DrawSync can be called immediately before screen-copy
-		// effects sample PS1 VRAM. A delayed readback replays an older frame
-		// into VRAM and turns clock/idle blur into flicker; use the latest
-		// framebuffer texture here.
-		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-		glBindTexture(GL_TEXTURE_2D, 0);
-		// NOTE(aalhendi): Keep the CPU-side VRAM mirror packed like PS1 VRAM.
-		// Host texture bindings are invalid after this direct GL texture read.
-		NativeRenderer_CopyRGBAFramebufferToVRAM(pixels, x, y, w, h, 1, 0);
-		s_lastBoundTexture = (TextureID)-1;
-	}
-}
-
-// NOTE(penta3): Pull the captured frame to an explicit VRAM y (the whole frame,
-// at the framebuffer's width/height) rather than to s_previousFramebuffer. During
-// gameplay the draw and disp areas are identical and alternate y=0 / y=0x128 each
-// frame, so the per-frame store's label does not match where a screen grab reads.
-// A grab (ElimBG pause shot) reads the framebuffer strips at a fixed base y; writing
-// the frame exactly there is the single, correct VRAM location - no both-buffers
-// hack, and the other half (reused for TIM/STR) is untouched.
-void NativeRenderer_PullFramebufferToVRAMAt(int targetY)
+// NOTE(penta3): GPU analogue of the old CPU pull-to-y fix. During gameplay the
+// draw and disp areas are identical and alternate y=0 / y=0x128 each frame, so
+// the per-frame store's label does not match where a screen grab reads. A grab
+// (ElimBG pause shot) reads the framebuffer strips at a fixed base y; packing
+// the captured frame exactly there is the single, correct VRAM location. The
+// pack shader writes the RG8 VRAM texture directly - no readback, no CPU pack,
+// no mirror. Same proven placement semantics, all on the GPU.
+void NativeRenderer_PackFramebufferTexToVRAMAt(int targetY)
 {
 	int w, h;
-	u32 *pixels;
 
 	if (!s_framebufferNeedsUpdate)
 	{
@@ -1584,18 +1489,7 @@ void NativeRenderer_PullFramebufferToVRAMAt(int targetY)
 
 	s_framebufferNeedsUpdate = 0;
 
-	pixels = NativeRenderer_GetReadbackScratch(w * h);
-	if (pixels == NULL)
-	{
-		return;
-	}
-
-	glBindTexture(GL_TEXTURE_2D, s_framebufferTexture);
-	glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-	glBindTexture(GL_TEXTURE_2D, 0);
-
-	NativeRenderer_CopyRGBAFramebufferToVRAM(pixels, s_previousFramebuffer.x, targetY, w, h, 1, 0);
-	s_lastBoundTexture = -1;
+	NativeRenderer_GpuPackFramebufferToVRAM(s_previousFramebuffer.x, targetY, w, h);
 }
 
 void NativeRenderer_DiscardFramebufferReadback(void)
@@ -1615,37 +1509,12 @@ internal void NativeRenderer_FlushOffscreenToVRAM(void)
 		return;
 	}
 
-	glBindFramebuffer(GL_FRAMEBUFFER, s_glVramFramebuffer);
-
-	// rebind texture
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s_vramTexture, 0);
-
-	// setup draw and read framebuffers
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, s_glOffscreenFramebuffer); // source is offscreen render target
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_glVramFramebuffer);
-
-	glBlitFramebuffer(0, 0, s_previousOffscreen.w, s_previousOffscreen.h, s_previousOffscreen.x, s_previousOffscreen.y + s_previousOffscreen.h,
-	                  s_previousOffscreen.x + s_previousOffscreen.w, s_previousOffscreen.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-	// done, unbind
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	// copy rendering results to the CPU-side PSX VRAM mirror
-	{
-		u32 *pixels = NativeRenderer_GetReadbackScratch(s_previousOffscreen.w * s_previousOffscreen.h);
-		if (pixels == NULL)
-		{
-			return;
-		}
-
-		glBindTexture(GL_TEXTURE_2D, s_offscreenRenderTexture);
-		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-		glBindTexture(GL_TEXTURE_2D, s_lastBoundTexture != (TextureID)-1 ? s_lastBoundTexture : 0);
-
-		NativeRenderer_CopyRGBAFramebufferToVRAM(pixels, s_previousOffscreen.x, s_previousOffscreen.y, s_previousOffscreen.w, s_previousOffscreen.h, 0, 1);
-	}
+	// NOTE(penta3): Pack the offscreen RGBA render target into the GPU-resident
+	// VRAM texture with the pack shader (flipped: GL render targets keep row 0 at
+	// the content bottom). The old path channel-blitted RGBA->RG8 into the GPU
+	// texture (raw r/g bytes, not packed 15-bit) and only packed correctly into
+	// the CPU mirror; sampling now sees the properly packed texels too.
+	NativeRenderer_GpuPackTextureToVRAM(s_offscreenRenderTexture, s_previousOffscreen.x, s_previousOffscreen.y, s_previousOffscreen.w, s_previousOffscreen.h, 1);
 }
 
 internal void NativeRenderer_SetScissorState(int enable)
@@ -1777,11 +1646,12 @@ internal void NativeRenderer_BlitBackbufferToFramebufferTex(int x, int y, int w,
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-// NOTE(penta3): Pack the RGBA framebuffer texture straight into the RG8 VRAM
-// texture on the GPU, no CPU round-trip. Writes the same (x,y,w,h) VRAM region the
-// CPU path targets. Restores/invalidates the render-state caches it disturbs so the
+// NOTE(penta3): Pack an RGBA source texture straight into the (x,y,w,h) region
+// of the RG8 VRAM texture on the GPU, no CPU round-trip. flipY inverts the
+// source vertically (offscreen render targets store row 0 at the content
+// bottom). Restores/invalidates the render-state caches it disturbs so the
 // in-progress submit run keeps working.
-internal void NativeRenderer_GpuPackFramebufferToVRAM(int x, int y, int w, int h)
+internal void NativeRenderer_GpuPackTextureToVRAM(GLuint srcTexture, int x, int y, int w, int h, int flipY)
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, s_glVramFramebuffer);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s_vramTexture, 0);
@@ -1792,8 +1662,9 @@ internal void NativeRenderer_GpuPackFramebufferToVRAM(int x, int y, int w, int h
 
 	glUseProgram(s_packShader);
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, s_framebufferTexture);
+	glBindTexture(GL_TEXTURE_2D, srcTexture);
 	glUniform1i(s_packSrcLoc, 0);
+	glUniform1i(s_packFlipLoc, flipY);
 
 	glBindVertexArray(s_packQuadVAO);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1809,13 +1680,17 @@ internal void NativeRenderer_GpuPackFramebufferToVRAM(int x, int y, int w, int h
 	s_previousScissorState = 0;
 }
 
+internal void NativeRenderer_GpuPackFramebufferToVRAM(int x, int y, int w, int h)
+{
+	NativeRenderer_GpuPackTextureToVRAM(s_framebufferTexture, x, y, w, h, 0);
+}
+
 // NOTE(penta3): Framebuffer-feedback barrier store. PS1 draws into VRAM and can then
 // texture from that same VRAM (unified memory). We mirror that on the GPU: blit the
 // backbuffer into the framebuffer texture, then pack it straight into the RG8 VRAM
 // texture with a shader (validated bit-identical to the old CPU pack), so the feedback
-// primitive samples it with no GPU->CPU->GPU readback. The CPU vram[] mirror is
-// refreshed lazily by the on-demand consumers (MoveImage/save-state/pause) through
-// s_framebufferNeedsUpdate.
+// primitive samples it with no GPU->CPU->GPU readback. s_framebufferNeedsUpdate flags
+// the captured frame for the pause-grab pack-at-read-y (StoreImage).
 void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h)
 {
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_STORE);
@@ -1828,78 +1703,136 @@ void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h)
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_STORE);
 }
 
-// NOTE(penta3): Deferred store - blit only, then flag the framebuffer region
-// dirty. Real PS1 never copies the framebuffer back to VRAM; the readback only
-// matters when a later command samples that region. The existing on-demand
-// consumers (DrawSync, feedback barriers, MoveImage, save-state) pull it via
-// NativeRenderer_ReadFramebufferDataToVRAM when actually needed, avoiding a
-// synchronous GPU->CPU stall on every frame whose result nothing reads back.
-void NativeRenderer_StoreFrameBufferDeferred(int x, int y, int w, int h)
+// NOTE(penta3): LoadImage = DMA CPU->VRAM. Upload the caller's texels straight
+// into the VRAM texture; there is no CPU mirror to stage through, so the data
+// is GPU-visible immediately - exactly the retail LoadImage contract.
+internal void NativeRenderer_UploadVRAMRect(int x, int y, int w, int h, const u16 *src, int srcStride)
 {
-	NativePerf_BeginScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_STORE);
-	NativeRenderer_BlitBackbufferToFramebufferTex(x, y, w, h);
-	s_framebufferNeedsUpdate = 1;
-	NativePerf_EndScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_STORE);
+	if (!NativeRenderer_ClipVRAMRect(&x, &y, &w, &h))
+	{
+		return;
+	}
+
+	NativePerf_BeginScope(NATIVE_PERF_BUCKET_RENDERER_UPDATE_VRAM);
+
+	glBindTexture(GL_TEXTURE_2D, s_vramTexture);
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, srcStride);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, VRAM_FORMAT, GL_UNSIGNED_BYTE, src);
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	s_lastBoundTexture = (TextureID)-1;
+
+	NativePerf_EndScope(NATIVE_PERF_BUCKET_RENDERER_UPDATE_VRAM);
+}
+
+// NOTE(penta3): StoreImage = DMA VRAM->CPU, on demand. Regional glReadPixels
+// from the VRAM texture; the data is already RG8 = PS1 16bpp, so it lands in
+// the caller's buffer without any CPU pack loop. For an FBO-attached texture,
+// framebuffer row y IS texture row y - no vertical flip.
+internal void NativeRenderer_ReadVRAMRect(int x, int y, int w, int h, u16 *dst, int dstStride)
+{
+	if (!NativeRenderer_ClipVRAMRect(&x, &y, &w, &h))
+	{
+		return;
+	}
+
+	NativePerf_BeginScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_READBACK);
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, s_glVramFramebuffer);
+	glPixelStorei(GL_PACK_ROW_LENGTH, dstStride);
+	glReadPixels(x, y, w, h, VRAM_FORMAT, GL_UNSIGNED_BYTE, dst);
+	glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+
+	NativePerf_EndScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_READBACK);
+}
+
+// NOTE(penta3): MoveImage = GP0(80h) VRAM->VRAM copy, kept on the GPU like the
+// PS1's own DMA. GL forbids blitting a texture onto itself, so bounce through a
+// grow-on-demand staging texture: VRAM->staging, staging->VRAM. Two blits, no
+// CPU transfer, deterministic for overlapping rects.
+internal void NativeRenderer_CopyVRAMRectGPU(int srcX, int srcY, int dstX, int dstY, int w, int h)
+{
+	if ((w <= 0) || (h <= 0))
+	{
+		return;
+	}
+
+	if ((s_vramCopyTexture == (TextureID)-1) || (w > s_vramCopyW) || (h > s_vramCopyH))
+	{
+		const int newW = (w > s_vramCopyW) ? w : s_vramCopyW;
+		const int newH = (h > s_vramCopyH) ? h : s_vramCopyH;
+
+		if (s_vramCopyTexture == (TextureID)-1)
+		{
+			glGenTextures(1, &s_vramCopyTexture);
+			glBindTexture(GL_TEXTURE_2D, s_vramCopyTexture);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		}
+		else
+		{
+			glBindTexture(GL_TEXTURE_2D, s_vramCopyTexture);
+		}
+		glTexImage2D(GL_TEXTURE_2D, 0, VRAM_INTERNAL_FORMAT, newW, newH, 0, VRAM_FORMAT, GL_UNSIGNED_BYTE, NULL);
+		glBindTexture(GL_TEXTURE_2D, 0);
+		s_vramCopyW = newW;
+		s_vramCopyH = newH;
+		s_lastBoundTexture = (TextureID)-1;
+
+		glBindFramebuffer(GL_FRAMEBUFFER, s_glVramCopyFramebuffer);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s_vramCopyTexture, 0);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
+
+	glDisable(GL_SCISSOR_TEST);
+	s_previousScissorState = 0;
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, s_glVramFramebuffer);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_glVramCopyFramebuffer);
+	glBlitFramebuffer(srcX, srcY, srcX + w, srcY + h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, s_glVramCopyFramebuffer);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_glVramFramebuffer);
+	glBlitFramebuffer(0, 0, w, h, dstX, dstY, dstX + w, dstY + h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 }
 
 void NativeRenderer_CopyVRAM(u16 *src, int x, int y, int w, int h, int dst_x, int dst_y)
 {
-	NativeRenderer_MarkVRAMDirty(dst_x, dst_y, w, h);
-
-	int stride = w;
-
-	if (!src)
+	if (src)
 	{
-		// NOTE(aalhendi): MoveImage copies from PS1 VRAM. If native has a pending
-		// host framebuffer readback, pull it into the CPU VRAM mirror before the
-		// copy. Do not schedule a later readback here; boot TIM display moves are
-		// immediately followed by DrawSync, and a deferred black backbuffer read can
-		// wipe the copied splash page.
-		NativeRenderer_ReadFramebufferDataToVRAM();
-		src = vram;
-		stride = VRAM_WIDTH;
+		NativeRenderer_UploadVRAMRect(dst_x, dst_y, w, h, src + x + y * w, w);
 	}
-
-	src += x + y * stride;
-
-	u16 *dst = vram + dst_x + dst_y * VRAM_WIDTH;
-
-	for (int i = 0; i < h; i++)
+	else
 	{
-		SDL_memcpy(dst, src, w * sizeof(u16));
-		dst += VRAM_WIDTH;
-		src += stride;
+		NativeRenderer_CopyVRAMRectGPU(x, y, dst_x, dst_y, w, h);
 	}
 }
 
 void NativeRenderer_ReadVRAM(u16 *dst, int x, int y, int dst_w, int dst_h)
 {
-	u16 *src = vram + x + VRAM_WIDTH * y;
-
-	for (int i = 0; i < dst_h; i++)
-	{
-		SDL_memcpy(dst, src, dst_w * sizeof(u16));
-		dst += dst_w;
-		src += VRAM_WIDTH;
-	}
+	NativeRenderer_ReadVRAMRect(x, y, dst_w, dst_h, dst, dst_w);
 }
 
 int NativeRenderer_GetVRAMStateSize(void)
 {
-	return (int)sizeof(vram);
+	return (int)(VRAM_WIDTH * VRAM_HEIGHT * sizeof(u16));
 }
 
 int NativeRenderer_CaptureVRAMState(void *dst, int dstSize)
 {
-	if ((dst == NULL) || (dstSize < (int)sizeof(vram)))
+	if ((dst == NULL) || (dstSize < NativeRenderer_GetVRAMStateSize()))
 	{
 		return 0;
 	}
 
-	// NOTE(aalhendi): Save-states own the CPU-side PSX VRAM mirror, not GL
-	// textures. Pull pending framebuffer copies into the mirror first.
-	NativeRenderer_ReadFramebufferDataToVRAM();
-	SDL_memcpy(dst, vram, sizeof(vram));
+	// NOTE(penta3): VRAM is GPU-resident; a save-state is the one consumer that
+	// genuinely needs all of it CPU-side. The texture is always current (every
+	// presented frame is GPU-packed into it at EndScene), so just read it out.
+	NativeRenderer_ReadVRAMRect(0, 0, VRAM_WIDTH, VRAM_HEIGHT, (u16 *)dst, VRAM_WIDTH);
 	return 1;
 }
 
@@ -1907,15 +1840,14 @@ int NativeRenderer_RestoreVRAMState(const void *src, int srcSize)
 {
 	local_persist const RECT16 zeroRect = {0, 0, 0, 0};
 
-	if ((src == NULL) || (srcSize < (int)sizeof(vram)))
+	if ((src == NULL) || (srcSize < NativeRenderer_GetVRAMStateSize()))
 	{
 		return 0;
 	}
 
-	SDL_memcpy(vram, src, sizeof(vram));
-	// NOTE(aalhendi): Restored VRAM is authoritative PSX state. Host GL caches
-	// are rebuildable, so mark all of VRAM dirty and drop stale bindings.
-	NativeRenderer_MarkVRAMDirty(0, 0, VRAM_WIDTH, VRAM_HEIGHT);
+	// NOTE(penta3): Restored VRAM is authoritative PSX state - upload it into
+	// the GPU-resident VRAM texture and drop stale host caches.
+	NativeRenderer_UploadVRAMRect(0, 0, VRAM_WIDTH, VRAM_HEIGHT, (const u16 *)src, VRAM_WIDTH);
 	s_framebufferNeedsUpdate = 0;
 	s_previousFramebuffer = zeroRect;
 	s_previousOffscreen = zeroRect;
@@ -1925,155 +1857,44 @@ int NativeRenderer_RestoreVRAMState(const void *src, int srcSize)
 	return 1;
 }
 
-void NativeRenderer_UpdateVRAM(void)
-{
-	RECT16 r;
-
-	if (!s_vramNeedsUpdate)
-	{
-		return;
-	}
-
-	NativePerf_BeginScope(NATIVE_PERF_BUCKET_RENDERER_UPDATE_VRAM);
-
-	// NOTE(penta3): Upload only the rectangle changed since the last flush into
-	// the single persistent VRAM texture, mirroring PS1 VRAM (one memory, only
-	// touched where commands write) instead of re-uploading all 1MB each frame.
-	r = s_vramDirty;
-	s_vramNeedsUpdate = 0;
-	s_vramDirtyValid = 0;
-
-	glBindTexture(GL_TEXTURE_2D, s_vramTexture);
-	glPixelStorei(GL_UNPACK_ROW_LENGTH, VRAM_WIDTH);
-	glTexSubImage2D(GL_TEXTURE_2D, 0, r.x, r.y, r.w, r.h, VRAM_FORMAT, GL_UNSIGNED_BYTE, vram + (size_t)r.y * VRAM_WIDTH + r.x);
-	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-
-	NativePerf_EndScope(NATIVE_PERF_BUCKET_RENDERER_UPDATE_VRAM);
-}
-
-internal u8 NativeRenderer_Expand5To8(u16 value)
-{
-	value &= 0x1f;
-	return (u8)((value << 3) | (value >> 2));
-}
-
-internal void NativeRenderer_BuildDisplayChunkRGBA(u8 *dst, int srcX, int srcY, int w, int h)
-{
-	for (int y = 0; y < h; y++)
-	{
-		u16 *src = vram + srcX + (srcY + y) * VRAM_WIDTH;
-
-		for (int x = 0; x < w; x++)
-		{
-			u16 pixel = src[x];
-
-			*dst++ = NativeRenderer_Expand5To8(pixel);
-			*dst++ = NativeRenderer_Expand5To8(pixel >> 5);
-			*dst++ = NativeRenderer_Expand5To8(pixel >> 10);
-			*dst++ = 0xff;
-		}
-	}
-}
-
-internal void NativeRenderer_FillDisplayChunkVerts(GrVertex *verts, int dstX, int dstY, int w, int h)
-{
-	const int maxU = w > 0 ? w - 1 : 0;
-	const int maxV = h > 0 ? h - 1 : 0;
-
-	memset(verts, 0, sizeof(GrVertex) * 6);
-
-	verts[0].x = dstX;
-	verts[0].y = dstY;
-	verts[0].u = 0;
-	verts[0].v = 0;
-
-	verts[1].x = dstX;
-	verts[1].y = dstY + h;
-	verts[1].u = 0;
-	verts[1].v = maxV;
-
-	verts[2].x = dstX + w;
-	verts[2].y = dstY + h;
-	verts[2].u = maxU;
-	verts[2].v = maxV;
-
-	verts[3] = verts[0];
-	verts[4] = verts[2];
-
-	verts[5].x = dstX + w;
-	verts[5].y = dstY;
-	verts[5].u = maxU;
-	verts[5].v = 0;
-
-	for (int i = 0; i < 6; i++)
-	{
-		verts[i].bright = 1;
-		verts[i].r = 0xff;
-		verts[i].g = 0xff;
-		verts[i].b = 0xff;
-		verts[i].a = 0xff;
-	}
-}
-
+// NOTE(penta3): Display a VRAM rect straight from the GPU-resident VRAM
+// texture: one quad through the display shader (RG8 -> 15-bit color via the
+// RG LUT). Replaces the old CPU chunk path (read mirror, expand 5->8 bits on
+// the CPU, re-upload 256x256 RGBA chunks) - the data never leaves the GPU,
+// which is exactly what the real console does when the video encoder scans
+// the display area out of VRAM.
 void NativeRenderer_PresentVRAMRect(int displayX, int displayY, int displayW, int displayH)
 {
-	const int maxChunkW = 0x100;
-	const int maxChunkH = 0x100;
-	const int maxChunkBytes = maxChunkW * maxChunkH * 4;
-
-	local_persist TextureID displayTexture = (TextureID)-1;
-	local_persist u8 *rgba = NULL;
-
 	if (displayW <= 0 || displayH <= 0)
 	{
 		return;
 	}
 
-	if (rgba == NULL)
-	{
-		rgba = (u8 *)malloc(maxChunkBytes);
-	}
-
-	if (rgba == NULL)
-	{
-		return;
-	}
-
-	if (displayTexture == (TextureID)-1)
-	{
-		displayTexture = NativeRenderer_CreateRGBATexture(maxChunkW, maxChunkH, NULL);
-	}
-
-	NativeRenderer_SetViewPort(s_presentViewport.x, s_presentViewport.y, s_presentViewport.w, s_presentViewport.h);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glViewport(s_presentViewport.x, s_presentViewport.y, s_presentViewport.w, s_presentViewport.h);
+	glDisable(GL_BLEND);
+	glDisable(GL_SCISSOR_TEST);
+	glDisable(GL_DEPTH_TEST);
 
-	NativeRenderer_SetScissorState(0);
-	NativeRenderer_EnableDepth(0);
-	NativeRenderer_SetBlendMode(BM_NONE);
-	NativeRenderer_SetTexture(displayTexture, TF_32_BIT_RGBA);
-	NativeRenderer_SetPSXDrawMaskSet(0);
-	NativeRenderer_Ortho2D(0, displayW, displayH, 0, -1.0f, 1.0f);
+	glUseProgram(s_displayShader);
+	glUniform4f(s_displaySrcRectLoc, (float)displayX, (float)displayY, (float)displayW, (float)displayH);
 
-	for (int y = 0; y < displayH; y += maxChunkH)
-	{
-		const int chunkH = (displayH - y) > maxChunkH ? maxChunkH : displayH - y;
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, s_vramTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, s_rgLutTexture);
+	glActiveTexture(GL_TEXTURE0);
 
-		for (int x = 0; x < displayW; x += maxChunkW)
-		{
-			GrVertex verts[6];
-			const int chunkW = (displayW - x) > maxChunkW ? maxChunkW : displayW - x;
+	glBindVertexArray(s_packQuadVAO);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glBindVertexArray(0);
 
-			NativeRenderer_BuildDisplayChunkRGBA(rgba, displayX + x, displayY + y, chunkW, chunkH);
-
-			glBindTexture(GL_TEXTURE_2D, displayTexture);
-			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, chunkW, chunkH, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-
-			NativeRenderer_SetOverrideTextureSize(maxChunkW, maxChunkH);
-			NativeRenderer_FillDisplayChunkVerts(verts, x, y, chunkW, chunkH);
-			NativeRenderer_UpdateVertexBuffer(verts, 6);
-			NativeRenderer_DrawTriangles(0, 2);
-		}
-	}
+	// invalidate the render-state caches this raw draw disturbed
+	s_previousShader = (ShaderID)-1;
+	s_lastBoundTexture = (TextureID)-1;
+	s_previousBlendMode = BM_NONE;
+	s_previousScissorState = 0;
+	s_previousDepthMode = 0;
 }
 
 void NativeRenderer_PresentVRAMDisplay(void)

@@ -21,6 +21,29 @@
 SDL_Window *g_window = NULL;
 int g_dbg_polygonSelected = 0;
 
+#if defined(_WIN32)
+// NOTE(penta3): RAM-growth diagnostic. Minimal hand-rolled PSAPI import - the
+// unity build cannot include windows.h (its LoadImage macro would clobber the
+// PsyQ LoadImage facade across the whole translation unit). Matches 32-bit
+// PROCESS_MEMORY_COUNTERS_EX; K32GetProcessMemoryInfo lives in kernel32 (Win7+).
+typedef struct NativeProcMemCounters
+{
+	unsigned long cb;
+	unsigned long pageFaultCount;
+	size_t peakWorkingSetSize;
+	size_t workingSetSize;
+	size_t quotaPeakPagedPoolUsage;
+	size_t quotaPagedPoolUsage;
+	size_t quotaPeakNonPagedPoolUsage;
+	size_t quotaNonPagedPoolUsage;
+	size_t pagefileUsage;
+	size_t peakPagefileUsage;
+	size_t privateUsage;
+} NativeProcMemCounters;
+__declspec(dllimport) int __stdcall K32GetProcessMemoryInfo(void *process, NativeProcMemCounters *counters, unsigned long cb);
+__declspec(dllimport) void *__stdcall GetCurrentProcess(void);
+#endif
+
 extern int g_cfg_bilinearFiltering;
 extern int g_dbg_emulatorPaused;
 extern int g_dbg_texturelessMode;
@@ -416,6 +439,33 @@ void Platform_EndScene(void)
 			             "elapsedTimeMS=%u.%03u (nominal 0x20=32) | fps=%u.%03u (console 29.913)\n",
 			             vbMilli / 1000, vbMilli % 1000, (unsigned)(ticksMilli / 1000), (unsigned)(ticksMilli % 1000), (unsigned)(elMilli / 1000),
 			             (unsigned)(elMilli % 1000), (unsigned)(fpsMilli / 1000), (unsigned)(fpsMilli % 1000));
+
+#if defined(_WIN32)
+			// TEMP DIAGNOSTIC (penta3 RAM growth): private = OUR heap (C mallocs);
+			// workingSet = private + GL driver pools + mapped EXE pages. If working
+			// set climbs while private stays flat, the growth is driver-internal,
+			// not a leak in this codebase.
+			{
+				local_persist size_t s_prevWorkingSet = 0;
+				local_persist size_t s_prevPrivate = 0;
+				NativeProcMemCounters mem;
+
+				mem.cb = (unsigned long)sizeof(mem);
+				if (K32GetProcessMemoryInfo(GetCurrentProcess(), &mem, mem.cb))
+				{
+					// signed math: size_t is 32-bit here and shrinks would wrap
+					const long wsDeltaKB = (long)(((s64)mem.workingSetSize - (s64)s_prevWorkingSet) / 1024);
+					const long privDeltaKB = (long)(((s64)mem.privateUsage - (s64)s_prevPrivate) / 1024);
+
+					Platform_Log("[mem] workingSet=%u KB (%+ld) | private=%u KB (%+ld) | peakWS=%u KB\n", (unsigned)(mem.workingSetSize / 1024),
+					             (s_prevWorkingSet != 0) ? wsDeltaKB : 0, (unsigned)(mem.privateUsage / 1024), (s_prevPrivate != 0) ? privDeltaKB : 0,
+					             (unsigned)(mem.peakWorkingSetSize / 1024));
+
+					s_prevWorkingSet = mem.workingSetSize;
+					s_prevPrivate = mem.privateUsage;
+				}
+			}
+#endif
 
 			s_tFrames = 0;
 			s_tVBlankBase = Platform_GetVBlankCount();
