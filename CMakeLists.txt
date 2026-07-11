@@ -40,7 +40,7 @@ else()
     set(CTR_NATIVE_BUILD_ID "${CTR_NATIVE_GIT_HASH}-dirty-${CTR_NATIVE_BUILD_TIMESTAMP}")
 endif()
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse -Wno-error -g")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse -Wno-error -O3 -ffunction-sections -fdata-sections")
 
 function(ctr_native_add_label_warning_if_supported target warning flag_check)
     set(saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
@@ -89,7 +89,7 @@ target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE_VERSION=\"${CTR_NATIVE_VERSION}\"
     CTR_NATIVE_BUILD_ID=\"${CTR_NATIVE_BUILD_ID}\"
 )
-target_compile_options(ctr_native PRIVATE -O2)
+target_compile_options(ctr_native PRIVATE -O3)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(ctr_native PRIVATE -Wenum-conversion -Wenum-compare -Wswitch-enum -Wformat -Wparentheses)
 endif()
@@ -100,7 +100,7 @@ elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
     ctr_native_add_label_warning_if_supported(ctr_native -Wc23-extensions CTR_HAS_WC23_EXTENSIONS)
 endif()
 target_link_libraries(ctr_native SDL3::SDL3)
-target_link_options(ctr_native PRIVATE -static-libgcc)
+target_link_options(ctr_native PRIVATE -static-libgcc -Wl,--gc-sections $<$<NOT:$<CONFIG:Debug>>:-s>)
 if(WIN32)
     target_link_options(ctr_native PRIVATE -static)
 endif()
