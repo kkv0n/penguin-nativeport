@@ -6,3 +6,4 @@ local.properties
 *.iml
 .cxx/
 app/.cxx/
+*.apk

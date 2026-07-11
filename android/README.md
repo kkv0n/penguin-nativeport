@@ -44,7 +44,9 @@ Manager* and install:
 2. *Trust Project* if asked, then wait for the Gradle sync (the first run
    downloads Gradle 8.14.3 and dependencies — several minutes).
 3. *Build → Build App Bundle(s) / APK(s) → Build APK(s)*.
-4. The APK lands at `android/app/build/outputs/apk/debug/app-debug.apk`.
+4. The APK is copied to `android/ctr-native-debug.apk` (a post-build step
+   places it there; Gradle's raw output stays under
+   `app/build/outputs/apk/`).
 
 ### From the command line
 

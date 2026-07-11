@@ -50,4 +50,17 @@ android {
     lint {
         abortOnError false
     }
+
+    // Copy the finished APK next to this folder's root with a clear name
+    // (android/ctr-native-<variant>.apk) instead of the deep
+    // app/build/outputs/apk/... path.
+    applicationVariants.all { variant ->
+        variant.assembleProvider.get().doLast {
+            copy {
+                from variant.outputs.collect { it.outputFile }
+                into rootProject.projectDir
+                rename { "ctr-native-${variant.name}.apk" }
+            }
+        }
+    }
 }
