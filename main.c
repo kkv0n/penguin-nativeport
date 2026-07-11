@@ -139,6 +139,108 @@ static int NativeArg_IsVersion(const char *arg)
 	return (arg != NULL) && ((strcmp(arg, "--version") == 0) || (strcmp(arg, "-v") == 0));
 }
 
+// NOTE(penta3): Standard engine thread split. The OS delivers window messages
+// to the thread that created the window (the main thread), and Windows parks
+// that thread inside a modal loop while the title bar is clicked/dragged. So
+// the game (simulation + GL render) runs on its own thread, and the main
+// thread does nothing but pump events: the game can never freeze from window
+// interaction. Cross-platform - pumping on the main thread is what SDL
+// requires on every OS (macOS mandates it), and the game thread drains the
+// queue with thread-safe SDL_PeepEvents (Platform_PollHostEvents).
+// game thread state: 0 = running, 1 = CTR_Main returned, 2 = quit requested
+// (window close/QUIT event - the game thread parks and the MAIN thread exits)
+#define NATIVE_GAME_THREAD_RUNNING  0
+#define NATIVE_GAME_THREAD_RETURNED 1
+#define NATIVE_GAME_THREAD_QUIT     2
+static SDL_AtomicInt s_gameThreadState;
+static int s_gameThreadActive = 0;
+
+// NOTE(penta3): Called by the platform layer on the QUIT / window-close event
+// (game thread). exit() must NOT run on the game thread: the atexit teardown
+// destroys the window, which the OS only allows from the thread that created
+// it (the main thread) - doing it cross-thread deadlocked against the stopped
+// pump. Instead the game thread releases the GL context and parks forever;
+// the main thread picks the state change up, re-acquires GL and runs the
+// normal exit(0) teardown on the correct thread. Never returns.
+void NativeMain_RequestQuit(void)
+{
+	if (!s_gameThreadActive)
+	{
+		// single-threaded fallback: this IS the main thread
+		exit(0);
+	}
+
+	NativeRenderer_ReleaseGLContext();
+	SDL_SetAtomicInt(&s_gameThreadState, NATIVE_GAME_THREAD_QUIT);
+
+	for (;;)
+	{
+		SDL_Delay(100000); // parked; exit() on the main thread ends the process
+	}
+}
+
+static int SDLCALL NativeMain_GameThread(void *userdata)
+{
+	int result;
+
+	(void)userdata;
+
+	// GL context handoff: released by the main thread after init, owned by
+	// this thread for the game's lifetime.
+	NativeRenderer_AcquireGLContext();
+
+	result = CTR_Main();
+
+	NativeRenderer_ReleaseGLContext();
+	SDL_SetAtomicInt(&s_gameThreadState, NATIVE_GAME_THREAD_RETURNED);
+	return result;
+}
+
+static int NativeMain_RunGame(void)
+{
+	SDL_Thread *gameThread;
+	int state;
+	int result = 1;
+
+	NativeRenderer_ReleaseGLContext();
+
+	SDL_SetAtomicInt(&s_gameThreadState, NATIVE_GAME_THREAD_RUNNING);
+	gameThread = SDL_CreateThread(NativeMain_GameThread, "CTR Game", NULL);
+
+	if (gameThread == NULL)
+	{
+		// no thread available: run single-threaded like before (window will
+		// freeze during title-bar drags, but the game works)
+		fprintf(stderr, "[CTR Native] Failed to create game thread (%s), running single-threaded.\n", SDL_GetError());
+		NativeRenderer_AcquireGLContext();
+		return CTR_Main();
+	}
+
+	s_gameThreadActive = 1;
+
+	for (;;)
+	{
+		state = SDL_GetAtomicInt(&s_gameThreadState);
+		if (state != NATIVE_GAME_THREAD_RUNNING)
+		{
+			break;
+		}
+		SDL_PumpEvents();
+		SDL_Delay(4);
+	}
+
+	// teardown always happens on this (main) thread, GL context re-acquired
+	NativeRenderer_AcquireGLContext();
+
+	if (state == NATIVE_GAME_THREAD_QUIT)
+	{
+		exit(0); // atexit(Platform_Shutdown) runs here, on the window's thread
+	}
+
+	SDL_WaitThread(gameThread, &result);
+	return result;
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -220,7 +322,7 @@ int main(int argc, char *argv[])
 	(void)argv;
 #endif
 
-	const int result = CTR_Main();
+	const int result = NativeMain_RunGame();
 
 	Platform_Shutdown();
 	return NativeConsole_Return(result);

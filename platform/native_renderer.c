@@ -26,15 +26,19 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 
 #endif // def WIN32
 
-#define VRAM_FORMAT GL_RG
 // NOTE(penta3): VRAM holds packed 16-bit PSX pixels as two bytes (R=low,
-// G=high), uploaded as GL_RG + GL_UNSIGNED_BYTE. RG8 is the faithful storage:
-// 2 bytes/texel = real PS1's 1MB VRAM, vs RG32F's 8 bytes/texel (4MB). With
-// NEAREST sampling RG8 returns byte/255 exactly, identical to what the shader
-// got from RG32F, so CLUT/texture-page reconstruction is unchanged.
-#define VRAM_INTERNAL_FORMAT GL_RG8
+// G=high, BA unused - shaders read .rg). The renderer targets the OpenGL 2.0
+// feature set on EVERY machine (one code path, like the old hardcoded 3.3):
+// RG textures need GL 3.0, so VRAM is stored as RGBA8 with a CPU
+// expand/compact only on the rare CPU<->VRAM DMA ops (LoadImage/StoreImage).
+// With NEAREST sampling the texture returns byte/255 exactly, so
+// CLUT/texture-page reconstruction is unchanged.
+#define VRAM_FORMAT          GL_RGBA
+#define VRAM_INTERNAL_FORMAT GL_RGBA8
 
 extern SDL_Window *g_window;
+
+global_variable SDL_GLContext s_glContext = NULL;
 
 #define NATIVE_RENDERER_LOG(fmt, ...)   Platform_Log("[CTR Renderer] " fmt, ##__VA_ARGS__)
 #define NATIVE_RENDERER_ERROR(fmt, ...) Platform_LogError("[CTR Renderer] [%s] - " fmt, __func__, ##__VA_ARGS__)
@@ -95,8 +99,23 @@ int g_cfg_bilinearFiltering = 0;
 global_variable GLuint s_packShader = 0;
 global_variable GLint s_packSrcLoc = -1;
 global_variable GLint s_packFlipLoc = -1;
-global_variable GLuint s_packQuadVAO = 0;
 global_variable GLuint s_packQuadVBO = 0;
+
+// NOTE(penta3): Plain copy shader + backbuffer staging texture. glBlitFramebuffer
+// is GL 3.0, so the backbuffer capture is: backbuffer -> staging
+// (glCopyTexSubImage2D, core since 1.1) -> framebuffer texture (scaled/flipped
+// quad), reproducing what the old blit did exactly.
+global_variable GLuint s_copyShader = 0;
+global_variable GLint s_copySrcLoc = -1;
+global_variable GLint s_copyUVRectLoc = -1;
+global_variable TextureID s_blitSrcTexture = (TextureID)-1;
+global_variable int s_blitSrcW = 0;
+global_variable int s_blitSrcH = 0;
+
+// NOTE(penta3): Persistent grow-on-demand scratch for the RGBA8 VRAM texture
+// (expand u16->RGBA on upload, compact RGBA->u16 on read).
+global_variable u8 *s_vramXferScratch = NULL;
+global_variable int s_vramXferScratchBytes = 0;
 
 // NOTE(penta3): VRAM display pipeline (boot splash / pinned movie frames).
 // Draws the requested VRAM rect straight from the RG8 VRAM texture through the
@@ -130,7 +149,6 @@ internal void NativeRenderer_GpuPackFramebufferToVRAM(int x, int y, int w, int h
 internal void NativeRenderer_UploadVRAMRect(int x, int y, int w, int h, const u16 *src, int srcStride);
 internal void NativeRenderer_ReadVRAMRect(int x, int y, int w, int h, u16 *dst, int dstStride);
 
-global_variable GLuint s_glVertexArray[2];
 global_variable GLuint s_glVertexBuffer[2];
 global_variable int s_curVertexBuffer = 0;
 
@@ -158,33 +176,37 @@ internal int NativeRenderer_InitialiseGLContext(char *windowName, int fullscreen
 		return 0;
 	}
 
-	int major_version = 3;
-	int minor_version = 3;
-	int profile = SDL_GL_CONTEXT_PROFILE_CORE;
+	// NOTE(penta3): Request OpenGL 2.0, legacy profile (no profile mask - core
+	// profiles only exist from 3.2), so the port runs on old PCs. Drivers may
+	// legally return any backward-compatible version (modern ones hand back a
+	// compatibility context), but the renderer only ever USES the 2.0 feature
+	// set + EXT_framebuffer_object - the single code path for every machine.
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
 
-	// find best OpenGL version
-	do
+	s_glContext = SDL_GL_CreateContext(g_window);
+	if (s_glContext == NULL)
 	{
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, major_version);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, minor_version);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, profile);
-
-		if (SDL_GL_CreateContext(g_window))
-		{
-			break;
-		}
-
-		minor_version--;
-
-	} while (minor_version >= 0);
-
-	if (minor_version == -1)
-	{
-		NATIVE_RENDERER_ERROR("Failed to initialise - OpenGL 3.x is not supported. Please update video drivers.\n");
+		NATIVE_RENDERER_ERROR("Failed to initialise - OpenGL 2.0 is not supported. Please update video drivers.\n");
 		return 0;
 	}
 
 	return 1;
+}
+
+// NOTE(penta3): The game simulation runs on its own thread (decoupled from the
+// main thread's event pump, so Windows' modal move/size loop can't freeze it).
+// A GL context can only be current on one thread: the main thread releases it
+// after init, the game thread acquires it before running.
+void NativeRenderer_ReleaseGLContext(void)
+{
+	SDL_GL_MakeCurrent(g_window, NULL);
+}
+
+void NativeRenderer_AcquireGLContext(void)
+{
+	SDL_GL_MakeCurrent(g_window, s_glContext);
 }
 
 internal int NativeRenderer_InitialiseGLExt(void)
@@ -205,6 +227,29 @@ internal int NativeRenderer_InitialiseGLExt(void)
 
 	const char *glslVersionStr = (const char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
 	NATIVE_RENDERER_LOG("*GLSL version: %s\n", glslVersionStr);
+
+	// NOTE(penta3): On a 2.x context glad does not load the GL3-core FBO entry
+	// points; pull them from GL_EXT_framebuffer_object (same signatures and
+	// token values) when the core names are missing. FBO support is the one
+	// hard requirement (GPU-resident VRAM needs render-to-texture); it is
+	// present on effectively all GL2-era hardware.
+#define CTR_LOAD_GL_FALLBACK(ptr, type, name)             \
+	if ((ptr) == NULL)                                      \
+	{                                                       \
+		(ptr) = (type)SDL_GL_GetProcAddress(name);           \
+	}
+	CTR_LOAD_GL_FALLBACK(glad_glGenFramebuffers, PFNGLGENFRAMEBUFFERSPROC, "glGenFramebuffersEXT");
+	CTR_LOAD_GL_FALLBACK(glad_glBindFramebuffer, PFNGLBINDFRAMEBUFFERPROC, "glBindFramebufferEXT");
+	CTR_LOAD_GL_FALLBACK(glad_glDeleteFramebuffers, PFNGLDELETEFRAMEBUFFERSPROC, "glDeleteFramebuffersEXT");
+	CTR_LOAD_GL_FALLBACK(glad_glFramebufferTexture2D, PFNGLFRAMEBUFFERTEXTURE2DPROC, "glFramebufferTexture2DEXT");
+	CTR_LOAD_GL_FALLBACK(glad_glCheckFramebufferStatus, PFNGLCHECKFRAMEBUFFERSTATUSPROC, "glCheckFramebufferStatusEXT");
+#undef CTR_LOAD_GL_FALLBACK
+
+	if ((glad_glGenFramebuffers == NULL) || (glad_glBindFramebuffer == NULL) || (glad_glDeleteFramebuffers == NULL) || (glad_glFramebufferTexture2D == NULL))
+	{
+		NATIVE_RENDERER_ERROR("Failed to initialise - framebuffer objects (GL_EXT_framebuffer_object) are not supported. Please update video drivers.\n");
+		return 0;
+	}
 
 	return 1;
 }
@@ -238,7 +283,6 @@ int NativeRenderer_InitialiseRender(char *windowName, int width, int height, int
 
 void NativeRenderer_Shutdown(void)
 {
-	glDeleteVertexArrays(2, s_glVertexArray);
 	glDeleteBuffers(2, s_glVertexBuffer);
 
 	glDeleteFramebuffers(1, &s_glBlitFramebuffer);
@@ -251,6 +295,14 @@ void NativeRenderer_Shutdown(void)
 	NativeRenderer_DestroyTexture(s_rgLutTexture);
 	NativeRenderer_DestroyTexture(s_framebufferTexture);
 	NativeRenderer_DestroyTexture(s_offscreenRenderTexture);
+	NativeRenderer_DestroyTexture(s_blitSrcTexture);
+
+	if (s_vramXferScratch != NULL)
+	{
+		free(s_vramXferScratch);
+		s_vramXferScratch = NULL;
+		s_vramXferScratchBytes = 0;
+	}
 
 	if (s_vramCopyTexture != (TextureID)-1)
 	{
@@ -260,7 +312,7 @@ void NativeRenderer_Shutdown(void)
 
 	glDeleteProgram(s_packShader);
 	glDeleteProgram(s_displayShader);
-	glDeleteVertexArrays(1, &s_packQuadVAO);
+	glDeleteProgram(s_copyShader);
 	glDeleteBuffers(1, &s_packQuadVBO);
 }
 
@@ -298,8 +350,6 @@ void NativeRenderer_EndScene(void)
 	{
 		NativeRenderer_SetWireframe(0);
 	}
-
-	glBindVertexArray(0);
 }
 
 //----------------------------------------------------------------------------------------
@@ -687,19 +737,15 @@ internal int NativeRenderer_Shader_CheckProgramStatus(GLuint program)
 
 internal ShaderID NativeRenderer_Shader_Compile(const char *source, bool isPsxShader)
 {
-	const char *GLSL_HEADER_VERT = "	#version 140\n"
-	                               "	precision lowp  int;\n"
-	                               "	precision highp float;\n"
-	                               "	#define varying   out\n"
-	                               "	#define attribute in\n"
-	                               "	#define texture2D texture\n";
+	// NOTE(penta3): GLSL 1.10 = the OpenGL 2.0 shading language. The shader
+	// sources were already written in the legacy attribute/varying/texture2D
+	// dialect (the old 140 header #define'd them to in/out/texture); under 110
+	// they are native, only gl_FragColor needs mapping. Desktop GLSL 1.10 has
+	// no precision qualifiers, so the old precision statements are gone.
+	const char *GLSL_HEADER_VERT = "	#version 110\n";
 
-	const char *GLSL_HEADER_FRAG = "	#version 140\n"
-	                               "	precision lowp  int;\n"
-	                               "	precision highp float;\n"
-	                               "	#define varying     in\n"
-	                               "	#define texture2D   texture\n"
-	                               "	out vec4 fragColor;\n";
+	const char *GLSL_HEADER_FRAG = "	#version 110\n"
+	                               "	#define fragColor gl_FragColor\n";
 
 	char extra_vs_defines[1024];
 	char extra_fs_defines[1024];
@@ -834,8 +880,10 @@ internal void NativeRenderer_InitialisePSXShaders(void)
 // NOTE(penta3): GPU framebuffer pack. Samples an RGBA source texture and
 // writes 16-bit PS1 pixels (r5|g5<<5|b5<<10|stp<<15) into the RG8 VRAM texture,
 // low byte in R and high byte in G - PS1 VRAM's exact byte layout (validated
-// bit-identical to the old CPU pack). Integer ops keep it bit-exact; NEAREST
-// sampling returns the stored byte so `*255+0.5` recovers it without drift.
+// bit-identical to the old CPU pack). GLSL 1.20 has no integer bit ops, so the
+// shifts/masks are floor/multiply arithmetic: every intermediate is an integer
+// <= 65535, exact in fp32, so the result stays bit-exact. NEAREST sampling
+// returns the stored byte so `*255+0.5` recovers it without drift.
 // u_flip flips the source vertically for bottom-up render targets.
 global_variable const char *ctr_pack_shader =
     "#ifdef VERTEX\n"
@@ -852,9 +900,34 @@ global_variable const char *ctr_pack_shader =
     "uniform int u_flip;\n"
     "void main() {\n"
     "	vec2 uv = vec2(v_uv.x, (u_flip != 0) ? (1.0 - v_uv.y) : v_uv.y);\n"
-    "	ivec4 c = ivec4(texture2D(s_src, uv) * 255.0 + 0.5);\n"
-    "	int px16 = (c.r >> 3) | ((c.g >> 3) << 5) | ((c.b >> 3) << 10) | ((c.a >> 7) << 15);\n"
-    "	fragColor = vec4(float(px16 & 0xFF) / 255.0, float((px16 >> 8) & 0xFF) / 255.0, 0.0, 0.0);\n"
+    "	vec4 c = floor(texture2D(s_src, uv) * 255.0 + 0.5);\n"
+    "	float px16 = floor(c.r / 8.0) + floor(c.g / 8.0) * 32.0 + floor(c.b / 8.0) * 1024.0 + floor(c.a / 128.0) * 32768.0;\n"
+    "	float hi = floor(px16 / 256.0);\n"
+    "	float lo = px16 - hi * 256.0;\n"
+    "	fragColor = vec4(lo / 255.0, hi / 255.0, 0.0, 0.0);\n"
+    "}\n"
+    "#endif\n";
+
+// NOTE(penta3): Plain scaled copy for the backbuffer capture (see
+// NativeRenderer_BlitBackbufferToFramebufferTex). u_uvRect = (base.xy,
+// scale.zw) maps the destination quad onto the valid region of the staging
+// texture, with the vertical flip folded into a negative y scale so the
+// result is oriented exactly like the old glBlitFramebuffer output.
+global_variable const char *ctr_copy_shader =
+    "#ifdef VERTEX\n"
+    "attribute vec2 a_position;\n"
+    "varying vec2 v_uv;\n"
+    "void main() {\n"
+    "	v_uv = a_position * 0.5 + 0.5;\n"
+    "	gl_Position = vec4(a_position, 0.0, 1.0);\n"
+    "}\n"
+    "#endif\n"
+    "#ifdef FRAGMENT\n"
+    "varying vec2 v_uv;\n"
+    "uniform sampler2D s_src;\n"
+    "uniform vec4 u_uvRect;\n"
+    "void main() {\n"
+    "	fragColor = texture2D(s_src, u_uvRect.xy + v_uv * u_uvRect.zw);\n"
     "}\n"
     "#endif\n";
 
@@ -905,14 +978,31 @@ internal void NativeRenderer_InitPackPipeline(void)
 	s_displaySrcRectLoc = glGetUniformLocation(s_displayShader, "u_srcRect");
 	glUseProgram(0);
 
-	glGenVertexArrays(1, &s_packQuadVAO);
+	s_copyShader = NativeRenderer_Shader_Compile(ctr_copy_shader, false);
+	glUseProgram(s_copyShader);
+	s_copySrcLoc = glGetUniformLocation(s_copyShader, "s_src");
+	s_copyUVRectLoc = glGetUniformLocation(s_copyShader, "u_uvRect");
+	glUniform1i(s_copySrcLoc, 0);
+	glUseProgram(0);
+
 	glGenBuffers(1, &s_packQuadVBO);
-	glBindVertexArray(s_packQuadVAO);
 	glBindBuffer(GL_ARRAY_BUFFER, s_packQuadVBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(quad), quad, GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+// NOTE(penta3): OpenGL 2.1 has no vertex array objects - bind the quad VBO and
+// (re)specify the one attribute directly. The extra GTE attributes are
+// disabled here; NativeRenderer_BindVertexBuffer re-enables and repoints
+// everything on the next submit, so no state leaks either way.
+internal void NativeRenderer_BindPackQuad(void)
+{
+	glBindBuffer(GL_ARRAY_BUFFER, s_packQuadVBO);
 	glEnableVertexAttribArray(a_position);
+	glDisableVertexAttribArray(a_texcoord);
+	glDisableVertexAttribArray(a_color);
+	glDisableVertexAttribArray(a_extra);
 	glVertexAttribPointer(a_position, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
-	glBindVertexArray(0);
 }
 
 internal void NativeRenderer_InitRG8LUT(void)
@@ -1046,17 +1136,14 @@ int NativeRenderer_InitialisePSX(void)
 		int i;
 
 		glGenBuffers(MAX_NUM_VERTEX_BUFFERS, s_glVertexBuffer);
-		glGenVertexArrays(MAX_NUM_VERTEX_BUFFERS, s_glVertexArray);
 
 		for (i = 0; i < MAX_NUM_VERTEX_BUFFERS; i++)
 		{
-			glBindVertexArray(s_glVertexArray[i]);
-
 			glBindBuffer(GL_ARRAY_BUFFER, s_glVertexBuffer[i]);
 			glBufferData(GL_ARRAY_BUFFER, sizeof(GrVertex) * MAX_VERTEX_BUFFER_SIZE, NULL, GL_DYNAMIC_DRAW);
 		}
 
-		glBindVertexArray(0);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 
 	NativeRenderer_ResetDevice();
@@ -1616,34 +1703,81 @@ internal void NativeRenderer_BlitBackbufferToFramebufferTex(int x, int y, int w,
 	s_previousFramebuffer.w = w;
 	s_previousFramebuffer.h = h;
 
-	glBindFramebuffer(GL_FRAMEBUFFER, s_glBlitFramebuffer);
-
-	// before drawing set source and target
+	// NOTE(penta3): The framebuffer texture is a REGION snapshot sized w*h; every
+	// consumer (GPU pack shader, VRAM readbacks) reads it from 0,0 and re-places
+	// it at the VRAM (x,y) themselves, so the capture destination must be
+	// region-relative. (A previous bug labelled it by the VRAM-absolute y: for
+	// the high buffer (y=0x128) the whole copy clipped away and feedback effects
+	// sampled a 1-frame-old image - moving warp doubled, heat ghosted UI.)
+	//
+	// glBlitFramebuffer is GL 3.0, so on the 2.0 path the capture is: copy the
+	// backbuffer viewport into a staging texture with glCopyTexSubImage2D (core
+	// since 1.1), then draw it into the framebuffer texture through the copy
+	// shader, folding the scale AND the vertical flip of the old blit into the
+	// quad so the output is oriented identically.
 	{
+		const int vw = s_presentViewport.w;
+		const int vh = s_presentViewport.h;
+
 		NativePerf_BeginScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_BLIT);
-		// setup draw and read framebuffers
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0); // source is backbuffer
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_glBlitFramebuffer);
 
-		// NOTE(penta3): The framebuffer texture is a REGION snapshot sized w*h; every
-		// consumer (GPU pack shader, glGetTexImage readbacks) reads it from 0,0 and
-		// re-places it at the VRAM (x,y) themselves, so the blit destination must be
-		// region-relative. The old dst used the VRAM-absolute y: for the high buffer
-		// (y=0x128=296 -> rows 296..512 of a 216-row texture) GL clipped the ENTIRE
-		// blit and the texture silently kept the previous frame. Every other frame the
-		// feedback effects then sampled a 1-frame-old image: moving warp (warpball)
-		// doubled, heat ghosted overlapping UI, while static heat and the clock blur
-		// (previous-frame by design) masked it.
-		glBlitFramebuffer(s_presentViewport.x, s_presentViewport.y, s_presentViewport.x + s_presentViewport.w, s_presentViewport.y + s_presentViewport.h, 0, h, w, 0,
-		                  GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		if ((s_blitSrcTexture == (TextureID)-1) || (vw > s_blitSrcW) || (vh > s_blitSrcH))
+		{
+			const int newW = (vw > s_blitSrcW) ? vw : s_blitSrcW;
+			const int newH = (vh > s_blitSrcH) ? vh : s_blitSrcH;
 
-		// done, unbind
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			if (s_blitSrcTexture == (TextureID)-1)
+			{
+				glGenTextures(1, &s_blitSrcTexture);
+				glBindTexture(GL_TEXTURE_2D, s_blitSrcTexture);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			}
+			else
+			{
+				glBindTexture(GL_TEXTURE_2D, s_blitSrcTexture);
+			}
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, newW, newH, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+			s_blitSrcW = newW;
+			s_blitSrcH = newH;
+		}
+		else
+		{
+			glBindTexture(GL_TEXTURE_2D, s_blitSrcTexture);
+		}
+
+		// backbuffer (FBO 0) is the read source for glCopyTexSubImage2D
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, s_presentViewport.x, s_presentViewport.y, vw, vh);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, s_glBlitFramebuffer);
+		glDisable(GL_BLEND);
+		glDisable(GL_SCISSOR_TEST);
+		glViewport(0, 0, w, h);
+
+		glUseProgram(s_copyShader);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, s_blitSrcTexture);
+		// map dst v=0 (texture row 0 = image top) onto staging row vh (top),
+		// negative y scale walks down to staging row 0 (bottom) at dst v=1
+		glUniform4f(s_copyUVRectLoc, 0.0f, (float)vh / (float)s_blitSrcH, (float)vw / (float)s_blitSrcW, -(float)vh / (float)s_blitSrcH);
+
+		NativeRenderer_BindPackQuad();
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		// invalidate caches for the state we touched; the submit run re-sets on demand
+		glViewport(s_presentViewport.x, s_presentViewport.y, s_presentViewport.w, s_presentViewport.h);
+		s_previousShader = (ShaderID)-1;
+		s_lastBoundTexture = (TextureID)-1;
+		s_previousBlendMode = BM_NONE;
+		s_previousScissorState = 0;
+
 		NativePerf_EndScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_BLIT);
 	}
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 // NOTE(penta3): Pack an RGBA source texture straight into the (x,y,w,h) region
@@ -1666,9 +1800,8 @@ internal void NativeRenderer_GpuPackTextureToVRAM(GLuint srcTexture, int x, int 
 	glUniform1i(s_packSrcLoc, 0);
 	glUniform1i(s_packFlipLoc, flipY);
 
-	glBindVertexArray(s_packQuadVAO);
+	NativeRenderer_BindPackQuad();
 	glDrawArrays(GL_TRIANGLES, 0, 6);
-	glBindVertexArray(0);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -1703,11 +1836,30 @@ void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h)
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_STORE);
 }
 
+internal u8 *NativeRenderer_GetVRAMXferScratch(int bytes)
+{
+	if (bytes > s_vramXferScratchBytes)
+	{
+		u8 *grown = (u8 *)realloc(s_vramXferScratch, (size_t)bytes);
+		if (grown == NULL)
+		{
+			return NULL;
+		}
+		s_vramXferScratch = grown;
+		s_vramXferScratchBytes = bytes;
+	}
+	return s_vramXferScratch;
+}
+
 // NOTE(penta3): LoadImage = DMA CPU->VRAM. Upload the caller's texels straight
 // into the VRAM texture; there is no CPU mirror to stage through, so the data
-// is GPU-visible immediately - exactly the retail LoadImage contract.
+// is GPU-visible immediately - exactly the retail LoadImage contract. The u16
+// texels expand to (low, high, 0, 0) RGBA bytes first (GL_RG uploads are
+// GL 3.0) - the shaders read .rg, so sampling is unchanged.
 internal void NativeRenderer_UploadVRAMRect(int x, int y, int w, int h, const u16 *src, int srcStride)
 {
+	u8 *expanded;
+
 	if (!NativeRenderer_ClipVRAMRect(&x, &y, &w, &h))
 	{
 		return;
@@ -1715,22 +1867,43 @@ internal void NativeRenderer_UploadVRAMRect(int x, int y, int w, int h, const u1
 
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_RENDERER_UPDATE_VRAM);
 
-	glBindTexture(GL_TEXTURE_2D, s_vramTexture);
-	glPixelStorei(GL_UNPACK_ROW_LENGTH, srcStride);
-	glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, VRAM_FORMAT, GL_UNSIGNED_BYTE, src);
-	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-	glBindTexture(GL_TEXTURE_2D, 0);
-	s_lastBoundTexture = (TextureID)-1;
+	expanded = NativeRenderer_GetVRAMXferScratch(w * h * 4);
+	if (expanded != NULL)
+	{
+		int row;
+		for (row = 0; row < h; row++)
+		{
+			const u16 *s = src + (size_t)row * srcStride;
+			u8 *d = expanded + (size_t)row * w * 4;
+			int i;
+			for (i = 0; i < w; i++)
+			{
+				const u16 texel = s[i];
+				d[i * 4 + 0] = (u8)(texel & 0xFF);
+				d[i * 4 + 1] = (u8)(texel >> 8);
+				d[i * 4 + 2] = 0;
+				d[i * 4 + 3] = 0;
+			}
+		}
+
+		glBindTexture(GL_TEXTURE_2D, s_vramTexture);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, expanded);
+		glBindTexture(GL_TEXTURE_2D, 0);
+		s_lastBoundTexture = (TextureID)-1;
+	}
 
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_RENDERER_UPDATE_VRAM);
 }
 
 // NOTE(penta3): StoreImage = DMA VRAM->CPU, on demand. Regional glReadPixels
-// from the VRAM texture; the data is already RG8 = PS1 16bpp, so it lands in
-// the caller's buffer without any CPU pack loop. For an FBO-attached texture,
-// framebuffer row y IS texture row y - no vertical flip.
+// from the VRAM texture; the RGBA texels compact back to u16 (low | high<<8)
+// on the CPU. For an FBO-attached texture, framebuffer row y IS texture row y
+// - no vertical flip. Bound via GL_FRAMEBUFFER (not GL_READ_FRAMEBUFFER) so
+// it works on EXT-only FBOs.
 internal void NativeRenderer_ReadVRAMRect(int x, int y, int w, int h, u16 *dst, int dstStride)
 {
+	u8 *rgba;
+
 	if (!NativeRenderer_ClipVRAMRect(&x, &y, &w, &h))
 	{
 		return;
@@ -1738,19 +1911,36 @@ internal void NativeRenderer_ReadVRAMRect(int x, int y, int w, int h, u16 *dst, 
 
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_READBACK);
 
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, s_glVramFramebuffer);
-	glPixelStorei(GL_PACK_ROW_LENGTH, dstStride);
-	glReadPixels(x, y, w, h, VRAM_FORMAT, GL_UNSIGNED_BYTE, dst);
-	glPixelStorei(GL_PACK_ROW_LENGTH, 0);
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	rgba = NativeRenderer_GetVRAMXferScratch(w * h * 4);
+	if (rgba != NULL)
+	{
+		int row;
+
+		glBindFramebuffer(GL_FRAMEBUFFER, s_glVramFramebuffer);
+		glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		for (row = 0; row < h; row++)
+		{
+			const u8 *s = rgba + (size_t)row * w * 4;
+			u16 *d = dst + (size_t)row * dstStride;
+			int i;
+			for (i = 0; i < w; i++)
+			{
+				d[i] = (u16)(s[i * 4 + 0] | (s[i * 4 + 1] << 8));
+			}
+		}
+	}
 
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_READBACK);
 }
 
 // NOTE(penta3): MoveImage = GP0(80h) VRAM->VRAM copy, kept on the GPU like the
-// PS1's own DMA. GL forbids blitting a texture onto itself, so bounce through a
-// grow-on-demand staging texture: VRAM->staging, staging->VRAM. Two blits, no
-// CPU transfer, deterministic for overlapping rects.
+// PS1's own DMA. GL forbids copying a texture onto itself, so bounce through a
+// grow-on-demand staging texture: VRAM->staging, staging->VRAM. Both legs are
+// glCopyTexSubImage2D reading from the bound FBO (core since GL 1.1, works on
+// EXT-only FBOs, 1:1 raw copy = bit-exact like the old glBlitFramebuffer
+// pair), no CPU transfer, deterministic for overlapping rects.
 internal void NativeRenderer_CopyVRAMRectGPU(int srcX, int srcY, int dstX, int dstY, int w, int h)
 {
 	if ((w <= 0) || (h <= 0))
@@ -1788,16 +1978,19 @@ internal void NativeRenderer_CopyVRAMRectGPU(int srcX, int srcY, int dstX, int d
 	glDisable(GL_SCISSOR_TEST);
 	s_previousScissorState = 0;
 
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, s_glVramFramebuffer);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_glVramCopyFramebuffer);
-	glBlitFramebuffer(srcX, srcY, srcX + w, srcY + h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	// VRAM -> staging
+	glBindFramebuffer(GL_FRAMEBUFFER, s_glVramFramebuffer);
+	glBindTexture(GL_TEXTURE_2D, s_vramCopyTexture);
+	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, srcX, srcY, w, h);
 
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, s_glVramCopyFramebuffer);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_glVramFramebuffer);
-	glBlitFramebuffer(0, 0, w, h, dstX, dstY, dstX + w, dstY + h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	// staging -> VRAM
+	glBindFramebuffer(GL_FRAMEBUFFER, s_glVramCopyFramebuffer);
+	glBindTexture(GL_TEXTURE_2D, s_vramTexture);
+	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, dstX, dstY, 0, 0, w, h);
 
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	s_lastBoundTexture = (TextureID)-1;
 }
 
 void NativeRenderer_CopyVRAM(u16 *src, int x, int y, int w, int h, int dst_x, int dst_y)
@@ -1885,9 +2078,8 @@ void NativeRenderer_PresentVRAMRect(int displayX, int displayY, int displayW, in
 	glBindTexture(GL_TEXTURE_2D, s_rgLutTexture);
 	glActiveTexture(GL_TEXTURE0);
 
-	glBindVertexArray(s_packQuadVAO);
+	NativeRenderer_BindPackQuad();
 	glDrawArrays(GL_TRIANGLES, 0, 6);
-	glBindVertexArray(0);
 
 	// invalidate the render-state caches this raw draw disturbed
 	s_previousShader = (ShaderID)-1;
@@ -2009,7 +2201,7 @@ internal void NativeRenderer_SetWireframe(int enable)
 
 internal void NativeRenderer_BindVertexBuffer(void)
 {
-	glBindVertexArray(s_glVertexArray[s_curVertexBuffer]);
+	glBindBuffer(GL_ARRAY_BUFFER, s_glVertexBuffer[s_curVertexBuffer]);
 
 	glEnableVertexAttribArray(a_position);
 	glEnableVertexAttribArray(a_texcoord);

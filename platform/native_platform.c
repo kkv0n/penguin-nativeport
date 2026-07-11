@@ -51,6 +51,10 @@ extern int g_dbg_wireframeMode;
 extern int g_windowHeight;
 extern int g_windowWidth;
 
+// main.c: hands the exit over to the main thread (window owner) and parks the
+// calling game thread; never returns
+void NativeMain_RequestQuit(void);
+
 #define HOST_ALT_LEFT  (1 << 0)
 #define HOST_ALT_RIGHT (1 << 1)
 global_variable int s_hostAltKeyState = 0;
@@ -119,8 +123,16 @@ internal void Platform_HandleWindowResize(int width, int height)
 	NativeRenderer_ResetDevice();
 }
 
-internal void Platform_UpdateCursorVisibility(void)
+// NOTE(penta3): Window/cursor operations must run on the main thread (SDL
+// requirement; it owns the OS window). The game thread requests them through
+// SDL_RunOnMainThread: async (no wait), so if the main thread is parked in
+// Windows' modal drag loop the game keeps running and the request lands when
+// the pump resumes. Called on the main thread itself (during init), the
+// callback runs immediately.
+internal void Platform_UpdateCursorVisibilityMainThread(void *userdata)
 {
+	(void)userdata;
+
 	if (g_window == NULL)
 	{
 		return;
@@ -136,13 +148,36 @@ internal void Platform_UpdateCursorVisibility(void)
 	}
 }
 
-internal void Platform_HandleFullscreenToggle(void)
+internal void Platform_UpdateCursorVisibility(void)
 {
-	int fullscreen = (SDL_GetWindowFlags(g_window) & SDL_WINDOW_FULLSCREEN) != 0;
+	SDL_RunOnMainThread(Platform_UpdateCursorVisibilityMainThread, NULL, false);
+}
+
+internal void Platform_FullscreenToggleMainThread(void *userdata)
+{
+	int fullscreen;
+
+	(void)userdata;
+
+	if (g_window == NULL)
+	{
+		return;
+	}
+
+	fullscreen = (SDL_GetWindowFlags(g_window) & SDL_WINDOW_FULLSCREEN) != 0;
 
 	SDL_SetWindowFullscreen(g_window, fullscreen == 0);
 	SDL_GetWindowSize(g_window, &g_windowWidth, &g_windowHeight);
-	Platform_UpdateCursorVisibility();
+	Platform_UpdateCursorVisibilityMainThread(NULL);
+}
+
+internal void Platform_HandleFullscreenToggle(void)
+{
+	SDL_RunOnMainThread(Platform_FullscreenToggleMainThread, NULL, false);
+
+	// GL viewport/swap-interval refresh stays on the game thread (GL context
+	// owner); the SDL_EVENT_WINDOW_RESIZED that follows refreshes it again
+	// with the final window size.
 	NativeRenderer_ResetDevice();
 }
 
@@ -521,7 +556,12 @@ void Platform_PollHostEvents(void)
 {
 	SDL_Event event;
 
-	while (SDL_PollEvent(&event))
+	// NOTE(penta3): The game runs on its own thread; the main thread owns the
+	// OS message pump (SDL_PumpEvents in main.c). Drain the SDL queue here
+	// WITHOUT pumping - SDL_PeepEvents is a thread-safe queue read, and the
+	// main thread keeps filling the queue even while Windows holds it inside
+	// the title-bar modal move/size loop, so the game never freezes.
+	while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST) > 0)
 	{
 		switch (event.type)
 		{
@@ -532,7 +572,7 @@ void Platform_PollHostEvents(void)
 			Platform_InputControllerRemoved(event.gdevice.which);
 			break;
 		case SDL_EVENT_QUIT:
-			exit(0);
+			NativeMain_RequestQuit();
 			break;
 		case SDL_EVENT_WINDOW_RESIZED:
 			Platform_HandleWindowResize(event.window.data1, event.window.data2);
@@ -542,7 +582,7 @@ void Platform_PollHostEvents(void)
 			Platform_UpdateCursorVisibility();
 			break;
 		case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
-			exit(0);
+			NativeMain_RequestQuit();
 			break;
 		case SDL_EVENT_KEY_DOWN:
 		case SDL_EVENT_KEY_UP:

@@ -814,7 +814,9 @@ void Platform_InputUpdate(void)
 		return;
 	}
 
-	SDL_PumpEvents();
+	// NOTE(penta3): No SDL_PumpEvents here - the main thread pumps continuously
+	// (game runs on its own thread); keyboard/gamepad state is at most a few
+	// milliseconds old, well under the 33ms game sample rate.
 	keyboardButtons = NativeInput_KeyboardSuppressed() ? 0xffff : NativeInput_ReadKeyboard();
 
 	for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
