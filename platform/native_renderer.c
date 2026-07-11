@@ -13,6 +13,7 @@
 #include "platform/native_log.h"
 #include "platform/native_perf.h"
 #include "platform/native_renderer.h"
+#include "platform/native_touch.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -29,12 +30,26 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 // NOTE(penta3): VRAM holds packed 16-bit PSX pixels as two bytes (R=low,
 // G=high, BA unused - shaders read .rg). The renderer targets the OpenGL 2.0
 // feature set on EVERY machine (one code path, like the old hardcoded 3.3):
-// RG textures need GL 3.0, so VRAM is stored as RGBA8 with a CPU
+// RG textures need GL 3.0, so VRAM is stored as RGBA with a CPU
 // expand/compact only on the rare CPU<->VRAM DMA ops (LoadImage/StoreImage).
 // With NEAREST sampling the texture returns byte/255 exactly, so
-// CLUT/texture-page reconstruction is unchanged.
+// CLUT/texture-page reconstruction is unchanged. The unsized GL_RGBA internal
+// format (= RGBA8 on desktop) is the one spelling valid on both desktop GL
+// 2.0 and OpenGL ES 2.0.
 #define VRAM_FORMAT          GL_RGBA
-#define VRAM_INTERNAL_FORMAT GL_RGBA8
+#define VRAM_INTERNAL_FORMAT GL_RGBA
+
+// NOTE(penta3): OpenGL ES 2.0 (Android and other embedded targets) is the
+// same feature set this renderer uses; when a desktop GL 2.0 context is not
+// available we fall back to an ES 2.0 context. The only runtime differences:
+// shader header (#version 100 + precision statements) and no glPolygonMode /
+// GL_BGRA (debug-only paths, guarded).
+global_variable int s_glIsGLES = 0;
+
+int NativeRenderer_UsesGLES(void)
+{
+	return s_glIsGLES;
+}
 
 extern SDL_Window *g_window;
 
@@ -159,6 +174,37 @@ global_variable GLuint s_glVramFramebuffer;
 global_variable GLuint s_glOffscreenFramebuffer;
 
 
+// NOTE(penta3): SDL picks the GL library (desktop libGL vs EGL/GLES) at
+// WINDOW creation time from the attributes set at that moment - on Android
+// creating a window with desktop-GL attributes fails outright. So each
+// attempt is a full attribute+window+context cycle, and a failed attempt
+// tears its window down before the next one.
+internal int NativeRenderer_TryCreateWindowAndContext(char *windowName, SDL_WindowFlags windowFlags, int useGLES)
+{
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, useGLES ? SDL_GL_CONTEXT_PROFILE_ES : 0);
+
+	g_window = SDL_CreateWindow(windowName, g_windowWidth, g_windowHeight, windowFlags);
+	if (g_window == NULL)
+	{
+		NATIVE_RENDERER_LOG("*window creation (%s) failed: %s\n", useGLES ? "OpenGL ES 2.0" : "OpenGL 2.0", SDL_GetError());
+		return 0;
+	}
+
+	s_glContext = SDL_GL_CreateContext(g_window);
+	if (s_glContext == NULL)
+	{
+		NATIVE_RENDERER_LOG("*context creation (%s) failed: %s\n", useGLES ? "OpenGL ES 2.0" : "OpenGL 2.0", SDL_GetError());
+		SDL_DestroyWindow(g_window);
+		g_window = NULL;
+		return 0;
+	}
+
+	s_glIsGLES = useGLES;
+	return 1;
+}
+
 internal int NativeRenderer_InitialiseGLContext(char *windowName, int fullscreen)
 {
 	SDL_WindowFlags windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
@@ -168,31 +214,46 @@ internal int NativeRenderer_InitialiseGLContext(char *windowName, int fullscreen
 		windowFlags |= SDL_WINDOW_FULLSCREEN;
 	}
 
-	g_window = SDL_CreateWindow(windowName, g_windowWidth, g_windowHeight, windowFlags);
+#if defined(__ANDROID__)
+	// Android has no desktop GL at all - OpenGL ES 2.0 (the same feature set
+	// this renderer uses) is the one and only path there. Fullscreen: no
+	// window decorations make sense on a phone; SDL also engages immersive
+	// mode (hides the system bars).
+	windowFlags |= SDL_WINDOW_FULLSCREEN;
 
-	if (g_window == NULL)
+	if (NativeRenderer_TryCreateWindowAndContext(windowName, windowFlags, 1))
 	{
-		NATIVE_RENDERER_ERROR("Failed to initialise SDL window!\n");
-		return 0;
+		return 1;
 	}
 
+	NATIVE_RENDERER_ERROR("Failed to initialise - OpenGL ES 2.0 is not supported.\n");
+	return 0;
+#else
 	// NOTE(penta3): Request OpenGL 2.0, legacy profile (no profile mask - core
 	// profiles only exist from 3.2), so the port runs on old PCs. Drivers may
 	// legally return any backward-compatible version (modern ones hand back a
 	// compatibility context), but the renderer only ever USES the 2.0 feature
 	// set + EXT_framebuffer_object - the single code path for every machine.
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
-
-	s_glContext = SDL_GL_CreateContext(g_window);
-	if (s_glContext == NULL)
+	// Debug: CTR_GL_FORCE_GLES=1 skips desktop GL to exercise the Android/ES
+	// path on a PC whose driver exposes GLES contexts (NVIDIA/AMD/Mesa do).
 	{
-		NATIVE_RENDERER_ERROR("Failed to initialise - OpenGL 2.0 is not supported. Please update video drivers.\n");
-		return 0;
+		const char *forceGLES = SDL_getenv("CTR_GL_FORCE_GLES");
+		const int skipDesktopGL = (forceGLES != NULL) && (forceGLES[0] == '1');
+
+		if (!skipDesktopGL && NativeRenderer_TryCreateWindowAndContext(windowName, windowFlags, 0))
+		{
+			return 1;
+		}
+
+		if (skipDesktopGL && NativeRenderer_TryCreateWindowAndContext(windowName, windowFlags, 1))
+		{
+			return 1;
+		}
 	}
 
-	return 1;
+	NATIVE_RENDERER_ERROR("Failed to initialise - OpenGL 2.0 is not supported. Please update video drivers.\n");
+	return 0;
+#endif
 }
 
 // NOTE(penta3): The game simulation runs on its own thread (decoupled from the
@@ -209,11 +270,19 @@ void NativeRenderer_AcquireGLContext(void)
 	SDL_GL_MakeCurrent(g_window, s_glContext);
 }
 
+// NOTE(penta3): Resolve GL entry points through SDL, which speaks the right
+// loader per platform (WGL on Windows, GLX, EGL on Android) - glad's built-in
+// resolver only knows desktop loaders.
+internal void *NativeRenderer_GLLoadProc(const char *name)
+{
+	return (void *)SDL_GL_GetProcAddress(name);
+}
+
 internal int NativeRenderer_InitialiseGLExt(void)
 {
-	GLenum err = gladLoadGL();
+	const int loaded = s_glIsGLES ? gladLoadGLES2Loader(NativeRenderer_GLLoadProc) : gladLoadGLLoader(NativeRenderer_GLLoadProc);
 
-	if (err == 0)
+	if (loaded == 0)
 	{
 		return 0;
 	}
@@ -283,6 +352,14 @@ int NativeRenderer_InitialiseRender(char *windowName, int width, int height, int
 
 void NativeRenderer_Shutdown(void)
 {
+	// NOTE(penta3): If init failed before a GL context existed, the glad
+	// function pointers are still NULL - calling them crashed the error path
+	// itself (seen on Android). Nothing was created, nothing to delete.
+	if ((s_glContext == NULL) || (glad_glDeleteBuffers == NULL))
+	{
+		return;
+	}
+
 	glDeleteBuffers(2, s_glVertexBuffer);
 
 	glDeleteFramebuffers(1, &s_glBlitFramebuffer);
@@ -737,15 +814,27 @@ internal int NativeRenderer_Shader_CheckProgramStatus(GLuint program)
 
 internal ShaderID NativeRenderer_Shader_Compile(const char *source, bool isPsxShader)
 {
-	// NOTE(penta3): GLSL 1.10 = the OpenGL 2.0 shading language. The shader
-	// sources were already written in the legacy attribute/varying/texture2D
-	// dialect (the old 140 header #define'd them to in/out/texture); under 110
-	// they are native, only gl_FragColor needs mapping. Desktop GLSL 1.10 has
-	// no precision qualifiers, so the old precision statements are gone.
-	const char *GLSL_HEADER_VERT = "	#version 110\n";
+	// NOTE(penta3): GLSL 1.10 = the OpenGL 2.0 shading language; GLSL ES 1.00
+	// (#version 100) is its OpenGL ES 2.0 twin. The shader sources were
+	// already written in the legacy attribute/varying/texture2D dialect (the
+	// old 140 header #define'd them to in/out/texture); under 110/100 they are
+	// native, only gl_FragColor needs mapping. ES additionally requires a
+	// default float precision in fragment shaders: highp when the GPU has it
+	// (needed for exact CLUT/VRAM coordinate math; universal on ES2 hardware
+	// from ~2012 on), mediump as the spec-mandated fallback.
+	const char *GLSL_HEADER_VERT = s_glIsGLES ? "#version 100\n" : "	#version 110\n";
 
-	const char *GLSL_HEADER_FRAG = "	#version 110\n"
-	                               "	#define fragColor gl_FragColor\n";
+	const char *GLSL_HEADER_FRAG = s_glIsGLES ? "#version 100\n"
+	                                            "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
+	                                            "precision highp float;\n"
+	                                            "precision highp int;\n"
+	                                            "#else\n"
+	                                            "precision mediump float;\n"
+	                                            "precision mediump int;\n"
+	                                            "#endif\n"
+	                                            "#define fragColor gl_FragColor\n"
+	                                          : "	#version 110\n"
+	                                            "	#define fragColor gl_FragColor\n";
 
 	char extra_vs_defines[1024];
 	char extra_fs_defines[1024];
@@ -2101,9 +2190,89 @@ void NativeRenderer_PresentVRAMDisplay(void)
 void NativeRenderer_SwapWindow(void)
 {
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_SWAP_WINDOW);
+#if defined(__ANDROID__)
+	// Touch overlay draws at the very last moment before the present, AFTER
+	// every VRAM feedback capture - the buttons can never leak into the
+	// game's framebuffer effects.
+	NativeTouch_Render();
+#endif
 	SDL_GL_SwapWindow(g_window);
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_SWAP_WINDOW);
 }
+
+#if defined(__ANDROID__)
+// NOTE(penta3): Screen-space colored-triangle path for the touch overlay.
+// GLSL 100, lazy-init, alpha blending; every render-state cache it disturbs
+// is invalidated so the next frame's submit re-sets state on demand.
+global_variable const char *ctr_overlay_shader =
+    "#ifdef VERTEX\n"
+    "attribute vec2 a_position;\n"
+    "attribute vec4 a_color;\n"
+    "varying vec4 v_color;\n"
+    "uniform vec2 u_invHalfSize;\n"
+    "void main() {\n"
+    "	v_color = a_color;\n"
+    "	gl_Position = vec4(a_position.x * u_invHalfSize.x - 1.0, 1.0 - a_position.y * u_invHalfSize.y, 0.0, 1.0);\n"
+    "}\n"
+    "#endif\n"
+    "#ifdef FRAGMENT\n"
+    "varying vec4 v_color;\n"
+    "void main() {\n"
+    "	fragColor = v_color;\n"
+    "}\n"
+    "#endif\n";
+
+global_variable GLuint s_overlayShader = 0;
+global_variable GLint s_overlayInvHalfSizeLoc = -1;
+global_variable GLuint s_overlayVBO = 0;
+
+void NativeRenderer_DrawOverlayTriangles(const float *xyrgba, int vertexCount)
+{
+	if ((vertexCount <= 0) || (g_windowWidth <= 0) || (g_windowHeight <= 0))
+	{
+		return;
+	}
+
+	if (s_overlayShader == 0)
+	{
+		s_overlayShader = NativeRenderer_Shader_Compile(ctr_overlay_shader, false);
+		s_overlayInvHalfSizeLoc = glGetUniformLocation(s_overlayShader, "u_invHalfSize");
+		glGenBuffers(1, &s_overlayVBO);
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glViewport(0, 0, g_windowWidth, g_windowHeight);
+	glDisable(GL_SCISSOR_TEST);
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_STENCIL_TEST);
+	glEnable(GL_BLEND);
+	glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+
+	glUseProgram(s_overlayShader);
+	glUniform2f(s_overlayInvHalfSizeLoc, 2.0f / (float)g_windowWidth, 2.0f / (float)g_windowHeight);
+
+	glBindBuffer(GL_ARRAY_BUFFER, s_overlayVBO);
+	glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(vertexCount * 6 * sizeof(float)), xyrgba, GL_STREAM_DRAW);
+	glEnableVertexAttribArray(a_position);
+	glDisableVertexAttribArray(a_texcoord);
+	glEnableVertexAttribArray(a_color);
+	glDisableVertexAttribArray(a_extra);
+	glVertexAttribPointer(a_position, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (const void *)0);
+	glVertexAttribPointer(a_color, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (const void *)(2 * sizeof(float)));
+
+	glDrawArrays(GL_TRIANGLES, 0, vertexCount);
+
+	// re-enable the globally-on stencil test and invalidate disturbed caches
+	glEnable(GL_STENCIL_TEST);
+	glDisable(GL_BLEND);
+	glViewport(s_presentViewport.x, s_presentViewport.y, s_presentViewport.w, s_presentViewport.h);
+	s_previousShader = (ShaderID)-1;
+	s_lastBoundTexture = (TextureID)-1;
+	s_previousBlendMode = BM_NONE;
+	s_previousScissorState = 0;
+}
+#endif // __ANDROID__
 
 internal void NativeRenderer_EnableDepth(int enable)
 {
@@ -2196,6 +2365,11 @@ internal void NativeRenderer_SetViewPort(int x, int y, int width, int height)
 
 internal void NativeRenderer_SetWireframe(int enable)
 {
+	// glPolygonMode does not exist in OpenGL ES (debug-only feature)
+	if (glad_glPolygonMode == NULL)
+	{
+		return;
+	}
 	glPolygonMode(GL_FRONT_AND_BACK, enable ? GL_LINE : GL_FILL);
 }
 

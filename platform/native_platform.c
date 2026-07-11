@@ -11,6 +11,7 @@
 #include "platform/native_renderer.h"
 #include "platform/native_replay_scheduler.h"
 #include "platform/native_savestate.h"
+#include "platform/native_touch.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -213,10 +214,20 @@ internal void Platform_UpdateHostAltKeyState(const s32 key, const s8 down)
 internal void Platform_TakeScreenshot(void)
 {
 	u8 *pixels = (u8 *)malloc(g_windowWidth * g_windowHeight * 4);
+	SDL_Surface *surface;
 
-	glReadPixels(0, 0, g_windowWidth, g_windowHeight, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
-
-	SDL_Surface *surface = SDL_CreateSurfaceFrom(g_windowWidth, g_windowHeight, SDL_PIXELFORMAT_BGRA8888, pixels, g_windowWidth * 4);
+	// GL_BGRA readback is a desktop-GL extension; OpenGL ES only guarantees
+	// GL_RGBA - read that and tell SDL the matching byte order.
+	if (NativeRenderer_UsesGLES())
+	{
+		glReadPixels(0, 0, g_windowWidth, g_windowHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+		surface = SDL_CreateSurfaceFrom(g_windowWidth, g_windowHeight, SDL_PIXELFORMAT_RGBA32, pixels, g_windowWidth * 4);
+	}
+	else
+	{
+		glReadPixels(0, 0, g_windowWidth, g_windowHeight, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
+		surface = SDL_CreateSurfaceFrom(g_windowWidth, g_windowHeight, SDL_PIXELFORMAT_BGRA8888, pixels, g_windowWidth * 4);
+	}
 
 	SDL_SaveBMP(surface, "SCREENSHOT.BMP");
 	SDL_DestroySurface(surface);
@@ -571,6 +582,14 @@ void Platform_PollHostEvents(void)
 		case SDL_EVENT_GAMEPAD_REMOVED:
 			Platform_InputControllerRemoved(event.gdevice.which);
 			break;
+#ifdef __ANDROID__
+		case SDL_EVENT_FINGER_DOWN:
+		case SDL_EVENT_FINGER_UP:
+		case SDL_EVENT_FINGER_MOTION:
+		case SDL_EVENT_FINGER_CANCELED:
+			NativeTouch_HandleFingerEvent(&event);
+			break;
+#endif
 		case SDL_EVENT_QUIT:
 			NativeMain_RequestQuit();
 			break;

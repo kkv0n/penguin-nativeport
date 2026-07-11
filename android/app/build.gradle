@@ -1,0 +1,53 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace "com.penta3.ctrnative"
+    compileSdk 34
+    // pinned: newer NDKs raise the minimum Android version and endanger
+    // 32-bit (armeabi-v7a) support; 27.x is the sweet spot for API 21
+    ndkVersion "27.3.13750724"
+
+    defaultConfig {
+        applicationId "com.penta3.ctrnative"
+        // minSdk 21 = Android 5.0 (2014): the oldest level modern NDK/SDL3
+        // support. Combined with armeabi-v7a this covers effectively every
+        // GLES2-capable 32-bit device still alive.
+        minSdkVersion 21
+        targetSdkVersion 34
+        versionCode 1
+        versionName "0.1.0"
+
+        externalNativeBuild {
+            cmake {
+                // the decompiled game code assumes 32-bit pointers (PSX ILP32)
+                abiFilters 'armeabi-v7a'
+                arguments "-DANDROID_PLATFORM=android-21", "-DANDROID_STL=c++_static"
+            }
+        }
+    }
+
+    // The whole repo builds from the root CMakeLists (it handles ANDROID:
+    // SDL3 shared + the game as libmain.so for SDLActivity).
+    externalNativeBuild {
+        cmake {
+            path '../../CMakeLists.txt'
+        }
+    }
+
+    // SDL's Java side (SDLActivity & friends) straight from the vendored SDL
+    sourceSets.main {
+        java.srcDirs += ['../../externals/SDL/android-project/app/src/main/java']
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+}

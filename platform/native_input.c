@@ -2,6 +2,7 @@
 
 #include <macros.h>
 #include "psx/libpad.h"
+#include "platform/native_touch.h"
 
 #include <SDL3/SDL.h>
 #include <stdio.h>
@@ -819,6 +820,12 @@ void Platform_InputUpdate(void)
 	// milliseconds old, well under the 33ms game sample rate.
 	keyboardButtons = NativeInput_KeyboardSuppressed() ? 0xffff : NativeInput_ReadKeyboard();
 
+#ifdef __ANDROID__
+	// merge the on-screen touch controls (active-low AND); the mask is 0xffff
+	// while a gamepad is connected, so this is a no-op then
+	keyboardButtons &= NativeTouch_GetPadMask();
+#endif
+
 	for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
 	{
 		NativeInput_ResetSnapshot(slot);
@@ -826,6 +833,28 @@ void Platform_InputUpdate(void)
 		NativeInput_ApplyKeyboard(slot, keyboardButtons);
 	}
 	NativeInput_WritePadBus();
+}
+
+// NOTE(penta3): Whether any physical/Bluetooth gamepad is currently open -
+// the Android touch overlay hides itself while one is connected.
+int Platform_InputAnyGamepadConnected(void)
+{
+	s32 slot;
+
+	if (s_inputInitialized == 0)
+	{
+		return 0;
+	}
+
+	for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
+	{
+		if ((s_controllers[slot].controller != NULL) && SDL_GamepadConnected(s_controllers[slot].controller))
+		{
+			return 1;
+		}
+	}
+
+	return 0;
 }
 
 void Platform_InputControllerAdded(int deviceIndex)

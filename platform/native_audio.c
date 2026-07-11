@@ -1676,7 +1676,10 @@ internal int NativeAudio_RenderFramesNoLock(s16 *out, int frameCount);
 
 internal void NativeAudio_SelectDriverHint(void)
 {
-#if defined(__linux__)
+// NOTE(penta3): Android also defines __linux__ but has none of these desktop
+// drivers (its SDL backends are aaudio/openslES) - forcing the hint there made
+// audio init fail silently. Android keeps SDL's own driver selection.
+#if defined(__linux__) && !defined(__ANDROID__)
 	if (SDL_GetHint(SDL_HINT_AUDIO_DRIVER) == NULL)
 	{
 		// NOTE(aalhendi): Keep native Linux playback on the SDL3 drivers that

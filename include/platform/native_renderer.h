@@ -5,6 +5,7 @@
 
 int NativeRenderer_InitialiseRender(char *windowName, int width, int height, int fullscreen);
 int NativeRenderer_InitialisePSX(void);
+int NativeRenderer_UsesGLES(void);
 void NativeRenderer_ReleaseGLContext(void);
 void NativeRenderer_AcquireGLContext(void);
 void NativeRenderer_Shutdown(void);
@@ -41,5 +42,10 @@ void NativeRenderer_UpdateVertexBuffer(const GrVertex *vertices, int count);
 void NativeRenderer_DrawTriangles(int startVertex, int triangles);
 void NativeRenderer_PushDebugLabel(const char *label);
 void NativeRenderer_PopDebugLabel(void);
+
+#ifdef __ANDROID__
+// screen-space colored triangles for the touch overlay (x,y,r,g,b,a per vertex)
+void NativeRenderer_DrawOverlayTriangles(const float *xyrgba, int vertexCount);
+#endif
 
 #endif

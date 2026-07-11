@@ -1,5 +1,10 @@
 #define _CRT_SECURE_NO_WARNINGS
+// NOTE(penta3): On Android SDL owns the process entry (SDLActivity calls our
+// main() renamed to SDL_main by SDL_main.h); everywhere else we keep the plain
+// C main().
+#ifndef __ANDROID__
 #define SDL_MAIN_HANDLED
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -69,6 +74,7 @@
 #include "platform/native_savestate.c"
 #include "platform/native_state.c"
 #include "platform/native_str.c"
+#include "platform/native_touch.c"
 
 #ifndef CC
 #if __GNUC__
@@ -257,6 +263,12 @@ int main(int argc, char *argv[])
 	fflush(stdout);
 
 	const char *sdlBasePath = SDL_GetBasePath();
+#ifdef __ANDROID__
+	// NOTE(penta3): No exe directory on Android - game data (BIGFILE.BIG etc.)
+	// lives in the app's external files dir, user-visible at
+	// Android/data/<package>/files/ so assets can be copied over USB.
+	sdlBasePath = SDL_GetAndroidExternalStoragePath();
+#endif
 	printf("[CTR Native] SDL base path: %s\n", sdlBasePath ? sdlBasePath : "(null)");
 	fflush(stdout);
 
