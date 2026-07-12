@@ -309,6 +309,14 @@ void Platform_Init(const char *title, int width, int height)
 
 	Platform_Log("[CTR Native] Initialising platform\n");
 
+#ifdef __ANDROID__
+	// Ask SDL/Android for landscape up front so the GL surface is created
+	// landscape instead of starting portrait and rotating (which rejects the
+	// first rendered frames). Belt-and-suspenders with the manifest's forced
+	// landscape and the game thread's wait-for-landscape gate.
+	SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+#endif
+
 	if (SDL_Init(SDL_INIT_VIDEO) == 0)
 	{
 		Platform_LogError("[CTR Native] Failed to initialise SDL\n");

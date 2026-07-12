@@ -74,11 +74,18 @@ cd android
 
 ## Installing and providing the game data
 
-1. Install the APK: `adb install -r app-debug.apk` (or copy it to the device
-   and open it).
-2. Launch the app **once** (black screen or instant close is expected — it has
-   no data yet) and close it. This creates the app's data folder.
-3. Copy the game files (the same content as the PC `assets/` folder:
+1. Install the APK: `adb install -r ctr-native-debug.apk` (or copy it to the
+   device and open it).
+2. **Easiest path — first-run ROM picker:** launch the app with no game data
+   and it opens the system file picker. Choose your NTSC-U PS1 disc image
+   (`.bin`); it is copied into the app's data folder as `ctr-u.bin`
+   automatically (the copy of a ~700 MB image takes a minute — the screen
+   stays black while it runs, watch `adb logcat -s SDL` or just wait for the
+   game to boot). No storage permissions are needed: the system picker grants
+   access to just the file you chose. If you cancel the picker, the app exits;
+   reopen it to try again.
+3. **Manual alternative:** copy either the disc image (named `ctr-u.bin`) or
+   the extracted files (the same content as the PC `assets/` folder:
    `BIGFILE.BIG`, `SOUNDS/`, `XA/`, etc.) to:
    `Android/data/com.penta3.ctrnative/files/assets/`
 4. Play with the on-screen PS1-style touch controls, or connect a

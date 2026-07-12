@@ -25,6 +25,7 @@
 
     <application android:label="CTR Native"
         android:allowBackup="true"
+        android:use32bitAbi="true"
         android:hardwareAccelerated="true" >
 
         <activity android:name="org.libsdl.app.SDLActivity"

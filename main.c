@@ -47,6 +47,7 @@
 
 #include "platform/native_disc_image.c"
 #include "platform/native_assets.c"
+#include "platform/native_rom_picker.c"
 #include "platform/native_audio.c"
 #include "platform/native_memory.c"
 #include "platform/native_checkpoint.c"
@@ -292,7 +293,21 @@ int main(int argc, char *argv[])
 
 	if (!NativeAssets_Validate())
 	{
+#ifdef __ANDROID__
+		// First run: let the user pick the PS1 disc image (.bin) with the
+		// system file picker; it is copied into the assets dir as ctr-u.bin,
+		// the disc-image source the game boots from. NativeAssets_Init MUST
+		// run again afterwards - the disc-image index is built at init time,
+		// which happened before the image existed.
+		if (!NativeRomPicker_InstallRomInteractive() || !NativeAssets_Init(sdlBasePath) || !NativeAssets_Validate())
+		{
+			SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "CTR Native",
+			                         "No valid game data found.\nPick a raw NTSC-U 'Crash Team Racing' disc image (.bin) on the next launch.", NULL);
+			return NativeConsole_Return(1);
+		}
+#else
 		return NativeConsole_Return(1);
+#endif
 	}
 
 #if defined(CTR_INTERNAL)
