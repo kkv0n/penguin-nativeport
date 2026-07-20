@@ -58,6 +58,18 @@ global_variable SDL_GLContext s_glContext = NULL;
 #define NATIVE_RENDERER_LOG(fmt, ...)   Platform_Log("[CTR Renderer] " fmt, ##__VA_ARGS__)
 #define NATIVE_RENDERER_ERROR(fmt, ...) Platform_LogError("[CTR Renderer] [%s] - " fmt, __func__, ##__VA_ARGS__)
 
+// Verbose render debugging (toggle CTR_RENDER_DEBUG=1). Detailed per-frame trace
+// used to diagnose the PSX-native-resolution path against the legacy window path.
+#define RENDER_DEBUG_FRAME_LIMIT 900
+#define RDBG(fmt, ...)                                                      \
+	do                                                                     \
+	{                                                                      \
+		if (s_renderDebug && (s_frameCounter <= RENDER_DEBUG_FRAME_LIMIT)) \
+		{                                                                  \
+			Platform_Log("[RDBG] " fmt, ##__VA_ARGS__);                    \
+		}                                                                  \
+	} while (0)
+
 #define MAX_NUM_VERTEX_BUFFERS          (2)
 #define PSX_SCREEN_ASPECT               (240.0f / 320.0f) // PSX screen is mapped always to this aspect
 
@@ -99,6 +111,16 @@ global_variable int s_sceneH = 0;
 // once initialised). Mid-frame VRAM/offscreen passes restore to THIS instead of
 // the window backbuffer so game draws never leak onto the presented image.
 global_variable GLuint s_mainFramebuffer = 0;
+
+// Runtime toggle + tracing for the PSX-native renderer path.
+// CTR_NATIVE_RES=0 -> legacy (render straight to the upscaled window backbuffer,
+// original behavior). CTR_NATIVE_RES=1 (default) -> render at PS1 display
+// resolution into the scene target. CTR_RENDER_DEBUG=1 -> verbose per-frame log.
+global_variable int s_renderNative = 1;
+global_variable int s_renderDebug = 0;
+global_variable unsigned long long s_frameCounter = 0;
+global_variable int s_frameDrawCalls = 0;
+global_variable int s_frameDrawVerts = 0;
 
 global_variable TextureID s_whiteTexture = (TextureID)-1;
 global_variable TextureID s_lastBoundTexture = (TextureID)-1;
@@ -354,6 +376,20 @@ int NativeRenderer_InitialiseRender(char *windowName, int width, int height, int
 	g_windowHeight = height;
 	NativeRenderer_SetPresentationAspect(width, height);
 
+	{
+		const char *envNative = SDL_getenv("CTR_NATIVE_RES");
+		const char *envDebug = SDL_getenv("CTR_RENDER_DEBUG");
+		if (envNative != NULL)
+		{
+			s_renderNative = (envNative[0] != '0');
+		}
+		if (envDebug != NULL)
+		{
+			s_renderDebug = (envDebug[0] != '0');
+		}
+		NATIVE_RENDERER_LOG("*Render config: nativeRes=%d debug=%d (window %dx%d)\n", s_renderNative, s_renderDebug, width, height);
+	}
+
 	// Due to debugging in fullscreen
 	SDL_SetHint(SDL_HINT_WINDOW_ALLOW_TOPMOST, "0");
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
@@ -493,6 +529,49 @@ internal void NativeRenderer_EnsureSceneTarget(int width, int height)
 	s_sceneH = height;
 }
 
+int NativeRenderer_IsNativeRes(void)
+{
+	return s_renderNative;
+}
+
+// Read back a single pixel from an FBO and log it. Lets us see WHERE frame
+// content actually is (VRAM texture / scene target / window backbuffer) each
+// frame, so we can compare native vs legacy with real data instead of guessing.
+internal void NativeRenderer_DebugSample(GLuint fbo, int x, int y, const char *label)
+{
+	unsigned char px[4] = {0, 0, 0, 0};
+
+	if (!s_renderDebug || (s_frameCounter > RENDER_DEBUG_FRAME_LIMIT))
+	{
+		return;
+	}
+	if (x < 0)
+	{
+		x = 0;
+	}
+	if (y < 0)
+	{
+		y = 0;
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glReadPixels(x, y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+	glBindFramebuffer(GL_FRAMEBUFFER, s_mainFramebuffer);
+	Platform_Log("[RDBG]     sample %-10s fbo=%u (%d,%d) rgba=%02x%02x%02x%02x\n", label, fbo, x, y, px[0], px[1], px[2], px[3]);
+}
+
+// Logged from Platform_EndScene after the present, before the buffer swap: which
+// present path ran this frame and what actually landed on the window backbuffer.
+void NativeRenderer_DebugEndScene(int pinned, int pinnedFrames)
+{
+	if (!s_renderDebug || (s_frameCounter > RENDER_DEBUG_FRAME_LIMIT))
+	{
+		return;
+	}
+	Platform_Log("[RDBG]   END frame %llu path=%s pinnedFrames=%d drawCalls=%d verts=%d; backbuffer sample:\n",
+	             s_frameCounter, pinned ? "PINNED-VRAM" : "NORMAL", pinnedFrames, s_frameDrawCalls, s_frameDrawVerts);
+	NativeRenderer_DebugSample(0, s_presentViewport.x + s_presentViewport.w / 2, s_presentViewport.y + s_presentViewport.h / 2, "BACKBUF");
+}
+
 // NOTE(penta3): Seed the scene target with the current VRAM display region.
 // PS1 content that lives ONLY in VRAM - the boot TIM splash, FMV frames,
 // screen-copy backdrops, and any frame that partially updates the previous
@@ -535,23 +614,51 @@ void NativeRenderer_BeginScene(void)
 
 	NativeRenderer_UpdatePresentationViewport();
 
-	// Render the scene at PS1 native display resolution into the scene target
-	// (not the upscaled window). Presentation to the window happens at EndScene.
-	NativeRenderer_EnsureSceneTarget(activeDispEnv.disp.w, activeDispEnv.disp.h);
-	s_mainFramebuffer = s_sceneFramebuffer;
-	glBindFramebuffer(GL_FRAMEBUFFER, s_mainFramebuffer);
+	s_frameCounter++;
+	s_frameDrawCalls = 0;
+	s_frameDrawVerts = 0;
 
-	if (!activeDrawEnv.isbg)
+	RDBG("frame %llu BEGIN mode=%s disp=(%d,%d %dx%d) isinter=%d isbg=%d clip=(%d,%d %dx%d) present=(%d,%d %dx%d)\n",
+	     s_frameCounter, s_renderNative ? "NATIVE" : "LEGACY", activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h,
+	     activeDispEnv.isinter, activeDrawEnv.isbg, activeDrawEnv.clip.x, activeDrawEnv.clip.y, activeDrawEnv.clip.w, activeDrawEnv.clip.h,
+	     s_presentViewport.x, s_presentViewport.y, s_presentViewport.w, s_presentViewport.h);
+
+	if (s_renderNative)
 	{
-		// Preserve VRAM-only content (splash/FMV/backdrops/partial frames).
-		NativeRenderer_LoadSceneFromVRAM(activeDispEnv.disp.x, activeDispEnv.disp.y);
+		// Render the scene at PS1 native display resolution into the scene target
+		// (not the upscaled window). Presentation to the window happens at EndScene.
+		NativeRenderer_EnsureSceneTarget(activeDispEnv.disp.w, activeDispEnv.disp.h);
+		s_mainFramebuffer = s_sceneFramebuffer;
+		glBindFramebuffer(GL_FRAMEBUFFER, s_mainFramebuffer);
+
+		RDBG("  NATIVE sceneFBO=%u tex=%u %dx%d; VRAM sample before seed:\n", s_sceneFramebuffer, (unsigned)s_sceneColorTexture, s_sceneW, s_sceneH);
+		NativeRenderer_DebugSample(s_glVramFramebuffer, activeDispEnv.disp.x + activeDispEnv.disp.w / 2, activeDispEnv.disp.y + activeDispEnv.disp.h / 2, "VRAMctr");
+
+		if (!activeDrawEnv.isbg)
+		{
+			// Preserve VRAM-only content (splash/FMV/backdrops/partial frames).
+			NativeRenderer_LoadSceneFromVRAM(activeDispEnv.disp.x, activeDispEnv.disp.y);
+			RDBG("  seeded scene from VRAM; scene sample after seed:\n");
+			NativeRenderer_DebugSample(s_sceneFramebuffer, s_sceneW / 2, s_sceneH / 2, "SCENEctr");
+		}
+		else
+		{
+			glClear(GL_STENCIL_BUFFER_BIT);
+			RDBG("  isbg: cleared stencil, no VRAM seed\n");
+		}
+
+		NativeRenderer_SetViewPort(0, 0, s_sceneW, s_sceneH);
 	}
 	else
 	{
+		// Legacy: rasterize straight to the upscaled window backbuffer.
+		s_mainFramebuffer = 0;
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		NativeRenderer_ClearPresentationBars();
 		glClear(GL_STENCIL_BUFFER_BIT);
+		NativeRenderer_SetViewPort(s_presentViewport.x, s_presentViewport.y, s_presentViewport.w, s_presentViewport.h);
+		RDBG("  LEGACY bound backbuffer(0) at present viewport\n");
 	}
-
-	NativeRenderer_SetViewPort(0, 0, s_sceneW, s_sceneH);
 
 	if (g_dbg_wireframeMode)
 	{
@@ -647,10 +754,10 @@ internal void NativeRenderer_UpdatePresentationViewport(void)
 	// PSX-native integer scaling: snap the aspect-correct viewport DOWN to a whole
 	// multiple of the native display height so the nearest upscale is shimmer-free.
 	// Width is kept aspect-correct (PS1 pixels are non-square); the remainder is
-	// letterboxed by ClearPresentationBars.
+	// letterboxed by ClearPresentationBars. Legacy mode keeps the smooth aspect fit.
 	{
 		const int nativeH = activeDispEnv.disp.h;
-		if (nativeH > 0)
+		if (s_renderNative && nativeH > 0)
 		{
 			int scale = viewportH / nativeH;
 			if (scale < 1)
@@ -1479,12 +1586,12 @@ void NativeRenderer_SetupClipMode(const RECT16 *rect, const DISPENV *displayEnv,
 		clipRectX += 0.5f;
 	}
 
-	// Scene renders at PS1 native resolution: scissor in the scene FBO's own
-	// pixels (the display maps 1:1 onto it), not the scaled window viewport.
-	const float viewportX = 0.0f;
-	const float viewportY = 0.0f;
-	const float viewportW = (float)s_sceneW;
-	const float viewportH = (float)s_sceneH;
+	// Native: scissor in the scene FBO's own pixels (display maps 1:1). Legacy:
+	// scissor in the scaled window present viewport.
+	const float viewportX = s_renderNative ? 0.0f : (float)s_presentViewport.x;
+	const float viewportY = s_renderNative ? 0.0f : (float)s_presentViewport.y;
+	const float viewportW = s_renderNative ? (float)s_sceneW : (float)s_presentViewport.w;
+	const float viewportH = s_renderNative ? (float)s_sceneH : (float)s_presentViewport.h;
 	const float flipOffset = viewportY + viewportH - clipRectH * viewportH;
 	const float crx = viewportX + clipRectX * viewportW;
 	const float cry = clipRectY * viewportH;
@@ -1727,14 +1834,15 @@ void NativeRenderer_Clear(int x, int y, int w, int h, u8 r, u8 g, u8 b)
 	const int relRight = overlapRight - displayX;
 	const int relBottom = overlapBottom - displayY;
 
-	// Scene is rendered at PS1 native resolution: the display region maps 1:1
-	// onto the scene FBO, so scissor in native pixels (no present-viewport scale).
-	const int scissorX = relX;
-	const int scissorRight = relRight;
-	const int scissorTop = relY;
-	const int scissorBottom = relBottom;
+	// Native: the display region maps 1:1 onto the scene FBO -> scissor in native
+	// pixels. Legacy: scale the region into the window present viewport.
+	const int scissorX = s_renderNative ? relX : (s_presentViewport.x + (relX * s_presentViewport.w) / displayW);
+	const int scissorRight = s_renderNative ? relRight : (s_presentViewport.x + (relRight * s_presentViewport.w + displayW - 1) / displayW);
+	const int scissorTop = s_renderNative ? relY : ((relY * s_presentViewport.h) / displayH);
+	const int scissorBottom = s_renderNative ? relBottom : ((relBottom * s_presentViewport.h + displayH - 1) / displayH);
 	const int scissorW = scissorRight - scissorX;
 	const int scissorH = scissorBottom - scissorTop;
+	const int scissorFlipY = s_renderNative ? (s_sceneH - scissorBottom) : (s_presentViewport.y + s_presentViewport.h - scissorBottom);
 
 	if ((scissorW <= 0) || (scissorH <= 0))
 	{
@@ -1748,7 +1856,7 @@ void NativeRenderer_Clear(int x, int y, int w, int h, u8 r, u8 g, u8 b)
 	s_framebufferNeedsUpdate = 1;
 
 	glEnable(GL_SCISSOR_TEST);
-	glScissor(scissorX, s_sceneH - scissorBottom, scissorW, scissorH);
+	glScissor(scissorX, scissorFlipY, scissorW, scissorH);
 	glClearColor(NativeRenderer_PSXColorComponentFloat(r), NativeRenderer_PSXColorComponentFloat(g), NativeRenderer_PSXColorComponentFloat(b), 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
@@ -2098,10 +2206,24 @@ void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h)
 {
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_STORE);
 
-	// The scene is already rendered at PS1 native resolution in s_sceneColorTexture,
-	// so pack it straight into VRAM (x,y,w,h) with no backbuffer capture or downscale.
-	// flipY=1: the scene FBO stores row 0 at the bottom (GL), like the offscreen RT.
-	NativeRenderer_GpuPackTextureToVRAM(s_sceneColorTexture, x, y, w, h, 1);
+	if (s_renderNative)
+	{
+		// Scene already rendered at PS1 native resolution in s_sceneColorTexture:
+		// pack it straight into VRAM (x,y,w,h), no backbuffer capture or downscale.
+		// flipY=1: scene FBO stores row 0 at the bottom (GL), like the offscreen RT.
+		NativeRenderer_GpuPackTextureToVRAM(s_sceneColorTexture, x, y, w, h, 1);
+		RDBG("  STORE native: packed sceneTex->VRAM (%d,%d %dx%d) drawCalls=%d verts=%d; scene sample:\n", x, y, w, h, s_frameDrawCalls, s_frameDrawVerts);
+		NativeRenderer_DebugSample(s_sceneFramebuffer, s_sceneW / 2, s_sceneH / 2, "SCENEend");
+		NativeRenderer_DebugSample(s_glVramFramebuffer, x + w / 2, y + h / 2, "VRAMstor");
+	}
+	else
+	{
+		// Legacy: capture the window backbuffer and pack the downscaled region.
+		NativeRenderer_BlitBackbufferToFramebufferTex(x, y, w, h);
+		NativeRenderer_GpuPackFramebufferToVRAM(x, y, w, h);
+		RDBG("  STORE legacy: blit backbuffer->VRAM (%d,%d %dx%d) drawCalls=%d verts=%d; VRAM sample:\n", x, y, w, h, s_frameDrawCalls, s_frameDrawVerts);
+		NativeRenderer_DebugSample(s_glVramFramebuffer, x + w / 2, y + h / 2, "VRAMstor");
+	}
 	s_framebufferNeedsUpdate = 1;
 	s_lastBoundTexture = -1;
 
@@ -2606,6 +2728,8 @@ void NativeRenderer_DrawTriangles(int start_vertex, int triangles)
 {
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_RENDERER_DRAW_TRIANGLES);
 	glDrawArrays(GL_TRIANGLES, start_vertex, triangles * 3);
+	s_frameDrawCalls++;
+	s_frameDrawVerts += triangles * 3;
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_RENDERER_DRAW_TRIANGLES);
 }
 
