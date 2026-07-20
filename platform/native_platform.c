@@ -459,6 +459,10 @@ void Platform_EndScene(void)
 	// the resource win over HEAD's readback stands.
 	NativeRenderer_StoreFrameBuffer(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
 
+	// Scene was rendered at PSX-native resolution into VRAM; upscale it to the
+	// window (integer + nearest) before presenting.
+	NativeRenderer_PresentScene();
+
 	NativeRenderer_SwapWindow();
 
 	// TEMP DIAGNOSTIC (penta3 timing, PC-side only): every 512 presented frames, log

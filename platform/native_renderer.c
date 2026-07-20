@@ -83,6 +83,23 @@ global_variable TextureID s_rgLutTexture = (TextureID)-1;
 global_variable TextureID s_framebufferTexture = (TextureID)-1;
 global_variable TextureID s_offscreenRenderTexture = (TextureID)-1;
 
+// NOTE(penta3): PSX-native-resolution scene render target. Game geometry
+// rasterizes into this at the PS1 display resolution (disp.w x disp.h) instead
+// of the upscaled window, then it is packed 1:1 into VRAM and presented through
+// the existing VRAM->display path. Authentic PS1 internal resolution, far fewer
+// fragments. Needs a stencil buffer because the scene uses the PS1 mask-bit
+// stencil (SetStencilMode); the window's default stencil is unavailable to a FBO
+// so we attach our own stencil renderbuffer.
+global_variable TextureID s_sceneColorTexture = (TextureID)-1;
+global_variable GLuint s_sceneFramebuffer = 0;
+global_variable GLuint s_sceneStencilRb = 0;
+global_variable int s_sceneW = 0;
+global_variable int s_sceneH = 0;
+// FBO that game content renders into for the current frame (the scene target
+// once initialised). Mid-frame VRAM/offscreen passes restore to THIS instead of
+// the window backbuffer so game draws never leak onto the presented image.
+global_variable GLuint s_mainFramebuffer = 0;
+
 global_variable TextureID s_whiteTexture = (TextureID)-1;
 global_variable TextureID s_lastBoundTexture = (TextureID)-1;
 
@@ -161,6 +178,7 @@ internal void NativeRenderer_SetWireframe(int enable);
 internal void NativeRenderer_BindVertexBuffer(void);
 internal void NativeRenderer_GpuPackTextureToVRAM(GLuint srcTexture, int x, int y, int w, int h, int flipY);
 internal void NativeRenderer_GpuPackFramebufferToVRAM(int x, int y, int w, int h);
+internal void NativeRenderer_EnsureSceneTarget(int width, int height);
 internal void NativeRenderer_UploadVRAMRect(int x, int y, int w, int h, const u16 *src, int srcStride);
 internal void NativeRenderer_ReadVRAMRect(int x, int y, int w, int h, u16 *dst, int dstStride);
 
@@ -312,6 +330,12 @@ internal int NativeRenderer_InitialiseGLExt(void)
 	CTR_LOAD_GL_FALLBACK(glad_glDeleteFramebuffers, PFNGLDELETEFRAMEBUFFERSPROC, "glDeleteFramebuffersEXT");
 	CTR_LOAD_GL_FALLBACK(glad_glFramebufferTexture2D, PFNGLFRAMEBUFFERTEXTURE2DPROC, "glFramebufferTexture2DEXT");
 	CTR_LOAD_GL_FALLBACK(glad_glCheckFramebufferStatus, PFNGLCHECKFRAMEBUFFERSTATUSPROC, "glCheckFramebufferStatusEXT");
+	// Renderbuffer entry points for the PSX-native scene target's stencil buffer.
+	CTR_LOAD_GL_FALLBACK(glad_glGenRenderbuffers, PFNGLGENRENDERBUFFERSPROC, "glGenRenderbuffersEXT");
+	CTR_LOAD_GL_FALLBACK(glad_glBindRenderbuffer, PFNGLBINDRENDERBUFFERPROC, "glBindRenderbufferEXT");
+	CTR_LOAD_GL_FALLBACK(glad_glDeleteRenderbuffers, PFNGLDELETERENDERBUFFERSPROC, "glDeleteRenderbuffersEXT");
+	CTR_LOAD_GL_FALLBACK(glad_glRenderbufferStorage, PFNGLRENDERBUFFERSTORAGEPROC, "glRenderbufferStorageEXT");
+	CTR_LOAD_GL_FALLBACK(glad_glFramebufferRenderbuffer, PFNGLFRAMEBUFFERRENDERBUFFERPROC, "glFramebufferRenderbufferEXT");
 #undef CTR_LOAD_GL_FALLBACK
 
 	if ((glad_glGenFramebuffers == NULL) || (glad_glBindFramebuffer == NULL) || (glad_glDeleteFramebuffers == NULL) || (glad_glFramebufferTexture2D == NULL))
@@ -365,6 +389,17 @@ void NativeRenderer_Shutdown(void)
 	glDeleteFramebuffers(1, &s_glBlitFramebuffer);
 	glDeleteFramebuffers(1, &s_glOffscreenFramebuffer);
 	glDeleteFramebuffers(1, &s_glVramFramebuffer);
+	if (s_sceneFramebuffer != 0)
+	{
+		glDeleteFramebuffers(1, &s_sceneFramebuffer);
+		s_sceneFramebuffer = 0;
+	}
+	if (s_sceneStencilRb != 0)
+	{
+		glDeleteRenderbuffers(1, &s_sceneStencilRb);
+		s_sceneStencilRb = 0;
+	}
+	NativeRenderer_DestroyTexture(s_sceneColorTexture);
 
 	NativeRenderer_DestroyTexture(s_vramTexture);
 
@@ -398,16 +433,80 @@ void NativeRenderer_UpdateSwapIntervalState(int swapInterval)
 	SDL_GL_SetSwapInterval(swapInterval);
 }
 
+// NOTE(penta3): Create/resize the PSX-native scene render target (color + stencil)
+// to the current PS1 display resolution. Recreated only when the resolution
+// changes (mode switch / interlace), so it is essentially free per frame.
+internal void NativeRenderer_EnsureSceneTarget(int width, int height)
+{
+	GLenum status;
+
+	if (width <= 0)
+	{
+		width = 1;
+	}
+	if (height <= 0)
+	{
+		height = 1;
+	}
+	if ((s_sceneFramebuffer != 0) && (s_sceneW == width) && (s_sceneH == height))
+	{
+		return;
+	}
+
+	if (s_sceneColorTexture == (TextureID)-1)
+	{
+		glGenTextures(1, &s_sceneColorTexture);
+	}
+	glBindTexture(GL_TEXTURE_2D, s_sceneColorTexture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	if (s_sceneStencilRb == 0)
+	{
+		glGenRenderbuffers(1, &s_sceneStencilRb);
+	}
+	glBindRenderbuffer(GL_RENDERBUFFER, s_sceneStencilRb);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_STENCIL_INDEX8, width, height);
+	glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+	if (s_sceneFramebuffer == 0)
+	{
+		glGenFramebuffers(1, &s_sceneFramebuffer);
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, s_sceneFramebuffer);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s_sceneColorTexture, 0);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, s_sceneStencilRb);
+
+	status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (status != GL_FRAMEBUFFER_COMPLETE)
+	{
+		NATIVE_RENDERER_ERROR("scene render target incomplete: 0x%x (w=%d h=%d)\n", (unsigned)status, width, height);
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	s_sceneW = width;
+	s_sceneH = height;
+}
+
 void NativeRenderer_BeginScene(void)
 {
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_RENDERER_BEGIN_SCENE);
 	s_lastBoundTexture = 0;
 
 	NativeRenderer_UpdatePresentationViewport();
-	NativeRenderer_ClearPresentationBars();
+
+	// Render the scene at PS1 native display resolution into the scene target
+	// (not the upscaled window). Presentation to the window happens at EndScene.
+	NativeRenderer_EnsureSceneTarget(activeDispEnv.disp.w, activeDispEnv.disp.h);
+	s_mainFramebuffer = s_sceneFramebuffer;
+	glBindFramebuffer(GL_FRAMEBUFFER, s_mainFramebuffer);
 	glClear(GL_STENCIL_BUFFER_BIT);
 
-	NativeRenderer_SetViewPort(s_presentViewport.x, s_presentViewport.y, s_presentViewport.w, s_presentViewport.h);
+	NativeRenderer_SetViewPort(0, 0, s_sceneW, s_sceneH);
 
 	if (g_dbg_wireframeMode)
 	{
@@ -498,6 +597,32 @@ internal void NativeRenderer_UpdatePresentationViewport(void)
 	if (viewportH < 1)
 	{
 		viewportH = 1;
+	}
+
+	// PSX-native integer scaling: snap the aspect-correct viewport DOWN to a whole
+	// multiple of the native display height so the nearest upscale is shimmer-free.
+	// Width is kept aspect-correct (PS1 pixels are non-square); the remainder is
+	// letterboxed by ClearPresentationBars.
+	{
+		const int nativeH = activeDispEnv.disp.h;
+		if (nativeH > 0)
+		{
+			int scale = viewportH / nativeH;
+			if (scale < 1)
+			{
+				scale = 1;
+			}
+			viewportH = nativeH * scale;
+			viewportW = (viewportH * s_presentAspectW) / s_presentAspectH;
+			if (viewportW > g_windowWidth)
+			{
+				viewportW = g_windowWidth;
+			}
+			if (viewportH > g_windowHeight)
+			{
+				viewportH = g_windowHeight;
+			}
+		}
 	}
 
 	s_presentViewport.w = viewportW;
@@ -1309,11 +1434,12 @@ void NativeRenderer_SetupClipMode(const RECT16 *rect, const DISPENV *displayEnv,
 		clipRectX += 0.5f;
 	}
 
-	// adjust scissor rectangle by the backbuffer size (window dimensions)
-	const float viewportX = (float)s_presentViewport.x;
-	const float viewportY = (float)s_presentViewport.y;
-	const float viewportW = (float)s_presentViewport.w;
-	const float viewportH = (float)s_presentViewport.h;
+	// Scene renders at PS1 native resolution: scissor in the scene FBO's own
+	// pixels (the display maps 1:1 onto it), not the scaled window viewport.
+	const float viewportX = 0.0f;
+	const float viewportY = 0.0f;
+	const float viewportW = (float)s_sceneW;
+	const float viewportH = (float)s_sceneH;
 	const float flipOffset = viewportY + viewportH - clipRectH * viewportH;
 	const float crx = viewportX + clipRectX * viewportW;
 	const float cry = clipRectY * viewportH;
@@ -1506,7 +1632,7 @@ void NativeRenderer_ClearVRAM(int x, int y, int w, int h, u8 r, u8 g, u8 b)
 	glClearColor((float)(color & 0xFF) / 255.0f, (float)((color >> 8) & 0xFF) / 255.0f, 0.0f, 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glDisable(GL_SCISSOR_TEST);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, s_mainFramebuffer);
 
 	s_previousScissorState = 0;
 }
@@ -1556,10 +1682,12 @@ void NativeRenderer_Clear(int x, int y, int w, int h, u8 r, u8 g, u8 b)
 	const int relRight = overlapRight - displayX;
 	const int relBottom = overlapBottom - displayY;
 
-	const int scissorX = s_presentViewport.x + (relX * s_presentViewport.w) / displayW;
-	const int scissorRight = s_presentViewport.x + (relRight * s_presentViewport.w + displayW - 1) / displayW;
-	const int scissorTop = (relY * s_presentViewport.h) / displayH;
-	const int scissorBottom = (relBottom * s_presentViewport.h + displayH - 1) / displayH;
+	// Scene is rendered at PS1 native resolution: the display region maps 1:1
+	// onto the scene FBO, so scissor in native pixels (no present-viewport scale).
+	const int scissorX = relX;
+	const int scissorRight = relRight;
+	const int scissorTop = relY;
+	const int scissorBottom = relBottom;
 	const int scissorW = scissorRight - scissorX;
 	const int scissorH = scissorBottom - scissorTop;
 
@@ -1575,7 +1703,7 @@ void NativeRenderer_Clear(int x, int y, int w, int h, u8 r, u8 g, u8 b)
 	s_framebufferNeedsUpdate = 1;
 
 	glEnable(GL_SCISSOR_TEST);
-	glScissor(scissorX, s_presentViewport.y + s_presentViewport.h - scissorBottom, scissorW, scissorH);
+	glScissor(scissorX, s_sceneH - scissorBottom, scissorW, scissorH);
 	glClearColor(NativeRenderer_PSXColorComponentFloat(r), NativeRenderer_PSXColorComponentFloat(g), NativeRenderer_PSXColorComponentFloat(b), 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
@@ -1754,6 +1882,8 @@ void NativeRenderer_SetOffscreenState(const RECT16 *offscreenRect, const DISPENV
 
 		NativeRenderer_SetViewPort(0, 0, offscreenRect->w, offscreenRect->h);
 		glBindFramebuffer(GL_FRAMEBUFFER, s_glOffscreenFramebuffer);
+		// Route mid-op VRAM restores to the offscreen target while it is active.
+		s_mainFramebuffer = s_glOffscreenFramebuffer;
 
 		// clear it out
 		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -1769,7 +1899,10 @@ void NativeRenderer_SetOffscreenState(const RECT16 *offscreenRect, const DISPENV
 		s_previousOffscreenState = 0;
 
 		NativeRenderer_FlushOffscreenToVRAM();
-		NativeRenderer_SetViewPort(s_presentViewport.x, s_presentViewport.y, s_presentViewport.w, s_presentViewport.h);
+		// Back to the PSX-native scene target at its native viewport.
+		s_mainFramebuffer = s_sceneFramebuffer;
+		glBindFramebuffer(GL_FRAMEBUFFER, s_mainFramebuffer);
+		NativeRenderer_SetViewPort(0, 0, s_sceneW, s_sceneH);
 	}
 }
 
@@ -1892,10 +2025,13 @@ internal void NativeRenderer_GpuPackTextureToVRAM(GLuint srcTexture, int x, int 
 	NativeRenderer_BindPackQuad();
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	// Restore the current frame's main render target (the PSX-native scene FBO
+	// during a frame, the window backbuffer otherwise) so the game's subsequent
+	// draws in the submit run keep landing in the scene, not on the backbuffer.
+	glBindFramebuffer(GL_FRAMEBUFFER, s_mainFramebuffer);
 
 	// invalidate caches for the state we touched; the submit run re-sets on demand
-	glViewport(s_presentViewport.x, s_presentViewport.y, s_presentViewport.w, s_presentViewport.h);
+	glViewport(0, 0, s_sceneW, s_sceneH);
 	s_previousShader = -1;
 	s_lastBoundTexture = -1;
 	s_previousBlendMode = BM_NONE;
@@ -1917,8 +2053,10 @@ void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h)
 {
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_STORE);
 
-	NativeRenderer_BlitBackbufferToFramebufferTex(x, y, w, h);
-	NativeRenderer_GpuPackFramebufferToVRAM(x, y, w, h);
+	// The scene is already rendered at PS1 native resolution in s_sceneColorTexture,
+	// so pack it straight into VRAM (x,y,w,h) with no backbuffer capture or downscale.
+	// flipY=1: the scene FBO stores row 0 at the bottom (GL), like the offscreen RT.
+	NativeRenderer_GpuPackTextureToVRAM(s_sceneColorTexture, x, y, w, h, 1);
 	s_framebufferNeedsUpdate = 1;
 	s_lastBoundTexture = -1;
 
@@ -2007,7 +2145,7 @@ internal void NativeRenderer_ReadVRAMRect(int x, int y, int w, int h, u16 *dst, 
 
 		glBindFramebuffer(GL_FRAMEBUFFER, s_glVramFramebuffer);
 		glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glBindFramebuffer(GL_FRAMEBUFFER, s_mainFramebuffer);
 
 		for (row = 0; row < h; row++)
 		{
@@ -2078,7 +2216,7 @@ internal void NativeRenderer_CopyVRAMRectGPU(int srcX, int srcY, int dstX, int d
 	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, dstX, dstY, 0, 0, w, h);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, s_mainFramebuffer);
 	s_lastBoundTexture = (TextureID)-1;
 }
 
@@ -2185,6 +2323,18 @@ void NativeRenderer_PresentVRAMDisplay(void)
 	// OpenGL backend otherwise swaps the current framebuffer and never shows
 	// those VRAM-only copies.
 	NativeRenderer_PresentVRAMRect(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
+}
+
+// NOTE(penta3): Present the finished PSX-native frame to the window. The scene
+// was rendered at native resolution and packed into VRAM by StoreFrameBuffer, so
+// this clears the letterbox bars and upscales the VRAM display region to the
+// (integer-snapped) present viewport with the existing nearest display shader.
+void NativeRenderer_PresentScene(void)
+{
+	s_mainFramebuffer = 0;
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	NativeRenderer_ClearPresentationBars();
+	NativeRenderer_PresentVRAMDisplay();
 }
 
 void NativeRenderer_SwapWindow(void)
