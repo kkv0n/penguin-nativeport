@@ -179,6 +179,7 @@ internal void NativeRenderer_BindVertexBuffer(void);
 internal void NativeRenderer_GpuPackTextureToVRAM(GLuint srcTexture, int x, int y, int w, int h, int flipY);
 internal void NativeRenderer_GpuPackFramebufferToVRAM(int x, int y, int w, int h);
 internal void NativeRenderer_EnsureSceneTarget(int width, int height);
+internal void NativeRenderer_BindPackQuad(void);
 internal void NativeRenderer_UploadVRAMRect(int x, int y, int w, int h, const u16 *src, int srcStride);
 internal void NativeRenderer_ReadVRAMRect(int x, int y, int w, int h, u16 *dst, int dstStride);
 
@@ -492,6 +493,41 @@ internal void NativeRenderer_EnsureSceneTarget(int width, int height)
 	s_sceneH = height;
 }
 
+// NOTE(penta3): Seed the scene target with the current VRAM display region.
+// PS1 content that lives ONLY in VRAM - the boot TIM splash, FMV frames,
+// screen-copy backdrops, and any frame that partially updates the previous
+// image - is not re-emitted as geometry, so a fresh empty scene target would
+// drop it (black screen). Mirroring ctr-native's LoadRenderTargetFromVRAM, we
+// blit the VRAM display rect into the scene target first (nearest display
+// shader, 1:1 at native res), then the frame's geometry composites on top.
+internal void NativeRenderer_LoadSceneFromVRAM(int x, int y)
+{
+	glDisable(GL_BLEND);
+	glDisable(GL_SCISSOR_TEST);
+	glDisable(GL_STENCIL_TEST);
+	glViewport(0, 0, s_sceneW, s_sceneH);
+
+	glUseProgram(s_displayShader);
+	glUniform4f(s_displaySrcRectLoc, (float)x, (float)y, (float)s_sceneW, (float)s_sceneH);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, s_vramTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, s_rgLutTexture);
+	glActiveTexture(GL_TEXTURE0);
+
+	NativeRenderer_BindPackQuad();
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	glClear(GL_STENCIL_BUFFER_BIT);
+	glEnable(GL_STENCIL_TEST);
+
+	// invalidate the render-state caches this raw draw disturbed
+	s_previousShader = (ShaderID)-1;
+	s_lastBoundTexture = (TextureID)-1;
+	s_previousBlendMode = BM_NONE;
+	s_previousScissorState = 0;
+}
+
 void NativeRenderer_BeginScene(void)
 {
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_RENDERER_BEGIN_SCENE);
@@ -504,7 +540,16 @@ void NativeRenderer_BeginScene(void)
 	NativeRenderer_EnsureSceneTarget(activeDispEnv.disp.w, activeDispEnv.disp.h);
 	s_mainFramebuffer = s_sceneFramebuffer;
 	glBindFramebuffer(GL_FRAMEBUFFER, s_mainFramebuffer);
-	glClear(GL_STENCIL_BUFFER_BIT);
+
+	if (!activeDrawEnv.isbg)
+	{
+		// Preserve VRAM-only content (splash/FMV/backdrops/partial frames).
+		NativeRenderer_LoadSceneFromVRAM(activeDispEnv.disp.x, activeDispEnv.disp.y);
+	}
+	else
+	{
+		glClear(GL_STENCIL_BUFFER_BIT);
+	}
 
 	NativeRenderer_SetViewPort(0, 0, s_sceneW, s_sceneH);
 
