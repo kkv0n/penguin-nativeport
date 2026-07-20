@@ -634,18 +634,14 @@ void NativeRenderer_BeginScene(void)
 		RDBG("  NATIVE sceneFBO=%u tex=%u %dx%d; VRAM sample before seed:\n", s_sceneFramebuffer, (unsigned)s_sceneColorTexture, s_sceneW, s_sceneH);
 		NativeRenderer_DebugSample(s_glVramFramebuffer, activeDispEnv.disp.x + activeDispEnv.disp.w / 2, activeDispEnv.disp.y + activeDispEnv.disp.h / 2, "VRAMctr");
 
-		if (!activeDrawEnv.isbg)
-		{
-			// Preserve VRAM-only content (splash/FMV/backdrops/partial frames).
-			NativeRenderer_LoadSceneFromVRAM(activeDispEnv.disp.x, activeDispEnv.disp.y);
-			RDBG("  seeded scene from VRAM; scene sample after seed:\n");
-			NativeRenderer_DebugSample(s_sceneFramebuffer, s_sceneW / 2, s_sceneH / 2, "SCENEctr");
-		}
-		else
-		{
-			glClear(GL_STENCIL_BUFFER_BIT);
-			RDBG("  isbg: cleared stencil, no VRAM seed\n");
-		}
+		// Always seed the scene from the current VRAM display region. penguin's VRAM
+		// is GPU-only (no CPU mirror like ctr-native), so the scene must faithfully
+		// mirror VRAM; otherwise VRAM-only content the game wrote directly (boot
+		// splash / FMV / partial-update frames) is dropped. LoadSceneFromVRAM also
+		// clears stencil. isbg frames still get their bg fill from NativeRenderer_Clear.
+		NativeRenderer_LoadSceneFromVRAM(activeDispEnv.disp.x, activeDispEnv.disp.y);
+		RDBG("  seeded scene from VRAM (isbg=%d); scene sample after seed:\n", activeDrawEnv.isbg);
+		NativeRenderer_DebugSample(s_sceneFramebuffer, s_sceneW / 2, s_sceneH / 2, "SCENEctr");
 
 		NativeRenderer_SetViewPort(0, 0, s_sceneW, s_sceneH);
 	}
@@ -2208,13 +2204,24 @@ void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h)
 
 	if (s_renderNative)
 	{
-		// Scene already rendered at PS1 native resolution in s_sceneColorTexture:
-		// pack it straight into VRAM (x,y,w,h), no backbuffer capture or downscale.
-		// flipY=1: scene FBO stores row 0 at the bottom (GL), like the offscreen RT.
-		NativeRenderer_GpuPackTextureToVRAM(s_sceneColorTexture, x, y, w, h, 1);
-		RDBG("  STORE native: packed sceneTex->VRAM (%d,%d %dx%d) drawCalls=%d verts=%d; scene sample:\n", x, y, w, h, s_frameDrawCalls, s_frameDrawVerts);
-		NativeRenderer_DebugSample(s_sceneFramebuffer, s_sceneW / 2, s_sceneH / 2, "SCENEend");
-		NativeRenderer_DebugSample(s_glVramFramebuffer, x + w / 2, y + h / 2, "VRAMstor");
+		if (s_frameDrawCalls == 0)
+		{
+			// Nothing was rasterized this frame: the scene is just the VRAM we seeded
+			// from, so repacking it would only risk clobbering VRAM-only content the
+			// game wrote directly (LoadImage splash/FMV). Leave VRAM untouched.
+			RDBG("  STORE native: SKIP (0 draw calls, preserving VRAM); VRAM sample:\n");
+			NativeRenderer_DebugSample(s_glVramFramebuffer, x + w / 2, y + h / 2, "VRAMstor");
+		}
+		else
+		{
+			// Scene rendered at PS1 native resolution in s_sceneColorTexture: pack it
+			// straight into VRAM (x,y,w,h), no backbuffer capture or downscale.
+			// flipY=1: scene FBO stores row 0 at the bottom (GL), like the offscreen RT.
+			NativeRenderer_GpuPackTextureToVRAM(s_sceneColorTexture, x, y, w, h, 1);
+			RDBG("  STORE native: packed sceneTex->VRAM (%d,%d %dx%d) drawCalls=%d verts=%d; scene sample:\n", x, y, w, h, s_frameDrawCalls, s_frameDrawVerts);
+			NativeRenderer_DebugSample(s_sceneFramebuffer, s_sceneW / 2, s_sceneH / 2, "SCENEend");
+			NativeRenderer_DebugSample(s_glVramFramebuffer, x + w / 2, y + h / 2, "VRAMstor");
+		}
 	}
 	else
 	{
