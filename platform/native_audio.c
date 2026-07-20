@@ -79,6 +79,12 @@
 // every consumer with huge margin. No decoded-track arena exists.
 #define XA_SECTOR_MAX_SAMPLES               (XA_FRAMES_PER_SECTOR * XA_SUBFRAMES_PER_FRAME * XA_SAMPLES_PER_SOUND_UNIT)
 #define NATIVE_AUDIO_XA_RING_FRAMES         8192
+// NOTE(penta3): Background prefetch queue depth in whole raw sectors. The
+// producer thread reads sectors sequentially into this small RAM ring so the
+// audio callback pops already-resident sectors instead of doing file I/O on the
+// real-time thread. 64 sectors (~147KB) covers >3s of playback margin - the
+// track itself is never resident, only this bounded look-ahead window.
+#define NATIVE_AUDIO_XA_QUEUE_SECTORS       64
 #define XA_SAMPLE_RATE_37800                37800
 #define XA_SAMPLE_RATE_18900                18900
 
@@ -272,8 +278,35 @@ struct NativeAudioXaStream
 	int nextSector;
 	u64 decodedFrames;
 	struct NativeAudioXaDecodeState adpcm;
+	// NOTE(penta3): When set, the sector fetch may block waiting on the prefetch
+	// thread. Only non-real-time consumers (save-state warm, deterministic
+	// pre-render) set it; the SDL audio callback leaves it 0 and degrades to
+	// brief silence on the (pathological) empty-queue case instead of blocking.
+	int allowBlockingFetch;
 	u8 sectorBuf[XA_FULL_SECTOR_SIZE];
 	s16 ring[NATIVE_AUDIO_XA_RING_FRAMES * NATIVE_AUDIO_CHANNELS];
+};
+
+// NOTE(penta3): Background XA sector prefetch. A dedicated thread is the ONLY
+// place that touches the file/disc during playback; it streams raw sectors
+// sequentially into this bounded RAM queue. The decoder (running in the audio
+// callback or the deterministic pre-render) pops resident sectors, so no file
+// I/O ever happens on the real-time audio thread - without loading the whole
+// track into memory like a decoded/compressed-cache approach would. The sync
+// objects persist across tracks; only the queue indices reset per track.
+struct NativeAudioXaPrefetch
+{
+	SDL_Thread *thread;
+	SDL_Mutex *mutex;
+	SDL_Condition *notFull;
+	SDL_Condition *notEmpty;
+	int head;
+	int tail;
+	int count;
+	int producerSector;
+	int running;
+	int eof;
+	u8 buf[NATIVE_AUDIO_XA_QUEUE_SECTORS][XA_FULL_SECTOR_SIZE];
 };
 
 struct NativeAudioState
@@ -294,6 +327,7 @@ struct NativeAudioState
 	struct NativeAudioVoice voices[NATIVE_AUDIO_SPU_VOICE_COUNT];
 	struct NativeAudioXA xa;
 	struct NativeAudioXaStream xaStream;
+	struct NativeAudioXaPrefetch xaPrefetch;
 	struct NativeAudioOutput output;
 };
 
@@ -929,6 +963,10 @@ internal void NativeAudio_AdvanceXAOutputFrameNoLock(void)
 
 internal int NativeAudio_XaStreamDecodeNextSectorNoLock(void);
 internal void NativeAudio_XaSourceClose(struct NativeAudioXaSource *src);
+internal int NativeAudio_XaSourceReadSector(struct NativeAudioXaSource *src, int sector, u8 *dst);
+internal void NativeAudio_XaPrefetchStart(void);
+internal void NativeAudio_XaPrefetchStop(void);
+internal int NativeAudio_XaPrefetchPop(u8 *dst, int allowBlock);
 
 // NOTE(penta3): Streaming fetch - decode forward on demand until the wanted
 // frame is in the ring, then serve it. Consumption is monotonic with a small
@@ -1506,6 +1544,8 @@ internal int NativeAudio_VoiceStreamAdvanceBlock(struct NativeAudioVoice *voice)
 // the PC equivalent of the CD drive dropping its read position.
 internal void NativeAudio_CloseXANoLock(void)
 {
+	// Join the producer before dropping the file handle it reads from.
+	NativeAudio_XaPrefetchStop();
 	memset(&s_audio.xa, 0, sizeof(s_audio.xa));
 	NativeAudio_XaSourceClose(&s_audio.xaStream.src);
 	memset(&s_audio.xaStream, 0, sizeof(s_audio.xaStream));
@@ -2098,6 +2138,191 @@ internal int NativeAudio_XaSourceReadSector(struct NativeAudioXaSource *src, int
 	return 0;
 }
 
+// NOTE(penta3): Lazily create the prefetch sync objects. They outlive individual
+// tracks (only the queue indices reset per track) so we never churn OS handles
+// on every music change.
+internal int NativeAudio_XaPrefetchEnsureSync(void)
+{
+	struct NativeAudioXaPrefetch *pf = &s_audio.xaPrefetch;
+
+	if (pf->mutex == NULL)
+	{
+		pf->mutex = SDL_CreateMutex();
+	}
+	if (pf->notFull == NULL)
+	{
+		pf->notFull = SDL_CreateCondition();
+	}
+	if (pf->notEmpty == NULL)
+	{
+		pf->notEmpty = SDL_CreateCondition();
+	}
+
+	return (pf->mutex != NULL) && (pf->notFull != NULL) && (pf->notEmpty != NULL);
+}
+
+// NOTE(penta3): Producer thread. The ONLY reader of the file/disc during
+// playback. Streams sectors sequentially into the bounded RAM queue; the actual
+// read happens with the queue mutex released, so the consumer's pop is never
+// blocked behind I/O. This is what keeps file I/O off the real-time audio thread
+// while still streaming (no whole-track residency).
+internal int SDLCALL NativeAudio_XaPrefetchThread(void *data)
+{
+	struct NativeAudioXaPrefetch *pf = &s_audio.xaPrefetch;
+	struct NativeAudioXaStream *xs = &s_audio.xaStream;
+
+	(void)data;
+
+	for (;;)
+	{
+		int sector;
+		int slot;
+		int ok;
+
+		SDL_LockMutex(pf->mutex);
+		while (pf->running && (pf->count == NATIVE_AUDIO_XA_QUEUE_SECTORS))
+		{
+			SDL_WaitCondition(pf->notFull, pf->mutex);
+		}
+		if (!pf->running)
+		{
+			SDL_UnlockMutex(pf->mutex);
+			break;
+		}
+		if (pf->producerSector >= xs->src.totalSectors)
+		{
+			// End of track: nothing left to read. Wake any waiting consumer so it
+			// observes eof, then idle until the track is stopped/replaced.
+			pf->eof = 1;
+			SDL_SignalCondition(pf->notEmpty);
+			SDL_WaitCondition(pf->notFull, pf->mutex);
+			SDL_UnlockMutex(pf->mutex);
+			continue;
+		}
+		sector = pf->producerSector;
+		slot = pf->tail;
+		SDL_UnlockMutex(pf->mutex);
+
+		// Read into the free tail slot with NO lock held. Only this thread writes
+		// tail slots and the consumer never touches a slot until count is bumped
+		// below, so this is a safe single-producer write.
+		ok = NativeAudio_XaSourceReadSector(&xs->src, sector, pf->buf[slot]);
+
+		SDL_LockMutex(pf->mutex);
+		if (!ok)
+		{
+			pf->eof = 1;
+			SDL_SignalCondition(pf->notEmpty);
+			SDL_UnlockMutex(pf->mutex);
+			continue;
+		}
+		pf->tail = (pf->tail + 1) % NATIVE_AUDIO_XA_QUEUE_SECTORS;
+		pf->count++;
+		pf->producerSector = sector + 1;
+		SDL_SignalCondition(pf->notEmpty);
+		SDL_UnlockMutex(pf->mutex);
+	}
+
+	return 0;
+}
+
+// NOTE(penta3): Pop one raw sector from the RAM queue into dst. Returns 0 when
+// the queue is empty. In the audio callback (allowBlock == 0) an empty queue is
+// a graceful miss - the frame renders silent and we retry next callback rather
+// than ever blocking the real-time thread. Non-real-time consumers pass
+// allowBlock == 1 to wait for the producer (warm/seek, deterministic render).
+internal int NativeAudio_XaPrefetchPop(u8 *dst, int allowBlock)
+{
+	struct NativeAudioXaPrefetch *pf = &s_audio.xaPrefetch;
+	int got = 0;
+
+	if (pf->mutex == NULL)
+	{
+		return 0;
+	}
+
+	SDL_LockMutex(pf->mutex);
+	while ((pf->count == 0) && !pf->eof)
+	{
+		if (!allowBlock)
+		{
+			SDL_UnlockMutex(pf->mutex);
+			return 0;
+		}
+		SDL_WaitCondition(pf->notEmpty, pf->mutex);
+	}
+	if (pf->count > 0)
+	{
+		memcpy(dst, pf->buf[pf->head], (size_t)s_audio.xaStream.src.sectorSize);
+		pf->head = (pf->head + 1) % NATIVE_AUDIO_XA_QUEUE_SECTORS;
+		pf->count--;
+		SDL_SignalCondition(pf->notFull);
+		got = 1;
+	}
+	SDL_UnlockMutex(pf->mutex);
+
+	return got;
+}
+
+// NOTE(penta3): Launch the producer for the current (already-opened) source.
+// Called from XaStreamStartNoLock after xs->src is set. On failure the decoder
+// transparently falls back to inline reads (see XaStreamDecodeNextSectorNoLock).
+internal void NativeAudio_XaPrefetchStart(void)
+{
+	struct NativeAudioXaPrefetch *pf = &s_audio.xaPrefetch;
+
+	NativeAudio_XaPrefetchStop();
+
+	if (!NativeAudio_XaPrefetchEnsureSync())
+	{
+		return;
+	}
+
+	SDL_LockMutex(pf->mutex);
+	pf->head = 0;
+	pf->tail = 0;
+	pf->count = 0;
+	pf->producerSector = 0;
+	pf->eof = 0;
+	pf->running = 1;
+	SDL_UnlockMutex(pf->mutex);
+
+	pf->thread = SDL_CreateThread(NativeAudio_XaPrefetchThread, "ctr-xa-prefetch", NULL);
+	if (pf->thread == NULL)
+	{
+		pf->running = 0;
+	}
+}
+
+// NOTE(penta3): Stop and join the producer. Safe to call when idle. Must run
+// before the source file handle is closed or xaStream is reset.
+internal void NativeAudio_XaPrefetchStop(void)
+{
+	struct NativeAudioXaPrefetch *pf = &s_audio.xaPrefetch;
+
+	if (pf->thread == NULL)
+	{
+		return;
+	}
+
+	SDL_LockMutex(pf->mutex);
+	pf->running = 0;
+	SDL_SignalCondition(pf->notFull);
+	SDL_SignalCondition(pf->notEmpty);
+	SDL_UnlockMutex(pf->mutex);
+
+	SDL_WaitThread(pf->thread, NULL);
+	pf->thread = NULL;
+
+	SDL_LockMutex(pf->mutex);
+	pf->head = 0;
+	pf->tail = 0;
+	pf->count = 0;
+	pf->producerSector = 0;
+	pf->eof = 0;
+	SDL_UnlockMutex(pf->mutex);
+}
+
 // NOTE(penta3): One transient pass over the sector headers at play time -
 // counts matching audio sectors and grabs rate/channels so end-of-track is
 // known up front. Nothing is decoded and nothing stays resident.
@@ -2155,6 +2380,8 @@ internal void NativeAudio_XaStreamStartNoLock(struct NativeAudioXaSource *src, i
 {
 	struct NativeAudioXaStream *xs = &s_audio.xaStream;
 
+	// Stop any previous producer before we touch the source it was reading.
+	NativeAudio_XaPrefetchStop();
 	NativeAudio_XaSourceClose(&xs->src);
 	memset(xs, 0, sizeof(*xs));
 
@@ -2166,6 +2393,9 @@ internal void NativeAudio_XaStreamStartNoLock(struct NativeAudioXaSource *src, i
 	xs->channelFilter = channelFilter;
 	xs->numChannels = numChannels;
 	memset(src, 0, sizeof(*src));
+
+	// Launch the background reader for this track's source.
+	NativeAudio_XaPrefetchStart();
 }
 
 // NOTE(penta3): Read + decode the next matching audio sector (4032 samples)
@@ -2183,10 +2413,25 @@ internal int NativeAudio_XaStreamDecodeNextSectorNoLock(void)
 		int frames;
 		int f;
 
-		if (!NativeAudio_XaSourceReadSector(&xs->src, xs->nextSector, xs->sectorBuf))
+		// NOTE(penta3): Prefer the background-prefetched sector (no file I/O on
+		// this thread). If the prefetch thread failed to start, fall back to a
+		// direct inline read so playback still works. In the audio callback an
+		// empty queue yields a silent frame (allowBlockingFetch == 0) rather than
+		// blocking; non-real-time consumers set allowBlockingFetch to wait.
+		if (s_audio.xaPrefetch.thread != NULL)
 		{
-			xs->nextSector = xs->src.totalSectors;
-			return 0;
+			if (!NativeAudio_XaPrefetchPop(xs->sectorBuf, xs->allowBlockingFetch))
+			{
+				return 0;
+			}
+		}
+		else
+		{
+			if (!NativeAudio_XaSourceReadSector(&xs->src, xs->nextSector, xs->sectorBuf))
+			{
+				xs->nextSector = xs->src.totalSectors;
+				return 0;
+			}
 		}
 		xs->nextSector++;
 
@@ -2702,8 +2947,12 @@ int NativeAudio_RestoreState(const void *src, int srcSize)
 		s_audio.xa.volumeRight = snapshot->xa.volumeRight;
 		NativeAudio_UpdateXAPositionFromOutputFrameNoLock();
 		// NOTE(penta3): Seek = decode forward to the restored position now, on
-		// this thread, so the audio callback never pays the catch-up burst.
+		// this thread, so the audio callback never pays the catch-up burst. This
+		// runs off the real-time thread, so it may block waiting on the prefetch
+		// producer to stream the sectors up to the restored position.
+		s_audio.xaStream.allowBlockingFetch = 1;
 		NativeAudio_GetXAPcmSampleAtFrameNoLock(0, s_audio.xa.positionFp >> NATIVE_AUDIO_FP_SHIFT);
+		s_audio.xaStream.allowBlockingFetch = 0;
 	}
 	else
 	{
@@ -2865,7 +3114,11 @@ int NativeAudio_RenderFrames(s16 *out, int frameCount)
 
 	NativeAudio_LockOutput();
 
+	// Non-real-time render (explicit host-driven render): may block on the
+	// prefetch producer so the returned buffer is never spuriously silent.
+	s_audio.xaStream.allowBlockingFetch = 1;
 	framesRendered = NativeAudio_RenderFramesNoLock(out, frameCount);
+	s_audio.xaStream.allowBlockingFetch = 0;
 
 	NativeAudio_UnlockOutput();
 
@@ -2895,7 +3148,13 @@ void NativeAudio_StepVBlank(void)
 
 		// NOTE(aalhendi): Replay/TAS mode advances SPU/XA from the native PS1
 		// VBlank clock. SDL only drains the scheduled PCM in its callback.
-		int framesRendered = NativeAudio_RenderFramesNoLock(renderedFrames, NATIVE_AUDIO_VBLANK_FRAMES);
+		// NOTE(penta3): This pre-render runs on the game thread, not the audio
+		// callback, and must be deterministic - block on the prefetch producer so
+		// a not-yet-filled queue never injects silence into the replay stream.
+		int framesRendered;
+		s_audio.xaStream.allowBlockingFetch = 1;
+		framesRendered = NativeAudio_RenderFramesNoLock(renderedFrames, NATIVE_AUDIO_VBLANK_FRAMES);
+		s_audio.xaStream.allowBlockingFetch = 0;
 		NativeAudio_QueueRenderedFramesNoLock(renderedFrames, framesRendered);
 	}
 
@@ -2991,11 +3250,33 @@ internal int NativeAudio_OpenDevice(void)
 
 void NativeAudio_Shutdown(void)
 {
+	struct NativeAudioXaPrefetch *pf = &s_audio.xaPrefetch;
+
+	// Destroy the audio stream FIRST: this stops/joins the SDL callback, so no
+	// consumer can touch the prefetch queue after this point. Only then is it
+	// safe to join the producer and destroy the queue's sync objects.
 	if (s_audio.output.stream != NULL)
 	{
 		SDL_DestroyAudioStream(s_audio.output.stream);
 		s_audio.output.stream = NULL;
 		s_audio.output.device = 0;
+	}
+
+	NativeAudio_XaPrefetchStop();
+	if (pf->notEmpty != NULL)
+	{
+		SDL_DestroyCondition(pf->notEmpty);
+		pf->notEmpty = NULL;
+	}
+	if (pf->notFull != NULL)
+	{
+		SDL_DestroyCondition(pf->notFull);
+		pf->notFull = NULL;
+	}
+	if (pf->mutex != NULL)
+	{
+		SDL_DestroyMutex(pf->mutex);
+		pf->mutex = NULL;
 	}
 
 	SDL_QuitSubSystem(SDL_INIT_AUDIO);
