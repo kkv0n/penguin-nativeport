@@ -439,7 +439,6 @@ void Platform_EndScene(void)
 		{
 			NativeRenderer_PresentVRAMDisplay();
 		}
-		NativeRenderer_DebugEndScene(1, s_pinnedVramDisplayFrames);
 		NativeRenderer_SwapWindow();
 		s_pinnedVramDisplayFrames--;
 		if (s_pinnedVramDisplayFrames <= 0)
@@ -460,15 +459,9 @@ void Platform_EndScene(void)
 	// the resource win over HEAD's readback stands.
 	NativeRenderer_StoreFrameBuffer(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
 
-	// Native mode: the scene was rendered at PSX resolution and packed into VRAM;
-	// upscale it to the window (integer + nearest). Legacy mode already rendered
-	// straight to the backbuffer, so just swap.
-	if (NativeRenderer_IsNativeRes())
-	{
-		NativeRenderer_PresentScene();
-	}
-
-	NativeRenderer_DebugEndScene(0, 0);
+	// The scene was rendered at PSX resolution and packed into VRAM; upscale it to
+	// the window (integer + nearest) before presenting.
+	NativeRenderer_PresentScene();
 
 	NativeRenderer_SwapWindow();
 
