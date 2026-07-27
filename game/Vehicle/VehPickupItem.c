@@ -26,7 +26,6 @@ static inline void VehPickupItem_ClearMineMotion(struct MineWeapon *mine)
 
 enum
 {
-	MASK_GOOD_GUY_CHARACTER_BITS = 0x20c9,
 	MASK_MODEL_COUNT = 2,
 	MASK_SOUND_ID_OFFSET_FROM_MODEL = 0x1a,
 	MASK_BEAM_MODEL_STRIDE = 2,
@@ -132,7 +131,6 @@ enum
 	VOICELINE_WEAPON_PRIORITY = 0x10,
 };
 
-CTR_STATIC_ASSERT(MASK_GOOD_GUY_CHARACTER_BITS == 0x20c9);
 CTR_STATIC_ASSERT(MASK_MODEL_COUNT == 2);
 CTR_STATIC_ASSERT(MASK_SOUND_ID_OFFSET_FROM_MODEL == 0x1a);
 CTR_STATIC_ASSERT(MASK_BEAM_MODEL_STRIDE == 2);
@@ -236,10 +234,14 @@ b32 VehPickupItem_MaskBoolGoodGuy(struct Driver *d)
 {
 	s32 charID = data.characterIDs[d->driverID];
 
-	// Crash, Coco, Pura, Polar, Penta
-	u32 maskBits = MASK_GOOD_GUY_CHARACTER_BITS;
+	// Retail compares against each ID in turn instead of indexing a bitmask, so
+	// any charID outside the set returns 0 no matter how large or negative it is.
+	if ((charID == CRASH_BANDICOOT) || (charID == COCO_BANDICOOT) || (charID == POLAR) || (charID == PURA) || (charID == PENTA_PENGUIN))
+	{
+		return 1;
+	}
 
-	return (maskBits >> charID) & 1;
+	return 0;
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80064c38-0x80064f94.
@@ -535,8 +537,7 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 	struct TrackerWeapon *tw;
 	struct GameTracker *gGT = sdata->gGT;
 	int modelID;
-	int mineHitModel = 0;
-	int mineShouldInitFollower = 0;
+	int mineHitModelFlags = 0;
 
 	switch (weaponID)
 	{
@@ -632,19 +633,21 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 
 		dInst = d->instSelf;
 
-		// set up missile
-		modelID = DYNAMIC_ROCKET;
-		int bucket = TRACKING;
-		struct Thread *parentTh = 0;
-		char *weaponName = rdata.s_bombtracker1;
+		// set up bomb
+		modelID = DYNAMIC_BOMB;
+		int bucket = OTHER;
+		struct Thread *parentTh = dInst->thread;
+		char *weaponName = sdata->s_bomb1;
 
-		// bomb
-		if ((d->heldItemID == HELD_ITEM_BOMB_1X) || (d->heldItemID == HELD_ITEM_BOMB_3X))
+		// missile. Retail asks "is it a missile?" here (0x80065640) and "is it a
+		// bomb?" at every other branch of this case, so keep both questions in
+		// their retail form instead of collapsing them into one.
+		if ((d->heldItemID == HELD_ITEM_MISSILE_1X) || (d->heldItemID == HELD_ITEM_MISSILE_3X))
 		{
-			modelID = DYNAMIC_BOMB;
-			bucket = OTHER;
-			parentTh = dInst->thread;
-			weaponName = sdata->s_bomb1;
+			modelID = DYNAMIC_ROCKET;
+			bucket = TRACKING;
+			parentTh = 0;
+			weaponName = rdata.s_bombtracker1;
 		}
 
 		// medium stack pool
@@ -674,8 +677,8 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 
 		int talk;
 
-		// bomb
-		if (modelID == DYNAMIC_BOMB)
+		// bomb (retail 0x80065760)
+		if ((d->heldItemID == HELD_ITEM_BOMB_1X) || (d->heldItemID == HELD_ITEM_BOMB_3X))
 		{
 			talk = VOICELINE_BOMB_LAUNCH;
 			d->instBombThrow = weaponInst;
@@ -726,8 +729,8 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 			tw->flags |= TRACKER_FLAG_POWERED_UP;
 		}
 
-		// bomb
-		if (modelID == DYNAMIC_BOMB)
+		// bomb (retail 0x80065854)
+		if ((d->heldItemID == HELD_ITEM_BOMB_1X) || (d->heldItemID == HELD_ITEM_BOMB_3X))
 		{
 			struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[d->driverID];
 
@@ -807,8 +810,10 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 
 		RB_MinePool_Add(mw);
 		VehPickupItem_PotionThrow(mw, weaponInst, flags);
-		mineHitModel = weaponInst->model->id | COLL_MODELID_BLOCKAGE_FLAG;
-		mineShouldInitFollower = (flags == 0);
+
+		// Only the TNT/nitro copy of the block below ORs in the blockage bit
+		// (retail 0x8006616c); the beaker copy does not (0x80066534).
+		mineHitModelFlags = COLL_MODELID_BLOCKAGE_FLAG;
 
 	RunMineCOLL:;
 
@@ -840,7 +845,7 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 
 		if (sps->boolDidTouchHitbox != 0)
 		{
-			sps->Input1.modelID = mineHitModel;
+			sps->Input1.modelID = weaponInst->model->id | mineHitModelFlags;
 
 			RB_Hazard_CollLevInst(sps, weaponTh);
 
@@ -859,6 +864,11 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 
 			sps->Union.QuadBlockColl.searchFlags = 0;
 			COLL_SearchBSP_CallbackQUADBLK(&probeTop, &probeBottom, sps, 0);
+		}
+
+		else
+		{
+			mw->crateInst = 0;
 		}
 
 		RB_MakeInstanceReflective(sps, weaponInst);
@@ -882,17 +892,29 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 
 		VehPhysForce_RotAxisAngle(&weaponInst->matrix, rotationNormal, d->angle);
 
+		// Retail inlines this block twice. The TNT/nitro copy (0x80066250) sets
+		// instTntSend and the flag before the follower and only spawns it when no
+		// throw was requested; the beaker copy (0x8006660c) always spawns the
+		// follower and sets the flag afterwards.
 		if (weaponID == WEAPON_ID_MINE)
 		{
 			d->instTntSend = weaponInst;
+
+			// dropped a mine
+			d->actionsFlagSet |= ACTION_DROPPING_MINE;
+
+			if (flags == 0)
+			{
+				RB_Follower_Init(d, weaponTh);
+			}
 		}
 
-		// dropped a mine
-		d->actionsFlagSet |= ACTION_DROPPING_MINE;
-
-		if (mineShouldInitFollower != 0)
+		else
 		{
 			RB_Follower_Init(d, weaponTh);
+
+			// dropped a mine
+			d->actionsFlagSet |= ACTION_DROPPING_MINE;
 		}
 		break;
 
@@ -908,12 +930,20 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 			{
 				return;
 			}
+
+			weaponTh = weaponInst->thread;
+			mw = weaponTh->object;
+			mw->flags = 0;
 		}
 		else
 		{
 			modelID = STATIC_BEAKER_RED;
 
 			weaponInst = INSTANCE_BirthWithThread(modelID, sdata->s_beaker1, SMALL, MINE, RB_GenericMine_ThTick, sizeof(struct MineWeapon), 0);
+
+			weaponTh = weaponInst->thread;
+			mw = weaponTh->object;
+			mw->flags = MINE_WEAPON_FLAG_RED_BEAKER;
 		}
 
 		dInst = d->instSelf;
@@ -923,9 +953,19 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 		// potion always faces camera
 		weaponInst->model->headers[0].flags |= BEAKER_MODEL_HEADER_CAMERA_FLAG;
 
-		weaponTh = weaponInst->thread;
 		weaponTh->funcThDestroy = PROC_DestroyInstance;
 		weaponTh->funcThCollide = (void *)RB_Hazard_ThCollide_Generic;
+
+		// Retail only clears driverTarget on the TNT/nitro path, so a
+		// beaker inherits whatever the recycled pool object held. Nothing reads it
+		// for a beaker today (RB_Hazard and RB_TNT both gate on STATIC_CRATE_TNT),
+		// but native clears it rather than keep a live garbage pointer around.
+		mw->driverTarget = 0;
+
+		mw->parentSafetyFrames = MINE_PARENT_SAFETY_FRAMES;
+		mw->boolDestroyed = 0;
+		mw->crateInst = 0;
+		mw->instParent = dInst;
 
 		PlaySound3D(SOUND_MINE_DROP, weaponInst);
 
@@ -935,28 +975,18 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 			Voiceline_RequestPlay(VOICELINE_MINE_DROP, data.characterIDs[d->driverID], VOICELINE_WEAPON_PRIORITY);
 		}
 
-		mw = weaponTh->object;
-		mw->driverTarget = 0;
-		mw->instParent = dInst;
-		mw->crateInst = 0;
-		mw->boolDestroyed = 0;
-		mw->parentSafetyFrames = MINE_PARENT_SAFETY_FRAMES;
-		mw->flags = 0;
-		if (modelID == STATIC_BEAKER_RED)
-		{
-			mw->flags = MINE_WEAPON_FLAG_RED_BEAKER;
-		}
-
 		struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[d->driverID];
 
-		// throw potion forward
+		// throw potion forward. Retail ORs the bit into the argument only, it
+		// never writes it back to the caller's flags.
+		s32 throwFlags = flags;
 		if ((gb->buttonsHeldCurrFrame & BTN_UP) != 0)
 		{
-			flags |= POTION_THROW_FORWARD;
+			throwFlags |= POTION_THROW_FORWARD;
 		}
 
 		RB_MinePool_Add(mw);
-		b32 didThrowPotion = VehPickupItem_PotionThrow(mw, weaponInst, flags);
+		b32 didThrowPotion = VehPickupItem_PotionThrow(mw, weaponInst, throwFlags);
 
 		if (didThrowPotion == 0)
 		{
@@ -966,8 +996,7 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 
 			VehPickupItem_ClearMineMotion(mw);
 
-			mineHitModel = weaponInst->model->id;
-			mineShouldInitFollower = 1;
+			mineHitModelFlags = 0;
 			goto RunMineCOLL;
 		}
 		break;
@@ -988,29 +1017,25 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 		weaponTh->funcThDestroy = PROC_DestroyInstance;
 		OtherFX_Play(SOUND_SHIELD, 1);
 
+		struct Shield *shieldObj = weaponTh->object;
+
 		modelID = DYNAMIC_SHIELD_GREEN;
 		if (d->numWumpas >= DRIVER_WUMPA_JUICED_COUNT)
 		{
 			modelID = DYNAMIC_SHIELD;
 		}
 
-		struct Instance *instColor = INSTANCE_Birth3D(gGT->modelPtr[modelID], sdata->s_shield, weaponTh);
+		shieldObj->instColor = INSTANCE_Birth3D(gGT->modelPtr[modelID], sdata->s_shield, weaponTh);
+		shieldObj->instColor->scale.x = SHIELD_SCALE;
+		shieldObj->instColor->scale.y = SHIELD_SCALE;
+		shieldObj->instColor->scale.z = SHIELD_SCALE;
 
-		struct Instance *instHighlight = INSTANCE_Birth3D(gGT->modelPtr[DYNAMIC_HIGHLIGHT], highlightName, weaponTh);
+		shieldObj->instHighlight = INSTANCE_Birth3D(gGT->modelPtr[DYNAMIC_HIGHLIGHT], highlightName, weaponTh);
+		shieldObj->instHighlight->scale.x = SHIELD_SCALE;
+		shieldObj->instHighlight->scale.y = SHIELD_SCALE;
+		shieldObj->instHighlight->scale.z = SHIELD_SCALE;
 
-		instColor->scale.x = SHIELD_SCALE;
-		instColor->scale.y = SHIELD_SCALE;
-		instColor->scale.z = SHIELD_SCALE;
-
-		instHighlight->scale.x = SHIELD_SCALE;
-		instHighlight->scale.y = SHIELD_SCALE;
-		instHighlight->scale.z = SHIELD_SCALE;
-
-		struct Shield *shieldObj = weaponTh->object;
-		shieldObj->animFrame = 0;
 		shieldObj->flags = 0;
-		shieldObj->instColor = instColor;
-		shieldObj->instHighlight = instHighlight;
 		shieldObj->highlightRot.x = 0;
 		shieldObj->highlightRot.y = SHIELD_HIGHLIGHT_ROT_Y;
 		shieldObj->highlightRot.z = 0;
@@ -1026,6 +1051,10 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 		}
 
 		weaponInst->alphaScale = SHIELD_ALPHA_SCALE;
+
+		// Retail clears animFrame last, after the duration/flag branch.
+		shieldObj->animFrame = 0;
+
 		d->instBubbleHold = weaponInst;
 		break;
 
@@ -1082,7 +1111,6 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 	// Warpball
 	case WEAPON_ID_WARPBALL:
 
-		dInst = d->instSelf;
 		GAMEPAD_ShockFreq(d, WEAPON_GAMEPAD_RUMBLE_FRAMES, 0);
 		GAMEPAD_ShockForce1(d, WEAPON_GAMEPAD_RUMBLE_FRAMES, WEAPON_GAMEPAD_RUMBLE_FORCE);
 
@@ -1116,47 +1144,51 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 			Voiceline_RequestPlay(VOICELINE_WARPBALL, data.characterIDs[d->driverID], VOICELINE_WEAPON_PRIORITY);
 		}
 
+		tw = weaponTh->object;
+		tw->driverParent = d;
+		tw->turnAroundFrames = 0;
+		tw->ptrNodeNext = 0;
+
 		// used by RB_Warpball_SeekDriver
 		victim = 0;
-		int rank = d->driverRank;
-		if (rank != 0)
+		if (d->driverRank != 0)
 		{
-			victim = gGT->driversInRaceOrder[rank - 1];
+			victim = gGT->driversInRaceOrder[d->driverRank - 1];
 		}
-
-		tw = weaponTh->object;
-		tw->flags = TRACKER_FLAG_WARPBALL_FALLBACK_PATH;
-		tw->soundIDCount = 0;
-		tw->ptrNodeNext = 0;
-		tw->pathProgress = 0;
-		tw->turnAroundFrames = 0;
-		tw->driverParent = d;
 		tw->driverTarget = victim;
-		tw->instParent = dInst;
+
+		// sets nodeCurrIndex
+		RB_Warpball_SeekDriver(tw, d->checkpoint.currentIndex, d);
+
+		// Retail initializes flags and pathProgress AFTER SeekDriver, not before.
+		struct CheckpointNode *cn = gGT->level1->ptr_restart_points;
+		tw->nodeNextIndex = tw->nodeCurrIndex;
+		tw->flags = 0;
+		tw->pathProgress = 0;
+		tw->ptrNodeCurr = &cn[tw->nodeCurrIndex];
 
 		if (d->numWumpas >= DRIVER_WUMPA_JUICED_COUNT)
 		{
 			tw->flags |= TRACKER_FLAG_POWERED_UP;
 		}
 
-		// sets nodeCurrIndex
-		RB_Warpball_SeekDriver(tw, d->checkpoint.currentIndex, d);
-
-		struct CheckpointNode *cn = gGT->level1->ptr_restart_points;
-		tw->nodeNextIndex = tw->nodeCurrIndex;
-		tw->ptrNodeCurr = &cn[tw->nodeCurrIndex];
+		tw->flags |= TRACKER_FLAG_WARPBALL_FALLBACK_PATH;
 
 		// make this driver invincible
 		tw->driversHit = 1 << d->driverID;
 
-		victim = 0;
-		if (rank != 0)
+		// Retail re-reads driverRank and driverTarget here rather than reusing
+		// the values it computed before SeekDriver.
+		if (d->driverRank != 0)
 		{
-			victim = RB_Warpball_GetDriverTarget(tw, weaponInst);
+			tw->driverTarget = RB_Warpball_GetDriverTarget(tw, weaponInst);
 		}
-		tw->driverTarget = victim;
+		else
+		{
+			tw->driverTarget = 0;
+		}
 
-		if (victim != 0)
+		if (tw->driverTarget != 0)
 		{
 			RB_Warpball_SetTargetDriver(tw);
 		}
@@ -1170,16 +1202,23 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 			tw->flags &= ~TRACKER_FLAG_WARPBALL_FALLBACK_PATH;
 		}
 
-		tw->ptrNodeNext = RB_Warpball_NewPathNode(tw->ptrNodeCurr, victim);
+		tw->ptrNodeNext = RB_Warpball_NewPathNode(tw->ptrNodeCurr, tw->driverTarget);
 
-		tw->vel.y = 0;
-		tw->rotY = d->angle;
-		tw->parentSafetyFrames = WARPBALL_PARENT_SAFETY_FRAMES;
+		tw->soundIDCount = 0;
+
+		dInst = d->instSelf;
 
 		// do NOT patch for 60fps,
 		// velocity uses elapsedTime
+		tw->vel.y = 0;
 		tw->vel.x = (dInst->matrix.m[0][2] * WARPBALL_VELOCITY_NUMERATOR) >> WARPBALL_VELOCITY_SHIFT;
+		tw->parentSafetyFrames = WARPBALL_PARENT_SAFETY_FRAMES;
 		tw->vel.z = (dInst->matrix.m[2][2] * WARPBALL_VELOCITY_NUMERATOR) >> WARPBALL_VELOCITY_SHIFT;
+
+		// Retail seeds dir.y (0x1a), not rotY (0x1e): RB_Warpball only ever reads
+		// dir.y, and it interpolates from the previous value.
+		tw->dir.y = d->angle;
+		tw->instParent = dInst;
 
 		struct Particle *p = Particle_Init(0, gGT->iconGroup[WARPBALL_PARTICLE_ICON_GROUP], &data.emSet_Warpball[0]);
 
