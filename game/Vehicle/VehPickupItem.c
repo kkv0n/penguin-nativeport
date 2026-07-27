@@ -502,7 +502,9 @@ b32 VehPickupItem_PotionThrow(struct MineWeapon *mine, struct Instance *inst, u3
 				return 0;
 			}
 
-			throwVelocity = (MixRNG_Scramble() & POTION_THROW_RANDOM_MASK) - POTION_THROW_RANDOM_BIAS;
+			// Retail draws from advRng here, not from the MixRNG stream the item
+			// roulette uses.
+			throwVelocity = (RngDeadCoed(&sdata->advRng) & POTION_THROW_RANDOM_MASK) - POTION_THROW_RANDOM_BIAS;
 		}
 		else
 		{

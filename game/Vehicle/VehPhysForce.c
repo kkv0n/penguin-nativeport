@@ -1100,18 +1100,13 @@ void VehPhysForce_TranslateMatrix(struct Thread *thread, struct Driver *driver)
 	VehPhysForce_TranslateMatrix_UpdateWake(inst, driver);
 }
 
+// Retail feeds LZCS and reads LZCR unconditionally, before it
+// branches on `denom`. Callers observe that CP2 state, so use the GTE here
 static int VehPhysForce_CountLeadingSignBits(s32 value)
 {
-	u32 bits = (u32)value;
-	u32 sign = bits >> 31;
-	int count = 0;
+	MTC2((u32)value, 30);
 
-	while (count < 32 && (((bits >> (31 - count)) & 1) == sign))
-	{
-		count++;
-	}
-
-	return count;
+	return (int)MFC2(31);
 }
 
 static struct TrigPair VehPhysForce_TrigAngleSinCos(int angle)
@@ -1170,6 +1165,8 @@ void VehPhysForce_RotAxisAngle(MATRIX *m, s16 *normVec, s16 angle)
 	m->m[1][1] = (s16)normalY;
 	m->m[2][1] = (s16)normalZ;
 
+	int leadingSignBits = VehPhysForce_CountLeadingSignBits(denom);
+
 	if (denom == 0)
 	{
 		s32 dot = CTR_MipsAddLo(CTR_MipsMulLo(trig.sin, normalX), CTR_MipsMulLo(trig.cos, normalZ));
@@ -1183,7 +1180,7 @@ void VehPhysForce_RotAxisAngle(MATRIX *m, s16 *normVec, s16 angle)
 	}
 	else
 	{
-		int shift = CTR_MipsSubLo(0x14, VehPhysForce_CountLeadingSignBits(denom));
+		int shift = CTR_MipsSubLo(0x14, leadingSignBits);
 		s32 sinRemainder;
 		s32 cosRemainder;
 		s32 divX;

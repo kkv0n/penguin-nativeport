@@ -22,9 +22,13 @@ int VehCalc_InterpBySpeed(int val, int speed, int desired)
 		{
 			return desired;
 		}
+
+		return val;
 	}
 
-	else
+	// Retail returns `val` untouched when it already equals `desired`; only the
+	// strictly-less case adds `speed`.
+	if (val < desired)
 	{
 		val = CTR_MipsAddLo(val, speed);
 

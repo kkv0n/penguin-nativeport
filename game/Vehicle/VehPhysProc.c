@@ -24,7 +24,9 @@ enum
 	VEH_PHYS_PROC_TEN_WUMPA_COUNT = 10,
 	VEH_PHYS_PROC_HAZARD_MOVING_SPEED_MIN = 0x100,
 	VEH_PHYS_PROC_HAZARD_LOW_SPEED_THRESHOLD = 0x101,
-	VEH_PHYS_PROC_HAZARD_TIMER_EVEN_MASK = 0xfffe,
+	// Retail materializes this as `addiu v0, zero, -2` (0xfffffffe), so the mask
+	// must stay 32-bit signed or the sign of hazardTimer is lost.
+	VEH_PHYS_PROC_HAZARD_TIMER_EVEN_MASK = ~1,
 	VEH_PHYS_PROC_CLOCK_WADDLE_TIMER_SHIFT = 6,
 	VEH_PHYS_PROC_CLOCK_WADDLE_TIMER_MAX = 0x40,
 	VEH_PHYS_PROC_CLOCK_WADDLE_TRIG_SHIFT = 4,
@@ -116,7 +118,7 @@ CTR_STATIC_ASSERT(VEH_PHYS_PROC_DISTANCE_SPEED_SHIFT == 8);
 CTR_STATIC_ASSERT(VEH_PHYS_PROC_TEN_WUMPA_COUNT == 10);
 CTR_STATIC_ASSERT(VEH_PHYS_PROC_HAZARD_MOVING_SPEED_MIN == 0x100);
 CTR_STATIC_ASSERT(VEH_PHYS_PROC_HAZARD_LOW_SPEED_THRESHOLD == 0x101);
-CTR_STATIC_ASSERT(VEH_PHYS_PROC_HAZARD_TIMER_EVEN_MASK == 0xfffe);
+CTR_STATIC_ASSERT(VEH_PHYS_PROC_HAZARD_TIMER_EVEN_MASK == -2);
 CTR_STATIC_ASSERT(VEH_PHYS_PROC_CLOCK_WADDLE_TIMER_SHIFT == 6);
 CTR_STATIC_ASSERT(VEH_PHYS_PROC_CLOCK_WADDLE_TIMER_MAX == 0x40);
 CTR_STATIC_ASSERT(VEH_PHYS_PROC_CLOCK_WADDLE_TRIG_SHIFT == 4);
@@ -306,23 +308,6 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 
 	VehPhysProc_Driving_DecrementTimer(&driver->clockReceive, msPerFrame);
 	VehPhysProc_Driving_DecrementTimer(&driver->accelTapWindowTimer, msPerFrame);
-
-	// If invisible, without Permanent Invisibility cheat,
-	// dont remove invisibleTimer check, or an invalid
-	// instFlagsBackup overwrites instFlags
-	if ((driver->invisibleTimer != 0) && ((gameMode2 & CHEAT_INVISIBLE) == 0))
-	{
-		driver->invisibleTimer = CTR_MipsSubLo(driver->invisibleTimer, msPerFrame);
-
-		// if newly visible
-		if (driver->invisibleTimer <= 0)
-		{
-			driver->invisibleTimer = 0;
-			driver->instSelf->flags = driver->instFlagsBackup;
-			driver->instSelf->alphaScale = 0;
-			OtherFX_Play(VEH_PHYS_PROC_INVISIBLE_REAPPEAR_FX, 1);
-		}
-	}
 
 	if (0 < driver->jump_TenBuffer)
 	{
@@ -549,6 +534,23 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 		if (driver->invincibleTimer < 0)
 		{
 			driver->invincibleTimer = 0;
+		}
+	}
+
+	// If invisible, without Permanent Invisibility cheat,
+	// dont remove invisibleTimer check, or an invalid
+	// instFlagsBackup overwrites instFlags
+	if ((driver->invisibleTimer != 0) && ((gameMode2 & CHEAT_INVISIBLE) == 0))
+	{
+		driver->invisibleTimer = CTR_MipsSubLo(driver->invisibleTimer, msPerFrame);
+
+		// if newly visible
+		if (driver->invisibleTimer <= 0)
+		{
+			driver->invisibleTimer = 0;
+			driver->instSelf->flags = driver->instFlagsBackup;
+			driver->instSelf->alphaScale = 0;
+			OtherFX_Play(VEH_PHYS_PROC_INVISIBLE_REAPPEAR_FX, 1);
 		}
 	}
 
@@ -1916,10 +1918,13 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 	// near-spinout distortion SFX
 	driver->turnWobbleAngle = turnWobbleAngleNext;
 
-	driver->ampTurnState = (s16)CTR_MipsAddLo(signedSpinRate, driftTurnInput);
+	// Retail keeps the 32-bit sum live and only truncates on the store, so the
+	// multiply below must not go through the s16 field.
+	int ampTurnState = CTR_MipsAddLo(signedSpinRate, driftTurnInput);
+	driver->ampTurnState = (s16)ampTurnState;
 
 	driver->angle = (s16)ANG_MODULO_TWO_PI(
-	    CTR_MipsAddLo((u16)driver->angle, CTR_MipsSra(CTR_MipsMulLo(driver->ampTurnState, gGT->elapsedTimeMS), VEH_PHYS_PROC_ANGLE_INTEGRATION_SHIFT)));
+	    CTR_MipsAddLo((u16)driver->angle, CTR_MipsSra(CTR_MipsMulLo(ampTurnState, gGT->elapsedTimeMS), VEH_PHYS_PROC_ANGLE_INTEGRATION_SHIFT)));
 
 	if (driver->KartStates.Drifting.driftBoostTimeMS != 0)
 	{
