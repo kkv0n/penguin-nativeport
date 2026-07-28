@@ -999,14 +999,21 @@ int SquareRoot0(int a)
 
 	lzcs &= 0xfffffffe;
 
+	/* Psy-Q 4.4 emits srav / sllv here, and a LOGICAL srl for the final >>12.
+	 * In C `a << n` is undefined for negative `a`, and `>>` on an int is
+	 * arithmetic rather than logical. Over the valid domain (a >= 0) both agree
+	 * - SQRT[] holds no entry >= 0x8000, so the intermediate is never negative
+	 * - but the helpers reproduce the exact instruction out of domain too, and
+	 * above all they stop the optimiser from exploiting the UB on the valid
+	 * path. */
 	if ((lzcs - 24) < 0)
 	{
-		idx = a >> (24 - lzcs);
+		idx = CTR_MipsSra(a, (u32)(24 - lzcs));
 	}
 	else
 	{
-		idx = a << (lzcs - 24);
+		idx = CTR_MipsSll(a, (u32)(lzcs - 24));
 	}
 
-	return SQRT[idx - 64] << ((31 - lzcs) >> 1) >> 12;
+	return (s32)CTR_MipsSrl(CTR_MipsSll(SQRT[idx - 64], (u32)((31 - lzcs) >> 1)), 12);
 }

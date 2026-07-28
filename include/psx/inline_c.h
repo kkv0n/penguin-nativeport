@@ -129,11 +129,17 @@ extern int doCOP2(int op);
 		MTC2(*(uint32_t *)((char *)(r2)), 6);  \
 	}
 
-// mtc2 12, lwc2 1
-#define gte_ldlv0(r0)                                                                    \
-	{                                                                                    \
-		MTC2((*(uint16_t *)((char *)(r0) + 4) << 16) | *(uint16_t *)((char *)(r0)), 12); \
-		MTC2(*(uint16_t *)((char *)(r0) + 8), 1);                                        \
+// mtc2 0, lwc2 1
+// Psy-Q 4.4: lhu $13,4(r0); lhu $12,0(r0); sll $13,$13,16; or $12,$12,$13;
+//            mtc2 $12,$0; lwc2 $1,8(r0)
+// The destination was register 12 (SXY0) instead of 0 (VXY0), so V0 was never
+// loaded and the screen-XY FIFO was clobbered instead. The pack also did
+// `(uint16_t)x << 16`, which promotes to int and overflows it for x >= 0x8000;
+// CTR_PackS16Pair does the same thing in u32, where it is defined.
+#define gte_ldlv0(r0)                                                                                   \
+	{                                                                                                   \
+		MTC2(CTR_PackS16Pair(*(uint16_t *)((char *)(r0) + 0), *(uint16_t *)((char *)(r0) + 4)), 0);      \
+		MTC2(CTR_ReadU32LE((char *)(r0) + 8), 1);                                                       \
 	}
 
 // mtc2 8
