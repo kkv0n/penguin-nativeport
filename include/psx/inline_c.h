@@ -188,7 +188,7 @@ extern int doCOP2(int op);
 	{                                             \
 		CTC2(*(uint32_t *)((char *)(r0)), 0);     \
 		CTC2(*(uint32_t *)((char *)(r0) + 4), 2); \
-		CTC2(*(uint32_t*)((char*)(r0 +8), 4);     \
+		CTC2(*(uint32_t *)((char *)(r0) + 8), 4); \
 	}
 
 // lwc2 9,10,11
@@ -206,10 +206,10 @@ extern int doCOP2(int op);
 	}
 
 // ctc2 24,25
-#define gte_SetGeomOffset(r0, r1) \
-	{                             \
-		CTC2(r0 << 16, 24);       \
-		CTC2(r1 << 16, 25);       \
+#define gte_SetGeomOffset(r0, r1)             \
+	{                                         \
+		CTC2((u32)CTR_MipsSll((r0), 16), 24); \
+		CTC2((u32)CTR_MipsSll((r1), 16), 25); \
 	}
 
 // ctc2 13,14,15
@@ -346,7 +346,7 @@ extern int doCOP2(int op);
 
 #define gte_rtv2tr()   doCOP2(0x0490012);
 
-#define gte_rtirtr() op2 0x0498012);
+#define gte_rtirtr()   doCOP2(0x0498012);
 
 #define gte_rtv0bk()                   doCOP2(0x0482012);
 

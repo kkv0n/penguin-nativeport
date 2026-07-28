@@ -48,24 +48,30 @@ internal inline s32 fst_max(s32 a, s32 b)
 
 void InitGeom()
 {
-	C2_ZSF3 = 341;
-	C2_ZSF4 = 256;
-	C2_H = 1000;
-	C2_DQA = -98;
-	C2_DQB = 340;
-	C2_OFX = 0;
-	C2_OFY = 0;
+	/* Route through CTC2 like the hardware's ctc2 does. Assigning the C2_*
+	 * macros directly only touches the low half of the 16-bit control
+	 * registers, so DQA ended up readable as 0x0000FF9E where hardware
+	 * sign-extends it to 0xFFFFFF9E. Nothing reads those upper halves back
+	 * today, but SetDQA/SetDQB already use CTC2 - this makes the two agree. */
+	CTC2((u32)341, 29);      /* ZSF3 */
+	CTC2((u32)256, 30);      /* ZSF4 */
+	CTC2((u32)1000, 26);     /* H    */
+	CTC2((u32)(s32)-98, 27); /* DQA  */
+	CTC2((u32)340, 28);      /* DQB  */
+	CTC2(0, 24);             /* OFX  */
+	CTC2(0, 25);             /* OFY  */
 }
 
 void SetGeomOffset(int ofx, int ofy)
 {
-	C2_OFX = (ofx << 16);
-	C2_OFY = (ofy << 16);
+	/* `ofx << 16` is undefined in C for negative offsets; sll is not. */
+	CTC2((u32)CTR_MipsSll(ofx, 16), 24);
+	CTC2((u32)CTR_MipsSll(ofy, 16), 25);
 }
 
 void SetGeomScreen(int h)
 {
-	C2_H = h;
+	CTC2((u32)h, 26);
 }
 
 void SetRotMatrix(MATRIX *m)
@@ -860,7 +866,9 @@ void SetFogNear(int a, int h)
 {
 	// Error division by 0
 	assert(h != 0);
-	int depthQ = -(((a << 2) + a) << 6);
+	/* Shifts and negation in MIPS form: on R3000 these wrap, in C they are
+	 * undefined for negative / overflowing operands. */
+	int depthQ = CTR_MipsNegLo(CTR_MipsSll(CTR_MipsAddLo(CTR_MipsSll(a, 2), a), 6));
 	assert(h != -1 && depthQ != 0x8000);
 	SetDQA(depthQ / h);
 	SetDQB(20971520);
@@ -880,10 +888,12 @@ void SetFogNearFar(int a, int b, int h)
 	assert(h != 0);
 	assert(h != -1 && (((-a * b) / (b - a)) << 8) != 32768);
 
-	int dqa = (-a * b / (b - a) << 8) / h;
+	/* Same rewrite as SetFogNear. `-a * b` is a negu followed by mult/mflo on
+	 * hardware; both wrap there and are undefined in C. */
+	int dqa = CTR_MipsSll(CTR_MipsMulLo(CTR_MipsNegLo(a), b) / (b - a), 8) / h;
 
 	SetDQA(MAX(MIN(dqa, 32767), -32767));
-	SetDQB((b << 12) / (b - a) << 12);
+	SetDQB(CTR_MipsSll(CTR_MipsSll(b, 12) / (b - a), 12));
 }
 
 int rsin(int a)
@@ -920,25 +930,30 @@ int ratan2(int y, int x)
 		return 0;
 	}
 
+	/* MIPS semantics throughout: `-INT_MIN` and `INT_MIN << 10` are undefined
+	 * in C but perfectly defined on R3000 (both wrap). The guard below tests
+	 * bits 21..30 only, so INT_MIN slips past it and would reach the shift;
+	 * the Mips helpers reproduce exactly what the hardware yields (0), instead
+	 * of leaving the optimiser free to do something else. */
 	if (x < 0)
 	{
-		x = -x;
+		x = CTR_MipsNegLo(x);
 	}
 
 	if (y < 0)
 	{
-		y = -y;
+		y = CTR_MipsNegLo(y);
 	}
 
 	if (y < x)
 	{
 		if (((u32)y & 0x7fe00000U) == 0)
 		{
-			ang = (y << 10) / x;
+			ang = (u32)(CTR_MipsSll(y, 10) / x);
 		}
 		else
 		{
-			ang = y / (x >> 10);
+			ang = (u32)(y / CTR_MipsSra(x, 10));
 		}
 
 		v = ratan_tbl[ang];
@@ -947,11 +962,11 @@ int ratan2(int y, int x)
 	{
 		if (((u32)x & 0x7fe00000U) == 0)
 		{
-			ang = (x << 10) / y;
+			ang = (u32)(CTR_MipsSll(x, 10) / y);
 		}
 		else
 		{
-			ang = x / (y >> 10);
+			ang = (u32)(x / CTR_MipsSra(y, 10));
 		}
 
 		v = 1024 - ratan_tbl[ang];
