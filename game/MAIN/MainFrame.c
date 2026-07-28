@@ -616,7 +616,10 @@ static int MainFrame_VisMemHasQuad(const int *visFaceList, const struct QuadBloc
 {
 	int quadIndex = (int)(quad - mesh->ptrQuadBlockArray);
 
-	return (visFaceList[quadIndex >> 5] & (1 << (quadIndex & 0x1f))) != 0;
+	// Retail builds the mask with `sllv` (0x80035af0), which is defined for every
+	// count. Plain `1 << 31` would be signed overflow, and bit 31 comes up for
+	// every 32nd quadblock.
+	return (visFaceList[quadIndex >> 5] & CTR_MipsSll(1, quadIndex)) != 0;
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80035684-0x800357b8, unnamed in syms926.

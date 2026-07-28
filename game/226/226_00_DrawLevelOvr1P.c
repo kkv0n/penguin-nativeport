@@ -7701,11 +7701,23 @@ static int Ovr226_800a15c0_EmitFullDynamicExtraFace3(struct PushBuffer *pb, stru
 static int Ovr226_800a15d4_FullDynamicHelperSlot0(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
                                                   struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth)
 {
-	if (!Ovr226_800a1548_EmitFullDynamicFace1(pb, primMem, block, projected, texture, depth, DRAW_LEVEL_OVR1P_DIRECT_QUAD))
+	//Retail 0x800a15d4 does not call the shared Face1/Face2
+	// emitters. It inlines its own index sets, closing both sub-quads on corner
+	// vertex 3 instead of on edge midpoints 7 and 8:
+	//   0x800a15d4: fp+80,20,120,60  -> {4,1,6,3} == GridMixedFaceIndices[0]
+	//   0x800a15ec: fp+100,120,40,60 -> {5,6,2,3} == GridMixedFaceIndices[1]
+	//   0x800a160c: b 0x800a1534     -> {0,4,5,6} == GridFaceIndices[0]
+	// Face1/Face2 stop at those midpoints, so the two sub-quads came out half
+	// height and the wedge against corner 3 was emitted by nothing. The
+	// projected-grid family already uses this Mixed[0]/Mixed[1]/GridFace[0]
+	// sequence for the same near-mask slot.
+	if (!DrawLevelOvr1P_EmitFullDynamicTerminalFacePreserveSlot(pb, primMem, block, projected, sDrawLevelOvr1PGridMixedFaceIndices[0], 0, texture, depth,
+	                                                           DRAW_LEVEL_OVR1P_DIRECT_QUAD))
 	{
 		return 0;
 	}
-	if (!Ovr226_800a155c_EmitFullDynamicFace2(pb, primMem, block, projected, texture, depth, DRAW_LEVEL_OVR1P_DIRECT_QUAD))
+	if (!DrawLevelOvr1P_EmitFullDynamicTerminalFacePreserveSlot(pb, primMem, block, projected, sDrawLevelOvr1PGridMixedFaceIndices[1], 0, texture, depth,
+	                                                           DRAW_LEVEL_OVR1P_DIRECT_QUAD))
 	{
 		return 0;
 	}
