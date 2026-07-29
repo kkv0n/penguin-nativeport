@@ -12,6 +12,7 @@ void UI_RenderFrame_Racing()
 	int partTimeVariable1;
 	u32 *ptrColor;
 	char *pbVar6;
+	u8 *spawnOrderPtr;
 	int i;
 	struct PushBuffer *pb;
 	u32 partTimeVariable5;
@@ -65,10 +66,10 @@ void UI_RenderFrame_Racing()
 		{
 			data.rankIconsTransitionTimer[i] = 0;
 
-			pbVar6 = &sdata->kartSpawnOrderArray[i];
+			spawnOrderPtr = &sdata->kartSpawnOrderArray[i];
 
-			data.rankIconsCurr[i] = (u16)*pbVar6;
-			data.rankIconsDesired[i] = (u16)*pbVar6;
+			data.rankIconsCurr[i] = (u16)*spawnOrderPtr;
+			data.rankIconsDesired[i] = (u16)*spawnOrderPtr;
 		}
 	}
 

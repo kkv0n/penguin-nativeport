@@ -451,10 +451,19 @@ struct InstDef
 	SVec3 rot;
 
 	// 0x3c
-	int modelID;
+	// Retail reads this with `lh` at every site (VehBirth_TeleportSelf,
+	// BOTS_LevInstColl, COLL_MOVED_PlayerSearch, VehPickupItem_ShootNow):
+	// the field is 16-bit signed, not a word.
+	s16 modelID;
+
+	// 0x3e
+	s16 padding_0x3e;
 
 	// 0x40 -- struct size
 };
+
+CTR_STATIC_ASSERT(sizeof(struct InstDef) == 0x40);
+CTR_STATIC_ASSERT(OFFSETOF(struct InstDef, modelID) == 0x3c);
 
 struct InstDrawPerPlayer
 {

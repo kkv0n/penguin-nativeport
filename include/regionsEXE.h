@@ -3750,7 +3750,9 @@ struct sData
 	int aiCollisionDelayFrameCount;
 
 	// 8008d69c
-	char kartSpawnOrderArray[0x8];
+	// Retail reads this with `lbu` (VehBirth_TeleportSelf, BOTS_GotoStartingLine):
+	// unsigned byte, not plain `char`.
+	u8 kartSpawnOrderArray[0x8];
 
 	// 8008d6a4
 	char unk_paddingAfterKartSpawn[0x8];

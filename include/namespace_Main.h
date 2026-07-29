@@ -745,7 +745,9 @@ struct GameTracker
 		int enabledWeapons;
 
 		// 1da4
-		char teamOfEachPlayer[4];
+		// Retail reads this with `lb` in VehBirth_Player: signed byte.
+		// Plain `char` would flip meaning on targets where it is unsigned.
+		s8 teamOfEachPlayer[4];
 
 		// 1da8
 		int finishedRankOfEachTeam[4];
@@ -1442,7 +1444,8 @@ struct GameTracker
 	// all podium related?
 
 	// 2572
-	u16 podiumRewardID;
+	// Retail loads this with `lh` at all 11 read sites; it is signed.
+	s16 podiumRewardID;
 
 	// 2574
 	u8 bool_AdvHub_NeedToSwapLEV;

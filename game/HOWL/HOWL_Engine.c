@@ -2,7 +2,9 @@
 
 // Initialize car engine audio system for one driver
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80028880-0x800289b0
-b32 EngineAudio_InitOnce(u32 soundID, u32 flags)
+// NOTE: retail narrows the first argument to 16 bits at the VehBirth call site
+// (`andi a0, a0, 0xffff`), so the parameter is a u16, not a word.
+b32 EngineAudio_InitOnce(u16 soundID, u32 flags)
 {
 	struct EngineFX *ptrEngineFX;
 	struct ChannelStats *channel;
