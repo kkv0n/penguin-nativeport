@@ -545,9 +545,10 @@ void COLL_FIXED_BSPLEAF_TestInstance(struct BSP *node, struct ScratchpadStruct *
 		return;
 	}
 
-	// check every instance hitbox until
-	// end of list (null flag) is found
-	for (/**/; bspArray->flag != 0; bspArray++)
+	// check every instance hitbox until end of list is found. retail loads the
+	// whole word at +0x0 (flag and id together) and stops on 0x00000000, so a
+	// zero flag alone does not terminate the list.
+	for (/**/; (bspArray->flag != 0) || (bspArray->id != 0); bspArray++)
 	{
 		struct BoundingBox *bbox = &bspArray->box;
 
@@ -1209,8 +1210,8 @@ internal void COLL_FIXED_PlayerSearch_SetupSearch(struct ScratchpadStruct *sps, 
 		sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_HIGH_LOD;
 	}
 
+	// retail clears only these two here; boolDidTouchHitbox is left alone.
 	sps->boolDidTouchQuadblock = 0;
-	sps->boolDidTouchHitbox = 0;
 	sps->numTrianglesTested = 0;
 
 	sps->bbox.min.x = probeTop.x;
@@ -1610,11 +1611,15 @@ BlendNormal:
 			{
 				s32 screenOffset = Coll_MipsAbsS32((s8)d->Screen_OffsetY);
 
+				// retail branches to UpdateGroundOffset on both rejects here, so
+				// distanceFromGround keeps its previous value instead of being
+				// reset below.
 				if ((screenOffset < 4) && ((d->terrainMeta1->flags & TERRAIN_FLAG_RAISE_GROUND_OFFSET) != 0))
 				{
 					d->distanceFromGround = 4;
-					goto UpdateGroundOffset;
 				}
+
+				goto UpdateGroundOffset;
 			}
 		}
 

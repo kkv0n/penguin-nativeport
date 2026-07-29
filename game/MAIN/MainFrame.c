@@ -188,7 +188,9 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 		gGT->unk1cc4[4] = 0;
 
 		iVar4 = Timer_GetTime_Elapsed(gGT->clockFrameStart, &gGT->clockFrameStart);
-		iVar4 = (iVar4 << 5) / 100;
+		// retail uses sll/div here and the bgez below shows negatives are expected,
+		// so the shift has to be the wrapping kind rather than C's UB on negatives
+		iVar4 = CTR_MipsDiv(CTR_MipsSll(iVar4, 5), 100);
 
 		gGT->elapsedTimeMS = iVar4;
 		if (iVar4 < 0)

@@ -35,14 +35,17 @@ int Timer_GetTime_Total()
 {
 	s32 rcntTotal = sdata->rcntTotalUnits;
 	s32 rcnt = GetRCnt(TIMER_RCNT);
-	s32 sysClock = rcntTotal + rcnt;
+	s32 sysClock = CTR_MipsAddLo(rcntTotal, rcnt);
 
 	if (rcnt < TIMER_RCNT_LOW_RECHECK_THRESHOLD)
 	{
-		sysClock = sdata->rcntTotalUnits + rcnt;
+		sysClock = CTR_MipsAddLo(sdata->rcntTotalUnits, rcnt);
 	}
 
-	return (sysClock * TIMER_MILLISECONDS_PER_SECOND) / TIMER_RCNT_UNITS_PER_SECOND;
+	// The 32-bit product is expected to wrap: the counter passes 0x7fffffff after
+	// roughly two minutes of uptime and Timer_GetTime_Elapsed compensates with
+	// TIMER_WRAP_MILLISECONDS, so the wraparound is load-bearing rather than a bug.
+	return CTR_MipsDiv(CTR_MipsMulLo(sysClock, TIMER_MILLISECONDS_PER_SECOND), TIMER_RCNT_UNITS_PER_SECOND);
 }
 
 // Usage: elapsed(frameStart, &frameStart)
@@ -58,11 +61,11 @@ int Timer_GetTime_Elapsed(int oldVal, int *retVal)
 		*retVal = newVal;
 	}
 
-	// impossible?
+	// Reached every time the wrapping product in Timer_GetTime_Total rolls over.
 	if (newVal < oldVal)
 	{
-		newVal += TIMER_WRAP_MILLISECONDS;
+		newVal = CTR_MipsAddLo(newVal, TIMER_WRAP_MILLISECONDS);
 	}
 
-	return newVal - oldVal;
+	return CTR_MipsSubLo(newVal, oldVal);
 }
