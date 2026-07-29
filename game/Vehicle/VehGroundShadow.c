@@ -27,7 +27,7 @@ enum
 	VEH_GROUND_SHADOW_LOCAL_SCALE_SHIFT = 6,
 
 	VEH_GROUND_SHADOW_PRIM_GUARD_WORDS = 0x140,
-	VEH_GROUND_SHADOW_GTE_SCREEN_SHIFT = 15,
+	VEH_GROUND_SHADOW_GEOM_OFFSET_SHIFT = 1,
 	VEH_GROUND_SHADOW_LARGE_GEOM_SCREEN_THRESHOLD = 0x100,
 	VEH_GROUND_SHADOW_CAMERA_DELTA_SCALE = 4,
 	VEH_GROUND_SHADOW_SMALL_SCREEN_MAX_EXCLUSIVE = 0x1771,
@@ -405,9 +405,10 @@ void VehGroundShadow_Main(void)
 		u32 *otBase = pb->ptrOT;
 		int isLargeGeomScreen;
 
-		CTC2((u32)(s32)pb->rect.w << VEH_GROUND_SHADOW_GTE_SCREEN_SHIFT, 24);
-		CTC2((u32)(s32)pb->rect.h << VEH_GROUND_SHADOW_GTE_SCREEN_SHIFT, 25);
-		CTC2((u32)pb->distanceToScreen_PREV, 26);
+		// retail halves the rect first and only then shifts into 16.16, so odd extents keep
+		// truncating instead of landing half a pixel off
+		gte_SetGeomOffset(pb->rect.w >> VEH_GROUND_SHADOW_GEOM_OFFSET_SHIFT, pb->rect.h >> VEH_GROUND_SHADOW_GEOM_OFFSET_SHIFT);
+		gte_SetGeomScreen(pb->distanceToScreen_PREV);
 		VehGroundShadow_LoadGteRotMatrix(&pb->matrix_ViewProj);
 		isLargeGeomScreen = pb->distanceToScreen_PREV > VEH_GROUND_SHADOW_LARGE_GEOM_SCREEN_THRESHOLD;
 

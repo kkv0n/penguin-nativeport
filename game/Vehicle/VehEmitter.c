@@ -5,6 +5,8 @@ enum
 	VEH_EMITTER_AXIS_COUNT = 3,
 	VEH_EMITTER_EXHAUST_ICON_LOW = 1,
 	VEH_EMITTER_EXHAUST_ICON_WATER = 7,
+	VEH_EMITTER_EXHAUST_MED_LOD_PLAYERS = 2,
+	VEH_EMITTER_EXHAUST_LOW_LOD_MIN_PLAYERS = 3,
 	VEH_EMITTER_EXHAUST_WATER_Y_LIMIT = FP8_ONE,
 	VEH_EMITTER_EXHAUST_VEL_Y = 0x400,
 	VEH_EMITTER_EXHAUST_VEL_Z = -0x400,
@@ -70,7 +72,6 @@ enum
 	VEH_EMITTER_WALL_SPARK_Y = 0x0a00,
 	VEH_EMITTER_WALL_SPARK_REVERSE_Z = -0x1400,
 	VEH_EMITTER_WALL_SPARK_FORWARD_Z = 0x2800,
-	VEH_EMITTER_WALL_SPARK_SCRATCH_HALF_COUNT = 6,
 	VEH_EMITTER_ALPHA_FULL = 0x1000,
 	VEH_EMITTER_JOG_GROUND = 0x27,
 	VEH_EMITTER_JOG_WOBBLE_ALT = 0xf0,
@@ -85,6 +86,8 @@ enum
 CTR_STATIC_ASSERT(VEH_EMITTER_AXIS_COUNT == 3);
 CTR_STATIC_ASSERT(VEH_EMITTER_EXHAUST_ICON_LOW == 1);
 CTR_STATIC_ASSERT(VEH_EMITTER_EXHAUST_ICON_WATER == 7);
+CTR_STATIC_ASSERT(VEH_EMITTER_EXHAUST_MED_LOD_PLAYERS == 2);
+CTR_STATIC_ASSERT(VEH_EMITTER_EXHAUST_LOW_LOD_MIN_PLAYERS == 3);
 CTR_STATIC_ASSERT(VEH_EMITTER_EXHAUST_WATER_Y_LIMIT == 0x100);
 CTR_STATIC_ASSERT(VEH_EMITTER_EXHAUST_VEL_Y == 0x400);
 CTR_STATIC_ASSERT(VEH_EMITTER_EXHAUST_VEL_Z == -0x400);
@@ -150,7 +153,6 @@ CTR_STATIC_ASSERT(VEH_EMITTER_WALL_SPARK_RIGHT_X == 0x2200);
 CTR_STATIC_ASSERT(VEH_EMITTER_WALL_SPARK_Y == 0x0a00);
 CTR_STATIC_ASSERT(VEH_EMITTER_WALL_SPARK_REVERSE_Z == -0x1400);
 CTR_STATIC_ASSERT(VEH_EMITTER_WALL_SPARK_FORWARD_Z == 0x2800);
-CTR_STATIC_ASSERT(VEH_EMITTER_WALL_SPARK_SCRATCH_HALF_COUNT == 6);
 CTR_STATIC_ASSERT(VEH_EMITTER_ALPHA_FULL == 0x1000);
 CTR_STATIC_ASSERT(VEH_EMITTER_JOG_GROUND == 0x27);
 CTR_STATIC_ASSERT(VEH_EMITTER_JOG_WOBBLE_ALT == 0xf0);
@@ -177,28 +179,35 @@ struct Particle *VehEmitter_Exhaust(struct Driver *d, VECTOR *exhaustPos, VECTOR
 		return 0;
 	}
 
-	// low LOD exhaust (4p or ai car)
 	int exhaustType = VEH_EMITTER_EXHAUST_ICON_LOW;
-	struct ParticleEmitter *emSet = &data.emSet_Exhaust_Low[0];
+	struct ParticleEmitter *emSet;
 
 	u8 numPlyr = gGT->numPlyrCurrGame;
 
-	// equivalent of (d->driverID < numPlyr),
+	// Retail picks the LOD by falling through to the high set, so every player count below 2
+	// (including 0) lands on the high set before the robot-car override below.
+	if (numPlyr >= VEH_EMITTER_EXHAUST_LOW_LOD_MIN_PLAYERS)
+	{
+		// 3P/4P mode, low LOD exhaust
+		emSet = &data.emSet_Exhaust_Low[0];
+	}
+	else if (numPlyr == VEH_EMITTER_EXHAUST_MED_LOD_PLAYERS)
+	{
+		// 2P mode, med LOD exhaust
+		emSet = &data.emSet_Exhaust_Med[0];
+	}
+	else
+	{
+		// 1P mode, high LOD exhaust
+		emSet = &data.emSet_Exhaust_High[0];
+	}
+
+	// low LOD exhaust for ai cars. equivalent of (d->driverID >= numPlyr),
 	// because modelIndex is not set to DYNAMIC_ROBOT_CAR
 	// for human players after BOTS_Driver_Convert is called
-	if (dInst->thread->modelIndex != DYNAMIC_ROBOT_CAR)
+	if (dInst->thread->modelIndex == DYNAMIC_ROBOT_CAR)
 	{
-		switch (numPlyr)
-		{
-		case 1:
-			// 1P mode, high LOD exhaust
-			emSet = &data.emSet_Exhaust_High[0];
-			break;
-		case 2:
-			// 2P mode, med LOD exhaust
-			emSet = &data.emSet_Exhaust_Med[0];
-			break;
-		}
+		emSet = &data.emSet_Exhaust_Low[0];
 	}
 
 	if (((dInst->flags & SPLIT_LINE) != 0) && ((exhaustPos->vy - exhaustVel->vy) + d->posCurr.y < VEH_EMITTER_EXHAUST_WATER_Y_LIMIT))
@@ -421,16 +430,26 @@ void VehEmitter_Sparks_Wall(struct Driver *d, struct ParticleEmitter *emSet)
 	}
 
 	union VehEmitterWallScratch *scratch = CTR_SCRATCHPAD_PTR(union VehEmitterWallScratch, 0);
-	s32 *tireLeftOutWord = &scratch->word[0];
-	s32 *tireRightOutWord = &scratch->word[3];
+	s32 *tireLeftInWord = &scratch->word[0];
+	s32 *tireRightInWord = &scratch->word[3];
 	s16 *tireLeftOutHalf = &scratch->half[0];
 	s16 *tireRightOutHalf = &scratch->half[3];
+	// tireRightInWord starts at half[6], not at half[3]: half[3] is where the packed right-tire
+	// result lands below, where it doubles as rows 4-6 of the 3x2 light matrix. Reading the
+	// right-tire GTE input from half[3] would feed back the tail of the left-tire result.
+	s16 *tireLeftInHalf = &scratch->half[0];
+	s16 *tireRightInHalf = &scratch->half[6];
 	s16 *distIn4 = &scratch->half[6];
-	s32 *distOut4 = &scratch->word[3];
+	// Retail keeps both untruncated rotated triplets in registers across the packing below and
+	// adds those to the particle start position; only the packed copies feed the light matrix.
+	s32 tireLeftRotated[VEH_EMITTER_AXIS_COUNT];
+	s32 tireRightRotated[VEH_EMITTER_AXIS_COUNT];
+	s32 *tireRotated = tireLeftRotated;
+	s32 distOut4[VEH_EMITTER_AXIS_COUNT];
 
 	// s16[3] array
-	tireLeftOutWord[0] = (s32)CTR_PackS16Pair(VEH_EMITTER_WALL_SPARK_LEFT_X, VEH_EMITTER_WALL_SPARK_Y);
-	tireRightOutWord[0] = (s32)CTR_PackS16Pair(VEH_EMITTER_WALL_SPARK_RIGHT_X, VEH_EMITTER_WALL_SPARK_Y);
+	tireLeftInWord[0] = (s32)CTR_PackS16Pair(VEH_EMITTER_WALL_SPARK_LEFT_X, VEH_EMITTER_WALL_SPARK_Y);
+	tireRightInWord[0] = (s32)CTR_PackS16Pair(VEH_EMITTER_WALL_SPARK_RIGHT_X, VEH_EMITTER_WALL_SPARK_Y);
 
 	int valZ = VEH_EMITTER_WALL_SPARK_REVERSE_Z;
 	if (d->speedApprox > 0)
@@ -439,22 +458,23 @@ void VehEmitter_Sparks_Wall(struct Driver *d, struct ParticleEmitter *emSet)
 	}
 
 	// s16[3] array
-	tireLeftOutWord[1] = valZ;
-	tireRightOutWord[1] = valZ;
+	tireLeftInWord[1] = valZ;
+	tireRightInWord[1] = valZ;
 
-	CTR_GteLoadS16TripletV0(tireLeftOutHalf);
+	CTR_GteLoadS16TripletV0(tireLeftInHalf);
 	gte_rtv0();
-	CTR_GteStoreMAC(&tireLeftOutWord[0]);
+	CTR_GteStoreMAC(tireLeftRotated);
 
-	CTR_GteLoadS16TripletV0(tireRightOutHalf);
+	CTR_GteLoadS16TripletV0(tireRightInHalf);
 	gte_rtv0();
-	CTR_GteStoreMAC(&tireRightOutWord[0]);
+	CTR_GteStoreMAC(tireRightRotated);
 
 	// this compresses TireLeft and TireRight from int to s16,
 	// which then doubles in usage as a matrix (3x2)
-	for (int i = 0; i < VEH_EMITTER_WALL_SPARK_SCRATCH_HALF_COUNT; i++)
+	for (int i = 0; i < VEH_EMITTER_AXIS_COUNT; i++)
 	{
-		tireLeftOutHalf[i] = (u16)scratch->word[i];
+		tireLeftOutHalf[i] = (s16)tireLeftRotated[i];
+		tireRightOutHalf[i] = (s16)tireRightRotated[i];
 	}
 
 #ifdef CTR_NATIVE
@@ -490,10 +510,10 @@ void VehEmitter_Sparks_Wall(struct Driver *d, struct ParticleEmitter *emSet)
 
 	CTR_GteLoadS16TripletV0(&distIn4[0]);
 	gte_llv0();
-	CTR_GteStoreMAC(&distOut4[0]);
+	CTR_GteStoreMAC(distOut4);
 	if (distOut4[0] < distOut4[1])
 	{
-		tireLeftOutHalf = tireRightOutHalf;
+		tireRotated = tireRightRotated;
 	}
 
 	// Create instance in particle pool
@@ -506,14 +526,14 @@ void VehEmitter_Sparks_Wall(struct Driver *d, struct ParticleEmitter *emSet)
 
 	for (int i = 0; i < VEH_EMITTER_AXIS_COUNT; i++)
 	{
-		p->axis[i].startVal += tireLeftOutHalf[i];
+		p->axis[i].startVal += tireRotated[i];
 		distIn4[i] = p->axis[i].velocity;
 	}
 
 	// dist4 now determines velocity
 	CTR_GteLoadS16TripletV0(&distIn4[0]);
 	gte_rtv0();
-	CTR_GteStoreMAC(&distOut4[0]);
+	CTR_GteStoreMAC(distOut4);
 
 	p->axis[0].velocity = (s16)distOut4[0];
 	p->axis[1].velocity = (s16)distOut4[1];

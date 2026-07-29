@@ -225,7 +225,8 @@ static void VehGroundSkids_TryEmitSegment(struct VehGroundSkidsScratch *scratch,
 		return;
 	}
 
-	scratch->segmentFlagsLow = mark->flags;
+	// retail stores the whole word, so the upper bytes are cleared rather than left stale
+	scratch->segmentFlags = mark->flags;
 	int depth = (currDepth[pointIndex] >> VEH_GROUND_SKIDS_DEPTH_SHIFT) + (mark->color << VEH_GROUND_SKIDS_OT_DEPTH_SHIFT);
 	VehGroundSkids_Subset1(&currXY[pointIndex], &prevXY[pointIndex], depth, scratch);
 }
