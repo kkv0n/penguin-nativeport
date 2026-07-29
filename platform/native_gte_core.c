@@ -246,13 +246,20 @@ internal s64 F(s64 a)
 		C2_FLAG |= GTE_FLAG(31) | GTE_FLAG(15);
 	}
 
-	// ...but MAC0 is a 32-bit register, so that is what gets stored and what
-	// every consumer reads back (SX2/SY2 via SAR 16, IR0 via Lm_H, OTZ via
-	// Lm_D). Keeping the untruncated 64-bit sum here sent SX2/SY2 to the
-	// opposite screen edge whenever IR*(H/SZ) overflowed 32 bits.
+	// MAC0 is a 32-bit register, so that is what the register keeps and what
+	// IR0 (Lm_H) and OTZ (Lm_D) read back.
 	m_mac0 = (s32)a;
 
-	return m_mac0;
+	// The full-width sum is returned, NOT the truncated register. SX2/SY2 are
+	// produced by shifting this sum right by 16 and only then narrowing, which
+	// is what DuckStation does (`PushSXY(s32(Sx >> 16), ...)` on the 64-bit Sx)
+	// and what Amidog's GTE tests pin down on hardware. Shifting the truncated
+	// register instead wraps the result: OFX + IR1*(H/SZ3) crosses 2^31 as soon
+	// as a vertex approaches the projection plane, and a coordinate that belongs
+	// at a screen edge lands at an arbitrary position, which then stretches the
+	// triangle across the frame. The MAC0 *register* being 32-bit says nothing
+	// about the width of the SX/SY datapath - they are separate.
+	return a;
 }
 
 internal int Lm_G1(s64 a)
@@ -343,6 +350,7 @@ int GTE_operator(int op)
 	int cv;
 	int mx;
 	int h_over_sz3 = 0;
+	s64 dq;
 
 	lm = GTE_LM(gteop(op));
 	m_sf = GTE_SF(gteop(op));
@@ -355,8 +363,14 @@ int GTE_operator(int op)
 	case 0x01:
 		h_over_sz3 = GTE_RotTransPers(0, lm);
 
-		C2_MAC0 = (int)(F((s64)C2_DQB + ((s64)C2_DQA * h_over_sz3)));
-		C2_IR0 = Lm_H(m_mac0, 1);
+		// IR0 is taken from the full-width sum, not from the truncated MAC0
+		// register: same split as SX2/SY2 above. DQA*(H/SZ3) alone reaches
+		// 32767*1FFFFh, so the sum leaves 32-bit range whenever a vertex comes
+		// close, and reading the wrapped register there gives a depth-cue
+		// factor with no relation to the distance.
+		dq = F((s64)C2_DQB + ((s64)C2_DQA * h_over_sz3));
+		C2_MAC0 = (int)dq;
+		C2_IR0 = Lm_H(dq, 1);
 
 		return 1;
 
@@ -680,8 +694,10 @@ int GTE_operator(int op)
 			h_over_sz3 = GTE_RotTransPers(v, lm);
 		}
 
-		C2_MAC0 = (int)(F((s64)C2_DQB + ((s64)C2_DQA * h_over_sz3)));
-		C2_IR0 = Lm_H(m_mac0, 1);
+		// Same full-width IR0 split as RTPS.
+		dq = F((s64)C2_DQB + ((s64)C2_DQA * h_over_sz3));
+		C2_MAC0 = (int)dq;
+		C2_IR0 = Lm_H(dq, 1);
 		return 1;
 
 	case 0x3d:

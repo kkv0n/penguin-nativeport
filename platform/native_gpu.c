@@ -1813,12 +1813,154 @@ internal int ProcessPsyXPrims(P_TAG *polyTag)
 
 // Processes primitive
 // returns processed primitive primLength in longs
+// PSX GPU polygon size limit.
+//
+// Hardware renders a polygon only while the distance between its vertices stays
+// within 1023 horizontally and 511 vertically; anything larger is discarded by
+// the GPU without drawing a single pixel (psx-spx, "GPU Render Polygon
+// Commands"). Retail depends on that: when a vertex ends up nearer than H/2 the
+// GTE divide overflows and SX/SY saturate to -0400h..+03FFh, producing a
+// triangle that spans the whole screen. On console those simply never appear.
+// RenderBucket's per-primitive gate only rejects FLAG bit 18 (SZ3/OTZ
+// saturated) - verified against retail at 0x8006a5a0 - so it does not catch
+// them either; the GPU size limit is what does.
+//
+// Without this the GL rasteriser happily draws them, which is what shows up as
+// colour streaks across the frame when the camera gets close to an instance.
+#define NATIVE_GPU_MAX_POLY_SPAN_X 1023
+#define NATIVE_GPU_MAX_POLY_SPAN_Y 511
+
+// Drops the just-emitted geometry that exceeds what the PSX GPU would draw.
+//
+// The test is per triangle, not per primitive. A quad is rasterised as two
+// triangles sharing a diagonal, and hardware evaluates each one on its own, so a
+// quad whose opposite corners are more than a span apart still draws both halves
+// as long as neither triangle exceeds the limit by itself. Measuring the whole
+// quad would throw away geometry the console renders.
+//
+// Surviving triangles are compacted down. Split vertex counts are derived from
+// s_gpu.vertexIndex when the split is closed, so an emptied split draws nothing
+// and the recorded state change stays valid for whatever follows.
+//
+// The drawing offset already added by MakeVertex* needs no correction: it is one
+// translation applied to every vertex, so it cannot change a distance, and the
+// hardware likewise measures distances between vertices.
+internal void NativeGpu_ApplyGpuPolygonSizeLimit(int firstVertex)
+{
+	int vertexCount = s_gpu.vertexIndex - firstVertex;
+
+	if ((vertexCount < 3) || (firstVertex < 0))
+	{
+		return;
+	}
+
+	int writeIndex = firstVertex;
+	int dropped = 0;
+
+	for (int group = firstVertex; (group + 3) <= s_gpu.vertexIndex; group += 3)
+	{
+		int minX = 32767;
+		int maxX = -32768;
+		int minY = 32767;
+		int maxY = -32768;
+
+		// Over three vertices the bounding box equals the largest pairwise
+		// distance, which is what the hardware compares.
+		for (int i = 0; i < 3; i++)
+		{
+			const GrVertex *v = &s_gpu.vertexBuffer[group + i];
+
+			minX = (v->x < minX) ? v->x : minX;
+			maxX = (v->x > maxX) ? v->x : maxX;
+			minY = (v->y < minY) ? v->y : minY;
+			maxY = (v->y > maxY) ? v->y : maxY;
+		}
+
+		if (((maxX - minX) > NATIVE_GPU_MAX_POLY_SPAN_X) || ((maxY - minY) > NATIVE_GPU_MAX_POLY_SPAN_Y))
+		{
+			dropped++;
+			continue;
+		}
+
+		if (writeIndex != group)
+		{
+			memmove(&s_gpu.vertexBuffer[writeIndex], &s_gpu.vertexBuffer[group], 3 * sizeof(GrVertex));
+		}
+
+		writeIndex += 3;
+	}
+
+	if (dropped != 0)
+	{
+		s_gpu.vertexIndex = writeIndex;
+	}
+}
+
+// Same hardware limit, applied to lines - psx-spx says "polygons and lines".
+// Each segment is expanded into its own 6-vertex quad here, so a polyline is
+// filtered segment by segment (the limit is per segment on hardware, not per
+// polyline) and the survivors are compacted down.
+//
+// Measuring the expanded quad rather than the two endpoints inflates the span by
+// the line thickness, so a segment sitting exactly on the boundary could differ
+// by a pixel. CTR only draws UI lines, which are bounded by the screen and never
+// come close to 1023x511, so nothing real rides on that.
+internal void NativeGpu_ApplyGpuLineSizeLimit(int firstVertex)
+{
+	int vertexCount = s_gpu.vertexIndex - firstVertex;
+
+	if ((vertexCount < 6) || (firstVertex < 0))
+	{
+		return;
+	}
+
+	int writeIndex = firstVertex;
+	int dropped = 0;
+
+	for (int group = firstVertex; (group + 6) <= s_gpu.vertexIndex; group += 6)
+	{
+		int minX = 32767;
+		int maxX = -32768;
+		int minY = 32767;
+		int maxY = -32768;
+
+		for (int i = 0; i < 6; i++)
+		{
+			const GrVertex *v = &s_gpu.vertexBuffer[group + i];
+
+			minX = (v->x < minX) ? v->x : minX;
+			maxX = (v->x > maxX) ? v->x : maxX;
+			minY = (v->y < minY) ? v->y : minY;
+			maxY = (v->y > maxY) ? v->y : maxY;
+		}
+
+		if (((maxX - minX) > NATIVE_GPU_MAX_POLY_SPAN_X) || ((maxY - minY) > NATIVE_GPU_MAX_POLY_SPAN_Y))
+		{
+			dropped++;
+			continue;
+		}
+
+		if (writeIndex != group)
+		{
+			memmove(&s_gpu.vertexBuffer[writeIndex], &s_gpu.vertexBuffer[group], 6 * sizeof(GrVertex));
+		}
+
+		writeIndex += 6;
+	}
+
+	if (dropped != 0)
+	{
+		s_gpu.vertexIndex = writeIndex;
+	}
+}
+
 int ParsePrimitive(P_TAG *polyTag)
 {
 	const int primType = polyTag->code & 0xF0;
 
 	int primLength = 0;
 	bool handledZeroLength = false;
+	const int sizeLimitFirstVertex = s_gpu.vertexIndex;
 
 	switch (primType)
 	{
@@ -1892,18 +2034,22 @@ int ParsePrimitive(P_TAG *polyTag)
 	case 0x20:
 		// Flat polygons
 		primLength = ProcessFlatPoly(polyTag);
+		NativeGpu_ApplyGpuPolygonSizeLimit(sizeLimitFirstVertex);
 		break;
 	case 0x30:
 		// Gouraud shaded polygons
 		primLength = ProcessGouraudPoly(polyTag);
+		NativeGpu_ApplyGpuPolygonSizeLimit(sizeLimitFirstVertex);
 		break;
 	case 0x40:
 		// Flat (single colour) Lines
 		primLength = ProcessFlatLines(polyTag);
+		NativeGpu_ApplyGpuLineSizeLimit(sizeLimitFirstVertex);
 		break;
 	case 0x50:
 		// Gouraud lines
 		primLength = ProcessGouraudLines(polyTag);
+		NativeGpu_ApplyGpuLineSizeLimit(sizeLimitFirstVertex);
 		break;
 	case 0x60:
 	case 0x70:
