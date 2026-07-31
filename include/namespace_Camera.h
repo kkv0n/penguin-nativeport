@@ -224,7 +224,9 @@ struct CameraDC
 	u16 mode;
 
 	// 0x0A
-	u16 nearOrFar;
+	// Retail's only load of this field (CAM_ThTick 0x8001b478) is an `lh` whose
+	// result indexes ZoomData without being truncated back to 16 bits.
+	s16 nearOrFar;
 
 	// 0xC
 	u32 unk0xC;

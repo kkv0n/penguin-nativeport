@@ -18,23 +18,27 @@ static u32 CAM_SkyboxGlow_PackXY(s32 x, s32 y)
 	return ((u32)(u16)x) | ((u32)(u16)y << 16);
 }
 
+// ratio is unbounded (the gradient endpoints can sit arbitrarily close), so the
+// products below rely on MIPS mult/mflo wraparound, not on C signed overflow.
 static u32 CAM_SkyboxGlow_LerpColor(u32 from, u32 to, s32 ratio)
 {
-	s32 r = (u8)from + ((((s32)(u8)to - (s32)(u8)from) * ratio) >> 12);
-	s32 g = (u8)(from >> 8) + ((((s32)(u8)(to >> 8) - (s32)(u8)(from >> 8)) * ratio) >> 12);
-	s32 b = (u8)(from >> 16) + ((((s32)(u8)(to >> 16) - (s32)(u8)(from >> 16)) * ratio) >> 12);
+	s32 r = (u8)from + CTR_MipsSra(CTR_MipsMulLo((s32)(u8)to - (s32)(u8)from, ratio), 12);
+	s32 g = (u8)(from >> 8) + CTR_MipsSra(CTR_MipsMulLo((s32)(u8)(to >> 8) - (s32)(u8)(from >> 8), ratio), 12);
+	s32 b = (u8)(from >> 16) + CTR_MipsSra(CTR_MipsMulLo((s32)(u8)(to >> 16) - (s32)(u8)(from >> 16), ratio), 12);
 
 	return ((u32)(u8)r) | ((u32)(u8)g << 8) | ((u32)(u8)b << 16);
 }
 
 static s32 CAM_SkyboxGlow_FixedRatio(s32 numerator, s32 denominator)
 {
-	return (numerator << 12) / denominator;
+	// numerator is negative whenever the gradient edge is off-screen, which is
+	// most of the time: shifting it left is a plain sll in retail.
+	return CTR_MipsDiv(CTR_MipsSll(numerator, 12), denominator);
 }
 
 static s32 CAM_SkyboxGlow_ScreenX(s32 screenWidth, s32 ratio)
 {
-	return (screenWidth * ratio) >> 12;
+	return CTR_MipsSra(CTR_MipsMulLo(screenWidth, ratio), 12);
 }
 
 static s32 CAM_SkyboxGlow_Div2TowardZero(s32 value)
@@ -45,7 +49,7 @@ static s32 CAM_SkyboxGlow_Div2TowardZero(s32 value)
 
 static s32 CAM_SkyboxGlow_CalcCenterY(struct PushBuffer *pb)
 {
-	s32 pitch = (pb->rot.x - 0x800) * 0x78;
+	s32 pitch = CTR_MipsMulLo(pb->rot.x - 0x800, 0x78);
 	s32 height = (s16)pb->rect.h;
 
 	if (pitch < 0)
@@ -58,13 +62,15 @@ static s32 CAM_SkyboxGlow_CalcCenterY(struct PushBuffer *pb)
 
 static s32 CAM_SkyboxGlow_CalcTilt(struct PushBuffer *pb)
 {
+	// Retail calls MATH_Sin first, then MATH_Cos.
+	s32 sine = MATH_Sin(pb->rot.z);
 	s32 cosine = MATH_Cos(pb->rot.z);
 	if (cosine == 0)
 	{
 		cosine = 1;
 	}
 
-	s32 ratio = (MATH_Sin(pb->rot.z) << 12) / cosine;
+	s32 ratio = CTR_MipsDiv(CTR_MipsSll(sine, 12), cosine);
 	s32 shifted = (s32)((u32)ratio << 8);
 	shifted >>= 12;
 
@@ -300,8 +306,9 @@ void CAM_SkyboxGlow(struct SkyboxGlowGradient *grad, struct PushBuffer *pb, stru
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8001861c-0x80018818
 void CAM_ClearScreen(struct GameTracker *gGT)
 {
-	s8 numPlyr = gGT->numPlyrCurrGame;
-	s8 swap = gGT->swapchainIndex;
+	// Retail reads numPlyrCurrGame with lbu and swapchainIndex with lw.
+	u8 numPlyr = gGT->numPlyrCurrGame;
+	s32 swap = gGT->swapchainIndex;
 	struct Level *level1 = gGT->level1;
 	struct DB *backDB = gGT->backBuffer;
 	TILE *tile = backDB->primMem.cursor;
@@ -312,13 +319,16 @@ void CAM_ClearScreen(struct GameTracker *gGT)
 		uint32_t *endOT = &pb->ptrOT[0x3FF];
 
 		s16 x = pb->rect.x;
-		s16 y = pb->rect.y + swap * 0x128;
+		// Retail builds swap*0x128 with a wrapping sll/addu chain, never a
+		// trapping multiply.
+		s16 y = (s16)CTR_MipsAddLo(pb->rect.y, CTR_MipsMulLo(swap, 0x128));
 		s16 w = pb->rect.w;
 		s16 h = pb->rect.h;
 
 		// cam up/down changes where the line splits.
 		// At 0x800, camera looks straight, and line is perfectly midpoint
-		s32 splitLine = (((s32)pb->rot.x - 0x800) >> 3) + (h >> 1);
+		// Retail divides the height by 2 (truncating toward zero), it does not shift.
+		s32 splitLine = (((s32)pb->rot.x - 0x800) >> 3) + (h / 2);
 
 		if (splitLine < 0)
 		{
@@ -387,8 +397,8 @@ void CAM_Init(struct CameraDC *cDC, s32 cameraID, struct Driver *d, struct PushB
 	cDC->driverToFollow = d;
 	cDC->pushBuffer = pb;
 
-	// dont set cameraMode to zero,
-	// memset makes it already zero
+	// Redundant after the memset, but retail emits the store (sh zero, 0x9a).
+	cDC->cameraMode = 0;
 
 	cDC->flags |= CAMERA_FLAG_DIRECTION_CHANGED;
 }
@@ -814,8 +824,8 @@ void CAM_FollowDriver_AngleAxis(struct CameraDC *cDC, struct Driver *d, struct C
 void CAM_StartLine_FlyIn(struct FlyInData *flyInData, s16 maxFrames, s32 frame, SVec3 *desiredPos, SVec3 *desiredRot)
 {
 	struct Level *lev = sdata->gGT->level1;
-	s32 frameIndex = (frame << 0x10) >> 4;
-	s32 frameRatio = frameIndex / maxFrames;
+	s32 frameIndex = CTR_MipsSra(CTR_MipsSll(frame, 0x10), 4);
+	s32 frameRatio = CTR_MipsDiv(frameIndex, maxFrames);
 	s32 countEnd = flyInData->frameCount1;
 	s16 count = flyInData->frameCount2;
 	SVECTOR local_78;
@@ -842,7 +852,10 @@ void CAM_StartLine_FlyIn(struct FlyInData *flyInData, s16 maxFrames, s32 frame, 
 	else
 	{
 		pathEnd = (s16 *)(flyInData->ptrEnd + countEnd * 6 - 0xc);
-		pathRatioEnd = 0;
+
+		// Retail parks the ratio at 0x1000 here, not 0: the `& 0xfff` below
+		// zeroes it either way, but keep the constant retail uses.
+		pathRatioEnd = 0x1000;
 	}
 
 	if (pathIndex < flyInData->frameCount2 - 1)
@@ -852,7 +865,7 @@ void CAM_StartLine_FlyIn(struct FlyInData *flyInData, s16 maxFrames, s32 frame, 
 	else
 	{
 		pathStart = (s16 *)(flyInData->ptrStart + flyInData->frameCount2 * 6 - 0xc);
-		frameRatio = 0;
+		frameRatio = 0x1000;
 	}
 
 	s32 ratio = count * pathRatioEnd & 0xfff;
@@ -894,7 +907,7 @@ void CAM_StartLine_FlyIn(struct FlyInData *flyInData, s16 maxFrames, s32 frame, 
 	s16 deltaZ = desiredPos->z - (s16)transformed.vz;
 
 	desiredRot->y = (s16)ratan2(deltaX, deltaZ);
-	desiredRot->x = 0x800 - (s16)ratan2(deltaY, SquareRoot0(deltaX * deltaX + deltaZ * deltaZ));
+	desiredRot->x = 0x800 - (s16)ratan2(deltaY, SquareRoot0_stub(deltaX * deltaX + deltaZ * deltaZ));
 	desiredRot->z = 0;
 }
 
@@ -985,7 +998,7 @@ u32 CAM_FollowDriver_TrackPath(struct CameraDC *cDC, SVec3 *pos, s32 speed, s32 
 
 	if (segmentLength != 0)
 	{
-		ratio = (pathProgress << 12) / segmentLength;
+		ratio = CTR_MipsDiv(CTR_MipsSll(pathProgress, 12), segmentLength);
 	}
 	else
 	{
@@ -1022,7 +1035,7 @@ void CAM_LookAtPosition(struct CameraScratchWork *scratchWork, Vec3 *positions, 
 	cam->dir.y = dirY;
 	cam->dir.z = dirZ;
 
-	s32 distance = SquareRoot0_stub(CAM_MulLo(dirX, dirX) + CAM_MulLo(dirZ, dirZ));
+	s32 distance = SquareRoot0_stub(CTR_MipsAddLo(CAM_MulLo(dirX, dirX), CAM_MulLo(dirZ, dirZ)));
 
 	// rotations
 	desiredRot->x = 0x800 - (s16)ratan2(dirY, distance);
@@ -1085,7 +1098,8 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 	struct CameraScratch *cam = &scratchWork->camera;
 	struct GameTracker *gGT = sdata->gGT;
 	struct GamepadBuffer *pad = &sdata->gGamepads->gamepad[d->driverID];
-	s8 state;
+	// Retail reads both kartState and terrain_type with lbu, and both are u8.
+	u8 state;
 	s16 uVar8;
 	s16 sVar10;
 	u32 backupFlags;
@@ -1445,7 +1459,7 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 
 	else
 	{
-		state = (s8)quad->terrain_type;
+		state = quad->terrain_type;
 
 		// Mud, Water, or FastWater
 		if (((state == 0xe) || (state == 4)) || (state == 0xd))
@@ -1695,21 +1709,22 @@ LAB_8001ab04:
 
 		if (iVar12 <= iVar14)
 		{
-			x = x >> 1;
+			// Retail halves with a truncate-toward-zero divide, not a shift.
+			x = x / 2;
 
 			if (iVar12 < x)
 			{
 				// Sine(angle)
-				x = MATH_Sin(0x400 - (iVar12 << 10) / x);
+				x = MATH_Sin(0x400 - CTR_MipsDiv(CTR_MipsSll(iVar12, 10), x));
 
 				cDC->transitionBlend = (s16)(x / 2) + 0x800;
 			}
 			else
 			{
-				iVar14 = (iVar12 - iVar14) * 0x400;
+				iVar14 = CTR_MipsSll(iVar12 - iVar14, 10);
 
 				// Cosine(angle)
-				x = MATH_Cos(iVar14 / x);
+				x = MATH_Cos(CTR_MipsDiv(iVar14, x));
 
 				cDC->transitionBlend = 0x800 - (s16)(x / 2);
 			}
@@ -2014,7 +2029,8 @@ void CAM_ThTick(struct Thread *t)
 		sVar5 = psVar21[2];
 		sVar1 = psVar21[3];
 
-		iVar7 = VehCalc_MapToRange((s32)sVar6 * (s32)sVar6 + (s32)sVar5 * (s32)sVar5 + (s32)sVar1 * (s32)sVar1, 0x10000, 0x190000, 0x80, 0xf0);
+		iVar7 = VehCalc_MapToRange(CTR_MipsAddLo(CTR_MipsAddLo(CAM_MulLo(sVar6, sVar6), CAM_MulLo(sVar5, sVar5)), CAM_MulLo(sVar1, sVar1)), 0x10000,
+		                           0x190000, 0x80, 0xf0);
 
 		cDC->angleAxisLerpRatio = (s16)iVar7;
 		break;
@@ -2134,8 +2150,8 @@ SkipNewCameraEOR:
 						    CTR_MipsAddLo(CTR_MipsAddLo(CAM_MulLo((s32)stackMemPos.x, (s32)stackMemPos.x), CAM_MulLo((s32)stackMemPos.y, (s32)stackMemPos.y)),
 						                  CAM_MulLo((s32)stackMemPos.z, (s32)stackMemPos.z)));
 
-						iVar18 = cDC->trackPathProgress << 0xc;
-						iVar25 = iVar18 / iVar24;
+						iVar18 = CTR_MipsSll(cDC->trackPathProgress, 0xc);
+						iVar25 = CTR_MipsDiv(iVar18, iVar24);
 						/*
 						if (iVar24 == 0)
 						{
@@ -2146,7 +2162,8 @@ SkipNewCameraEOR:
 						    trap(0x1800);
 						}
 						*/
-						cDC->trackPathProgress = cDC->trackPathProgress + (((cDC->transitionFrame * 0x1000) / 0x1e) * iVar7 >> 0xc);
+						cDC->trackPathProgress =
+						    cDC->trackPathProgress + CTR_MipsSra(CTR_MipsMulLo((cDC->transitionFrame * 0x1000) / 0x1e, iVar7), 0xc);
 						if (iVar8 < 1)
 						{
 							if (iVar25 < 0x1001)
@@ -2171,9 +2188,11 @@ SkipNewCameraEOR:
 						{
 							psVar21 = cDC->eorModeData.pointPath.endPos.v;
 						}
-						pb->pos.x = psVar21[0] + (s16)((stackMemPos.x * iVar25) >> 0xc);
-						pb->pos.y = psVar21[1] + (s16)((stackMemPos.y * iVar25) >> 0xc);
-						pb->pos.z = psVar21[2] + (s16)((stackMemPos.z * iVar25) >> 0xc);
+						// iVar25 is a raw (progress << 12) / distance quotient, so these
+						// products rely on mult/mflo wraparound.
+						pb->pos.x = psVar21[0] + (s16)CTR_MipsSra(CTR_MipsMulLo(stackMemPos.x, iVar25), 0xc);
+						pb->pos.y = psVar21[1] + (s16)CTR_MipsSra(CTR_MipsMulLo(stackMemPos.y, iVar25), 0xc);
+						pb->pos.z = psVar21[2] + (s16)CTR_MipsSra(CTR_MipsMulLo(stackMemPos.z, iVar25), 0xc);
 						goto LAB_8001c11c;
 					}
 					if (sVar6 == 7)
@@ -2292,9 +2311,9 @@ SkipNewCameraEOR:
 
 				iVar7 = SquareRoot0_stub(CTR_MipsAddLo(CAM_MulLo(camThTick->dir.x, camThTick->dir.x), CAM_MulLo(camThTick->dir.z, camThTick->dir.z)));
 				iVar17 = (s32)(cDC->transitionTo).pos.x;
-				iVar24 = (iVar7 - (cDC->transitionTo).pos.y) * iVar17;
+				iVar24 = CTR_MipsMulLo(CTR_MipsSubLo(iVar7, (cDC->transitionTo).pos.y), iVar17);
 				iVar8 = (s32)(cDC->transitionTo).pos.z;
-				iVar7 = iVar24 / iVar8;
+				iVar7 = CTR_MipsDiv(iVar24, iVar8);
 				/*
 				if (iVar8 == 0)
 				{
@@ -2318,12 +2337,13 @@ SkipNewCameraEOR:
 				pb->distanceToScreen_PREV = pb->distanceToScreen_CURR + iVar7;
 			}
 
-			Vec3 cameraProbePos;
-			cameraProbePos.x = (s32)pb->pos.x;
-			cameraProbePos.y = (s32)pb->pos.y;
-			cameraProbePos.z = (s32)pb->pos.z;
+			// Retail probes from camThTick->pos (scratchpad), not from a stack
+			// copy, same as the sibling call in CAM_FollowDriver_Normal.
+			camThTick->pos.x = (s32)pb->pos.x;
+			camThTick->pos.y = (s32)pb->pos.y;
+			camThTick->pos.z = (s32)pb->pos.z;
 
-			CAM_FindClosestQuadblock((struct ScratchpadStruct *)scratchWork, cDC, d, &cameraProbePos);
+			CAM_FindClosestQuadblock((struct ScratchpadStruct *)scratchWork, cDC, d, &camThTick->pos);
 			goto LAB_8001c150;
 		}
 	}
