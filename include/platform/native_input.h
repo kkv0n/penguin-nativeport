@@ -25,6 +25,8 @@ int Platform_InputCycleGamepadController(void);
 
 void Platform_InputPadInit(int slot, unsigned char *padData);
 int Platform_InputPadGetState(int port);
+int Platform_InputPadSetMainMode(int port, int offs, int lock);
+int Platform_InputPadInfoAct(int port, int acno, int term);
 void Platform_InputPadVibrate(int port, unsigned char *table, int len);
 int Platform_InputCapturePadSnapshots(struct PlatformInputPadSnapshot *dst, int count);
 int Platform_InputInstallPadSnapshots(const struct PlatformInputPadSnapshot *src, int count);

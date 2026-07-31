@@ -20,6 +20,19 @@
 #define NATIVE_INPUT_MAP_FLAG_AXIS         0x4000
 #define NATIVE_INPUT_MAP_FLAG_INVERSE      0x8000
 #define NATIVE_INPUT_DEFAULT_KEYBOARD_SLOT 0
+// A DualShock reports two actuators. libpad's PadInfoAct(port, act, InfoActCurr)
+// gives each one's current draw in the units PadMaxCurr (60) is expressed in;
+// GAMEPAD_ProcessMotors budgets against exactly that. Retail's own comment puts
+// one DualShock at 30 units for both motors together, and it always sheds the
+// large motor first, so the large one carries the bigger share here. The split
+// itself is the one number not documented in psx-spx or in any emulator (they
+// implement the SIO protocol, not libpad).
+#define NATIVE_INPUT_ACTUATOR_COUNT        2
+#define NATIVE_INPUT_ACTUATOR_CURR_SMALL   10
+#define NATIVE_INPUT_ACTUATOR_CURR_LARGE   20
+#define NATIVE_INPUT_INFO_ACT_CURR         4
+#define NATIVE_INPUT_RUMBLE_DURATION_MS    500
+#define NATIVE_INPUT_RUMBLE_REARM_MS       200
 // NOTE(aalhendi): Little-endian tag `CTRI` = CTR native Input snapshot.
 #define NATIVE_INPUT_STATE_MAGIC           0x49525443
 #define NATIVE_INPUT_STATE_VERSION         1
@@ -95,6 +108,11 @@ global_variable s32 s_controllerToSlotMapping[NATIVE_INPUT_MAX_CONTROLLERS] = {-
 global_variable struct NativeInputController s_controllers[NATIVE_INPUT_MAX_CONTROLLERS];
 global_variable struct PlatformInputPadSnapshot s_installedSnapshots[NATIVE_INPUT_MAX_CONTROLLERS];
 global_variable u8 *s_padSlotData[NATIVE_INPUT_PHYSICAL_SLOT_COUNT];
+global_variable const u8 *s_padActTable[NATIVE_INPUT_MAX_CONTROLLERS];
+global_variable s32 s_padActLen[NATIVE_INPUT_MAX_CONTROLLERS];
+global_variable u16 s_padRumbleLarge[NATIVE_INPUT_MAX_CONTROLLERS];
+global_variable u16 s_padRumbleSmall[NATIVE_INPUT_MAX_CONTROLLERS];
+global_variable u64 s_padRumbleSentMs[NATIVE_INPUT_MAX_CONTROLLERS];
 global_variable const bool *s_keyboardState;
 global_variable s32 s_inputInitialized;
 global_variable s32 s_installedSnapshotsActive;
@@ -634,6 +652,18 @@ internal s32 NativeInput_FindSlotForDeviceIndex(Sint32 deviceIndex)
 {
 	s32 slot;
 
+	// SDL queues a GAMEPAD_ADDED event for every pad that was already plugged in
+	// when the subsystem starts, so a pad opened by NativeInput_OpenKnownControllers
+	// gets announced again on the first pump. Without this check it would be handed
+	// a second, still-free slot and drive two players at once.
+	for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
+	{
+		if ((s_controllers[slot].controller != NULL) && (s_controllers[slot].instanceId == (SDL_JoystickID)deviceIndex))
+		{
+			return slot;
+		}
+	}
+
 	for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
 	{
 		if (s_controllerToSlotMapping[slot] == deviceIndex)
@@ -672,6 +702,12 @@ internal void NativeInput_CloseController(s32 slot)
 	controller->instanceId = -1;
 	controller->analogEnabled = 0;
 	controller->switchingAnalog = 0;
+	s_controllerToSlotMapping[slot] = -1;
+	s_padActTable[slot] = NULL;
+	s_padActLen[slot] = 0;
+	s_padRumbleLarge[slot] = 0;
+	s_padRumbleSmall[slot] = 0;
+	s_padRumbleSentMs[slot] = 0;
 
 	if (s_lastActiveControllerSlot == slot)
 	{
@@ -708,8 +744,13 @@ internal void NativeInput_OpenController(SDL_JoystickID instanceId, s32 slot)
 
 	joystick = SDL_GetGamepadJoystick(controller->controller);
 	controller->instanceId = joystick != NULL ? SDL_GetJoystickID(joystick) : instanceId;
-	controller->analogEnabled = 1;
+
+	// Real pads power up in digital mode with the analog LED off; the game
+	// switches them over itself through PadSetMainMode, and the player can
+	// toggle it by hand with Select+Start, standing in for the ANALOG button.
+	controller->analogEnabled = 0;
 	controller->switchingAnalog = 0;
+	s_controllerToSlotMapping[slot] = (s32)controller->instanceId;
 	NativeInput_MoveKeyboardOffControllerSlot(slot);
 }
 
@@ -791,6 +832,80 @@ void Platform_InputShutdown(void)
 	s_keyboardState = NULL;
 }
 
+// port encoding is libpad's: bits 4-5 pick the console socket, bits 0-1 the
+// multitap position inside it.
+internal s32 NativeInput_SlotForPort(int port)
+{
+	s32 physicalSlot = (port >> 4) & 1;
+	s32 tap = port & 3;
+	s32 slot;
+
+	if (NativeInput_UseMultitapBus() != 0)
+	{
+		if (physicalSlot != 0)
+		{
+			return -1;
+		}
+		slot = tap;
+	}
+	else
+	{
+		if (tap != 0)
+		{
+			return -1;
+		}
+		slot = physicalSlot;
+	}
+
+	if ((slot < 0) || (slot >= NATIVE_INPUT_MAX_CONTROLLERS))
+	{
+		return -1;
+	}
+
+	return slot;
+}
+
+// The MOT bytes ride along in every poll packet, so this runs once per frame
+// off whatever buffer PadSetAct latched, not once per PadSetAct call.
+// Byte 0 drives the small motor and is digital: only bit0 counts. Byte 1 is the
+// large motor's speed, 00h..FFh.
+internal void NativeInput_PushRumble(void)
+{
+	u64 now = SDL_GetTicks();
+	s32 slot;
+
+	for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
+	{
+		struct NativeInputController *nativeController = &s_controllers[slot];
+		const u8 *table = s_padActTable[slot];
+		s32 len = s_padActLen[slot];
+		u16 large = 0;
+		u16 small = 0;
+
+		if (nativeController->controller == NULL)
+		{
+			continue;
+		}
+
+		if ((table != NULL) && (len > 0))
+		{
+			small = ((table[0] & 1) != 0) ? 0xffff : 0;
+			large = (len > 1) ? (u16)(table[1] * 257) : 0;
+		}
+
+		if ((large == s_padRumbleLarge[slot]) && (small == s_padRumbleSmall[slot]) &&
+		    ((large == 0 && small == 0) || ((now - s_padRumbleSentMs[slot]) < NATIVE_INPUT_RUMBLE_REARM_MS)))
+		{
+			continue;
+		}
+
+		s_padRumbleLarge[slot] = large;
+		s_padRumbleSmall[slot] = small;
+		s_padRumbleSentMs[slot] = now;
+		SDL_RumbleGamepad(nativeController->controller, large, small, NATIVE_INPUT_RUMBLE_DURATION_MS);
+	}
+}
+
 void Platform_InputUpdate(void)
 {
 	u16 keyboardButtons;
@@ -824,6 +939,7 @@ void Platform_InputUpdate(void)
 		NativeInput_ApplyKeyboard(slot, keyboardButtons);
 	}
 	NativeInput_WritePadBus();
+	NativeInput_PushRumble();
 }
 
 void Platform_InputControllerAdded(int deviceIndex)
@@ -891,33 +1007,66 @@ void Platform_InputPadInit(int slot, unsigned char *padData)
 
 int Platform_InputPadGetState(int port)
 {
-	s32 physicalSlot = (port >> 4) & 1;
-	s32 tap = port & 3;
-	s32 slot;
+	s32 slot = NativeInput_SlotForPort(port);
 
-	if (NativeInput_UseMultitapBus() != 0)
-	{
-		if (physicalSlot != 0)
-		{
-			return PadStateDiscon;
-		}
-		slot = tap;
-	}
-	else
-	{
-		if (tap != 0)
-		{
-			return PadStateDiscon;
-		}
-		slot = physicalSlot;
-	}
-
-	if ((slot < 0) || (slot >= NATIVE_INPUT_MAX_CONTROLLERS))
+	if (slot < 0)
 	{
 		return PadStateDiscon;
 	}
 
 	return s_controllers[slot].snapshot.connected ? PadStateStable : PadStateDiscon;
+}
+
+// Pad command 44h "Set LED State": offs 0 puts the pad back in digital mode
+// (LED off), offs 1 switches it to analog (LED red). Real pads power up in
+// digital mode, so this is what actually lights up the sticks.
+int Platform_InputPadSetMainMode(int port, int offs, int lock)
+{
+	s32 slot = NativeInput_SlotForPort(port);
+
+	(void)lock;
+
+	if (slot < 0)
+	{
+		return 0;
+	}
+
+	s_controllers[slot].analogEnabled = (offs != 0);
+	return 1;
+}
+
+int Platform_InputPadInfoAct(int port, int acno, int term)
+{
+	s32 slot = NativeInput_SlotForPort(port);
+	s32 count;
+
+	if (slot < 0)
+	{
+		return 0;
+	}
+
+	// A pad the host cannot shake has no actuators to report, same as a plain
+	// digital pad on hardware.
+	count = (s_controllers[slot].controller != NULL) ? NATIVE_INPUT_ACTUATOR_COUNT : 0;
+
+	if (acno < 0)
+	{
+		return count;
+	}
+
+	if (acno >= count)
+	{
+		return 0;
+	}
+
+	// Only InfoActCurr is ever asked for by the game; the remaining info bytes
+	// would need the pad's config-mode reply, which has no host equivalent.
+	if (term != NATIVE_INPUT_INFO_ACT_CURR)
+	{
+		return 0;
+	}
+
+	return (acno == 0) ? NATIVE_INPUT_ACTUATOR_CURR_SMALL : NATIVE_INPUT_ACTUATOR_CURR_LARGE;
 }
 
 int Platform_InputCapturePadSnapshots(struct PlatformInputPadSnapshot *dst, int count)
@@ -1054,55 +1203,18 @@ int Platform_InputRestoreState(const void *src, int srcSize)
 	return 1;
 }
 
+// PadSetAct only registers the buffer libpad keeps transmitting; the motors are
+// driven from NativeInput_PushRumble, once per poll, like the real MOT bytes.
 void Platform_InputPadVibrate(int port, unsigned char *table, int len)
 {
-	s32 physicalSlot = (port >> 4) & 1;
-	s32 tap = port & 3;
-	s32 slot;
-	struct NativeInputController *controller;
-	u16 freqHigh;
-	u16 freqLow;
+	s32 slot = NativeInput_SlotForPort(port);
 
-	if (NativeInput_UseMultitapBus() != 0)
-	{
-		if (physicalSlot != 0)
-		{
-			return;
-		}
-		slot = tap;
-	}
-	else
-	{
-		if (tap != 0)
-		{
-			return;
-		}
-		slot = physicalSlot;
-	}
-
-	if ((slot < 0) || (slot >= NATIVE_INPUT_MAX_CONTROLLERS) || (table == NULL) || (len <= 0))
+	if (slot < 0)
 	{
 		return;
 	}
 
-	controller = &s_controllers[slot];
-	if (controller->controller == NULL)
-	{
-		return;
-	}
-
-	freqHigh = table[0] * 255;
-	freqLow = len > 1 ? table[1] * 255 : 0;
-
-	if ((freqLow != 0) && (freqLow < 4096))
-	{
-		freqLow = 4096;
-	}
-
-	if ((freqHigh != 0) && (freqHigh < 4096))
-	{
-		freqHigh = 4096;
-	}
-
-	SDL_RumbleGamepad(controller->controller, freqLow, freqHigh, 200);
+	s_padActTable[slot] = table;
+	s_padActLen[slot] = (table != NULL) ? len : 0;
 }
+

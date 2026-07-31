@@ -29,12 +29,12 @@ int PadGetState(int port)
 	return Platform_InputPadGetState(port);
 }
 
+// Retail libpad (SCUS_944.26 0x80075be0): returns the actuator count when acno
+// is negative, otherwise byte (term-1) of that actuator's 5-byte info record,
+// or 0 for an out-of-range actuator/term.
 int PadInfoAct(int port, int acno, int term)
 {
-	(void)port;
-	(void)acno;
-	(void)term;
-	return 0;
+	return Platform_InputPadInfoAct(port, acno, term);
 }
 
 int PadSetActAlign(int port, unsigned char *table)
@@ -44,14 +44,17 @@ int PadSetActAlign(int port, unsigned char *table)
 	return 1;
 }
 
+// Retail libpad (0x80075a40) queues pad command 44h "Set LED State" and returns
+// 1 when the request was accepted, 0 when the port is busy. Returning 0
+// unconditionally used to stall GAMEPAD_ProcessState at gamepadType 0, which is
+// why PadSetAct was never reached and rumble never ran.
 int PadSetMainMode(int socket, int offs, int lock)
 {
-	(void)socket;
-	(void)offs;
-	(void)lock;
-	return 0;
+	return Platform_InputPadSetMainMode(socket, offs, lock);
 }
 
+// Retail libpad (0x80075ba0) only latches the pointer and the length; the two
+// MOT bytes are then transmitted inside every poll packet, not once per call.
 void PadSetAct(int port, unsigned char *table, int len)
 {
 	Platform_InputPadVibrate(port, table, len);

@@ -40,7 +40,7 @@ void GAMEPAD_SetMainMode(void)
 
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800252a0-0x80025410.
-void GAMEPAD_ProcessState(struct GamepadBuffer *pad, int padState, s16 id)
+void GAMEPAD_ProcessState(struct GamepadBuffer *pad, int padState, int id)
 {
 	int iVar2;
 	int iVar3;
@@ -75,13 +75,17 @@ void GAMEPAD_ProcessState(struct GamepadBuffer *pad, int padState, s16 id)
 				iVar2 = 2;
 			}
 
-			// set to zero by default
-			CTR_WriteU16LE(&pad->motorPower[0], 0);
-
 			// loop through motors
 			for (iVar3 = 0; iVar3 < iVar2; iVar3++)
 			{
 				pad->motorPower[iVar3] = (u8)PadInfoAct(id, iVar3, 4);
+			}
+
+			// zero whatever the pad does not have, retail fills the tail
+			// afterwards instead of clearing both entries up front
+			for (iVar3 = iVar2; iVar3 < 2; iVar3++)
+			{
+				pad->motorPower[iVar3] = 0;
 			}
 
 			PadSetAct(id, &pad->motorSubmit[0], sizeof(pad->motorSubmit));
@@ -740,8 +744,14 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 					{
 						pad->motorDesired[0] = pad->unk45;
 
-						pad->unk46 -= gGT->elapsedTimeMS;
-						if (pad->unk46 < 1)
+						// retail keeps the subtraction in a 32-bit register and only
+						// stores it once the result is known positive
+						int remaining = pad->unk46 - gGT->elapsedTimeMS;
+						if (remaining > 0)
+						{
+							pad->unk46 = (s16)remaining;
+						}
+						else
 						{
 							pad->unk46 = 0;
 							pad->unk45 = 0;
@@ -857,11 +867,14 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 	if (totalPower > 60)
 	{
 		int numPads = gGS->numGamepadsConnected;
-		int skipIndex = gGT->timer % numPads;
+
+		// retail divides with `divu`, not `div`
+		int skipIndex = (int)CTR_MipsRemU((u32)gGT->timer, (u32)numPads);
 
 		for (int i = skipIndex; i < skipIndex + numPads && totalPower > 60; i++)
 		{
-			struct GamepadBuffer *pad = &gGS->gamepad[i % numPads];
+			// retail wraps by subtracting, it never emits a second division here
+			struct GamepadBuffer *pad = &gGS->gamepad[(i < numPads) ? i : (i - numPads)];
 
 			if (pad->motorDesired[1] != 0)
 			{
@@ -872,7 +885,7 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 
 		for (int i = skipIndex; i < skipIndex + numPads && totalPower > 60; i++)
 		{
-			struct GamepadBuffer *pad = &gGS->gamepad[i % numPads];
+			struct GamepadBuffer *pad = &gGS->gamepad[(i < numPads) ? i : (i - numPads)];
 
 			if (pad->motorDesired[0] != 0)
 			{

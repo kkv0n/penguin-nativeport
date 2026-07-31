@@ -117,7 +117,7 @@ void GAMEPAD_ProcessSticks(struct GamepadSystem *gGamepads);
 int GAMEPAD_ProcessTapRelease(struct GamepadSystem *gGamepads);
 void GAMEPAD_ProcessMotors(struct GamepadSystem *gGamepads);
 int GAMEPAD_ProcessAnyoneVars(struct GamepadSystem *gGamepads);
-void GAMEPAD_ProcessState(struct GamepadBuffer *pad, int padState, s16 id);
+void GAMEPAD_ProcessState(struct GamepadBuffer *pad, int padState, int id);
 void GAMEPAD_ShockForce2(struct Driver *d, int frame, int val);
 
 b32 GAMEPROG_CheckGhostsBeaten(int ghostID);

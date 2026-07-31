@@ -234,6 +234,18 @@ static inline u32 CTR_MipsDivU(u32 dividend, u32 divisor)
 	return dividend / divisor;
 }
 
+// MIPS `divu` + `mfhi`. Same deal as CTR_MipsRem, minus the INT_MIN / -1 pair
+// that only exists for the signed opcode.
+static inline u32 CTR_MipsRemU(u32 dividend, u32 divisor)
+{
+	if (divisor == 0)
+	{
+		CTR_TRAP();
+	}
+
+	return dividend % divisor;
+}
+
 // misc //
 
 #ifndef CTR_NATIVE
