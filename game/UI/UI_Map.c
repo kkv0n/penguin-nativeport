@@ -426,10 +426,10 @@ void UI_Map_DrawTracking(struct UIMap *map, struct Thread *bucket)
 		// == only draw target if target exists ==
 
 		// flicker
-		targetColor = CRASH_BLUE;
+		targetColor = WHITE;
 		if ((sdata->gGT->timer & 1) != 0)
 		{
-			targetColor = CORTEX_RED;
+			targetColor = RED;
 		}
 
 		UI_Map_DrawRawIcon(map, &d->instSelf->matrix.t[0], UI_MAP_WARPBALL_TARGET_ICON, targetColor, 0, UI_MAP_ICON_SCALE);

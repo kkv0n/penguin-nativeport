@@ -117,7 +117,6 @@ void VehFire_Increment(struct Driver *driver, int reserves, u32 type, int fireLe
 	s8 count;
 
 	int newFireSpeedCap;
-	int newFireSize;
 	int oldOTT;
 
 	u32 addFlags;
@@ -379,12 +378,13 @@ void VehFire_Increment(struct Driver *driver, int reserves, u32 type, int fireLe
 		if (turboObj != 0)
 		{
 			// modify, cap, and save the size of the fire
-			newFireSize = CTR_MipsAddLo(CTR_MipsSra(fireLevel, VEH_FIRE_SIZE_SHIFT), VEH_FIRE_SIZE_BASE);
-			if (newFireSize > VEH_FIRE_SIZE_MAX)
+			// Retail stores the size first and caps the stored s16, not the
+			// 32-bit intermediate, so the truncation happens before the compare.
+			turboObj->fireSize = (s16)CTR_MipsAddLo(CTR_MipsSra(fireLevel, VEH_FIRE_SIZE_SHIFT), VEH_FIRE_SIZE_BASE);
+			if (turboObj->fireSize > VEH_FIRE_SIZE_MAX)
 			{
-				newFireSize = VEH_FIRE_SIZE_MAX;
+				turboObj->fireSize = VEH_FIRE_SIZE_MAX;
 			}
-			turboObj->fireSize = (s16)newFireSize;
 		}
 	}
 

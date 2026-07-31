@@ -526,11 +526,15 @@ void VehStuckProc_MaskGrab_Animate(struct Thread *t, struct Driver *d)
 	// set mask posZ
 	mask->pos.z = (s16)CTR_MipsSra(d->posCurr.z, FRACTIONAL_BITS_8);
 
+	// Retail compares the s16 mask height against the untruncated
+	// posCurr.y >> 8 and only narrows on the store.
+	int driverHeight = CTR_MipsSra(d->posCurr.y, FRACTIONAL_BITS_8);
+
 	// if mask posY < driver posY
-	if (mask->pos.y < (s16)CTR_MipsSra(d->posCurr.y, FRACTIONAL_BITS_8))
+	if (mask->pos.y < driverHeight)
 	{
 		// mask posY = driver posY
-		mask->pos.y = (s16)CTR_MipsSra(d->posCurr.y, FRACTIONAL_BITS_8);
+		mask->pos.y = (s16)driverHeight;
 
 		d->KartStates.MaskGrab.boolLiftingPlayer = true;
 	}

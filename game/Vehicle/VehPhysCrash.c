@@ -351,7 +351,9 @@ static void VehPhysCrash_PlayHumanFeedback(struct Thread *selfThread, struct Thr
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005d404-0x8005e104
 void VehPhysCrash_AnyTwoCars(struct Thread *thread, struct DriverCollisionSearch *search, Vec3 *selfVel)
 {
-	int distance = VehCalc_FastSqrt(search->bucket.bestDistSq, 0);
+	// Retail calls MATH_FastSqrt here (0x8005d43c), not VehCalc_FastSqrt. Both
+	// return floor(sqrt(n)), but retail takes prevalence.
+	int distance = MATH_FastSqrt(search->bucket.bestDistSq, 0);
 	const SVec3 *dist = &search->bucket.dist;
 	SVec3 *hitDir = &search->hitDir;
 

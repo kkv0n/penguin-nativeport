@@ -209,6 +209,21 @@ static inline s32 CTR_MipsDiv(s32 dividend, s32 divisor)
 	return dividend / divisor;
 }
 
+// MIPS `div` + `mfhi`. Retail's compiler emits an explicit `break` for the two
+// operand pairs the hardware leaves undefined, so trap on them here too instead
+// of letting C's `%` invoke undefined behaviour.
+static inline s32 CTR_MipsRem(s32 dividend, s32 divisor)
+{
+	const s32 minS32 = (-2147483647 - 1);
+
+	if ((divisor == 0) || ((divisor == -1) && (dividend == minS32)))
+	{
+		CTR_TRAP();
+	}
+
+	return dividend % divisor;
+}
+
 static inline u32 CTR_MipsDivU(u32 dividend, u32 divisor)
 {
 	if (divisor == 0)

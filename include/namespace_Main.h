@@ -1473,7 +1473,8 @@ struct GameTracker
 
 	// 257a
 	// only updated for human players
-	u8 humanPlayerPositions[8];
+	// Retail's only load is `lb` (PlayLevel_UpdateLapStats 0x80041ac4): signed.
+	s8 humanPlayerPositions[8];
 
 	// 2582
 	//  determines if you see Oxide Intro,

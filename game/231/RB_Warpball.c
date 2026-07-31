@@ -300,7 +300,9 @@ void RB_Warpball_SeekDriver(struct TrackerWeapon *tw, u32 checkpointIndex, struc
 	// pointer to path node
 	struct CheckpointNode *cn = &first[checkpointIndex];
 
-	while ((d->distanceToFinish_curr <= (u32)(cn->distToFinish << 3)) &&
+	// Retail compares this signed (`slt` at 0x800aed3c in overlay 231), not
+	// unsigned; distanceToFinish_curr is a signed word.
+	while ((d->distanceToFinish_curr <= (cn->distToFinish << 3)) &&
 
 	       // node is not first node
 	       (cn != first))

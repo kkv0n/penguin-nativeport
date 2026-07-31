@@ -574,7 +574,10 @@ struct Instance
 	SVec3 scale;
 
 	// 0x22
-	s16 alphaScale;
+	// Retail reads this only with `lhu`, and every operation on it is unsigned:
+	// `srl` in VehTurbo_ThTick (0x80069444, 0x800699cc) and `sltiu` at
+	// 0x8006990c / 0x80069adc / 0x80069b44. A signed short would give lh/sra/slt.
+	u16 alphaScale;
 
 	// 0x24
 	u32 colorRGBA;

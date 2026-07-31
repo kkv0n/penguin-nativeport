@@ -1137,7 +1137,11 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
 	case ITEMSET_Race4:
 	case ITEMSET_BattleDefault:
 	case ITEMSET_BossRace:
-		driver->heldItemID = itemSetWeaponTables[itemSet][(rng * itemSetWeaponCounts[itemSet]) / ITEMSET_RNG_BUCKET_COUNT];
+		// Retail divides this one WITHOUT sign (multu + srl 3/6, one inlined
+		// weapon count per case), and the battle-custom case below WITH sign
+		// (mult + sra + correction, since numWeapons is an int). rng is always
+		// in [0, 199] so both give the same index, but retail takes prevalence.
+		driver->heldItemID = itemSetWeaponTables[itemSet][((u32)rng * itemSetWeaponCounts[itemSet]) / ITEMSET_RNG_BUCKET_COUNT];
 		break;
 
 	// uses int array instead of char,

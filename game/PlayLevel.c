@@ -344,7 +344,7 @@ void PlayLevel_UpdateLapStats(void)
 			        // AND
 
 			        // new lowest distance (max progress)
-			        ((s32)currDriver->distanceToFinish_curr < minDistance)))
+			        (currDriver->distanceToFinish_curr < minDistance)))
 			{
 				// set new min distToFinish (max progress)
 				minDistance = currDriver->distanceToFinish_curr;
@@ -406,7 +406,7 @@ void PlayLevel_UpdateLapStats(void)
 		int currRank = currDriver->driverRank;
 
 		if ((PLAYLEVEL_UNSORTED_RANK < currRank) && (PLAYLEVEL_PASS_VOICELINE_DELAY < gGT->elapsedEventTime) &&
-		    ((s8)gGT->humanPlayerPositions[driverIndex] < currRank))
+		    (gGT->humanPlayerPositions[driverIndex] < currRank))
 		{
 			int characterID = data.characterIDs[gGT->driversInRaceOrder[currRank - 1]->driverID];
 

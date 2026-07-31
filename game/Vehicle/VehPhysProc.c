@@ -633,8 +633,13 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 		buttonsTapped = ptrgamepad->buttonsTapped;
 	}
 
-	cross = buttonsHeld & BTN_CROSS;
-	square = buttonsHeld & BTN_SQUARE;
+	// Retail masks only the "_one" bits here (andi 0x10 / andi 0x20 at 0x80062030
+	// and 0x80062038); the combined BTN_CROSS / BTN_SQUARE masks appear nowhere in
+	// the retail EXE. Both bits always travel together because the two
+	// gamepadMapBtn entries share the same rawInput, so this is equivalent, but
+	// retail takes prevalence.
+	cross = buttonsHeld & BTN_CROSS_one;
+	square = buttonsHeld & BTN_SQUARE_one;
 
 	// state of kart
 	kartState = driver->kartState;
@@ -1814,7 +1819,10 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 
 	int turnAngleStep = CTR_MipsSra(turnAngleDelta, VEH_PHYS_PROC_DRIFT_ANGLE_LERP_SHIFT);
 
-	int turnAngleStepSigned = (s16)turnAngleStep;
+	// Retail keeps this step 32-bit and only truncates on the store below, same
+	// as the ampTurnState sum further down. The result is identical either way
+	// (both reduce mod 2^16), but retail takes prevalence.
+	int turnAngleStepSigned = turnAngleStep;
 	if (turnAngleDelta != 0)
 	{
 		if (turnAngleStep == 0)

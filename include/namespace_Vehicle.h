@@ -1601,13 +1601,21 @@ struct Driver
 	// 0x484 - last of constants
 
 	// 0x488
-	u32 distanceToFinish_curr;
+	// Retail compares this signed at all 15 sites (`slti`/`slt`/`bgez` in
+	// PlayLevel_UpdateLapStats, BOTS_ThTick_Drive, HOWL and PickupBots);
+	// there is not a single `sltu`/`sltiu` on it.
+	s32 distanceToFinish_curr;
 
 	// 0x48C
+	// Retail only ever loads/stores this as a word, never compares it on its
+	// own, so its signedness is not observable. Kept unsigned: the one place it
+	// is compared (PlayLevel_UpdateLapStats 0x800418a4) is a `sltu` against the
+	// unsigned track length.
 	u32 distanceToFinish_checkpoint;
 
 	// 0x490
-	u32 distanceDrivenBackwards;
+	// Retail compares this signed (`bgez` 0x800415bc, `slti 501` 0x80053198).
+	s32 distanceDrivenBackwards;
 
 	// 0x494
 	struct DriverCheckpointState checkpoint;
@@ -1729,7 +1737,8 @@ struct Driver
 
 	// 0x4fe
 	// 0, 1, 2, depending on rev level
-	char revEngineState;
+	// Retail only ever touches this with sb/lbu, so it is an unsigned byte.
+	u8 revEngineState;
 
 	// 0x4ff
 	u8 pendingDamageType;
@@ -1743,7 +1752,9 @@ struct Driver
 
 	// 0x508
 	// backup of alpha, used for turbo fire
-	s16 alphaScaleBackup;
+	// Retail loads this only with `lhu` (BOTS_ThTick_Drive 0x800151d4,
+	// COLL_FIXED_PlayerSearch 0x8001e054, VehTurbo_ThTick 0x80069aa4).
+	u16 alphaScaleBackup;
 
 	// 0x50A
 	RainCloudEffect rainCloudEffect;
@@ -1941,7 +1952,9 @@ struct Driver
 			RevEngineLockoutFlags lockoutFlags;
 
 			// 0x594
-			int boolMaskGrab;
+			// Retail only ever touches this with sb/lbu, so it is a byte.
+			u8 boolMaskGrab;
+			u8 padding_0x595[3];
 
 			// == end ==
 
@@ -2297,6 +2310,10 @@ CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.RevEngine.releaseCooldownTi
 CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.RevEngine.emptyCooldownTimerMS) == 0x590);
 CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.RevEngine.chargeState) == 0x592);
 CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.RevEngine.lockoutFlags) == 0x593);
+CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.RevEngine.boolMaskGrab) == 0x594);
+CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->KartStates.RevEngine.boolMaskGrab) == 0x1);
+CTR_STATIC_ASSERT(offsetof(struct Driver, revEngineState) == 0x4fe);
+CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->revEngineState) == 0x1);
 CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.Warp) == 0x580);
 CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.Warp.dustAngle) == 0x58c);
 CTR_STATIC_ASSERT(offsetof(struct Driver, KartStates.Warp.beamHeight) == 0x590);

@@ -81,7 +81,7 @@ void VehLap_UpdateProgress(struct Driver *driver)
 
 	driver->distanceToFinish_curr = progress;
 	// NOTE(aalhendi): Retail uses signed div/mfhi for this remainder.
-	driver->distanceToFinish_curr = progress % trackLength;
+	driver->distanceToFinish_curr = CTR_MipsRem(progress, trackLength);
 
 	if (wrongWayTest < VEH_LAP_WRONG_WAY_DOT_LIMIT)
 	{
