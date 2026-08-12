@@ -261,7 +261,7 @@ void CC_EndEvent_DrawMenu()
 	{
 		token->flags &= ~(HIDE_MODEL);
 		token->matrix.t[0] = UI_ConvertX_2(pos.x, CC_SCREEN_DEPTH);
-		token->matrix.t[1] = UI_ConvertY_2(0xA2 - 0x18, CC_SCREEN_DEPTH);
+		token->matrix.t[1] = UI_ConvertY_2(pos.y - 0x18, CC_SCREEN_DEPTH);
 	}
 
 	if (elapsedFrames > CTR_SECONDS_TO_FRAMES(1))

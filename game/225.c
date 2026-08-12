@@ -107,9 +107,10 @@ void VB_EndEvent_DrawMenu(void)
 			teamPlayerCount[gGT->drivers[player]->BattleHUD.teamID]++;
 		}
 
-		titleY = (VB_BATTLE_BLOCK_BOTTOM_Y -
-		          ((gGT->battleSetup.numTeams - 1) * VB_BATTLE_TEAM_SCORE_GAP + numPlayers * VB_BATTLE_TITLE_PLAYER_HEIGHT + VB_BATTLE_BLOCK_HEADER_HEIGHT)) >>
-		         1;
+		// Retail shifts this logically (srl), not arithmetically.
+		titleY = (s16)CTR_MipsSrl(VB_BATTLE_BLOCK_BOTTOM_Y - ((gGT->battleSetup.numTeams - 1) * VB_BATTLE_TEAM_SCORE_GAP +
+		                                                      numPlayers * VB_BATTLE_TITLE_PLAYER_HEIGHT + VB_BATTLE_BLOCK_HEADER_HEIGHT),
+		                          1);
 	}
 
 	// Disable drawing lines between multiplayer screens
@@ -175,15 +176,17 @@ void VB_EndEvent_DrawMenu(void)
 		{
 			rankTextY = s_vsStandingsYByPlayerCount[playerCountIndex][VB_POSY_P1 + standingsIndex];
 
-			struct Driver *driver = gGT->drivers[entityID];
-			struct Icon *icon = gGT->ptrIcons[data.MetaDataCharacters[data.characterIDs[driver->driverID]].iconID];
+			// Retail indexes the character table by the standings slot, not by driverID.
+			struct Icon *icon = gGT->ptrIcons[data.MetaDataCharacters[data.characterIDs[entityID]].iconID];
 
 			DecalHUD_DrawPolyFT4(icon, pos.x, rankTextY, &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, VB_ICON_TRANSPARENCY, VB_ICON_SCALE);
 		}
 		else
 		{
 			s16 numPlayersOnTeam = teamPlayerCount[entityID];
-			rankTextY = currRowY + (numPlayersOnTeam * VB_BATTLE_PLAYER_ICON_SPACING) / 2 - VB_BATTLE_RANK_TEXT_CENTER_Y;
+
+			// Retail narrows the block height to 16 bits before halving it.
+			rankTextY = currRowY + (s16)(numPlayersOnTeam * VB_BATTLE_PLAYER_ICON_SPACING) / 2 - VB_BATTLE_RANK_TEXT_CENTER_Y;
 
 			s16 iconSlot = 0;
 			for (s32 player = 0; player < numPlayers; player++)
@@ -195,7 +198,8 @@ void VB_EndEvent_DrawMenu(void)
 					continue;
 				}
 
-				struct Icon *icon = gGT->ptrIcons[data.MetaDataCharacters[data.characterIDs[driver->driverID]].iconID];
+				// Retail indexes the character table by the player slot, not by driverID.
+				struct Icon *icon = gGT->ptrIcons[data.MetaDataCharacters[data.characterIDs[player]].iconID];
 				DecalHUD_DrawPolyFT4(icon, pos.x, currRowY + iconSlot * VB_BATTLE_PLAYER_ICON_SPACING, &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT,
 				                     VB_ICON_TRANSPARENCY, VB_ICON_SCALE);
 				iconSlot++;
@@ -235,6 +239,9 @@ void VB_EndEvent_DrawMenu(void)
 
 		rowDelay += VB_ROW_STAGGER_FRAMES;
 
+		// standingsScore is a 32-bit field (sw/lw in MainGameEnd_Initialize) that
+		// only ever holds a sign-extended 16-bit value; retail keeps this carry-over
+		// copy in a 16-bit stack slot, so the narrowing is deliberate.
 		previousStandingsScore = (s16)gGT->battleSetup.standingsScore[entityID];
 		sprintf(text, "%d%s", displayedRank + 1, sdata->lngStrings[VB_STANDINGS_SUFFIX_FIRST + displayedRank]);
 

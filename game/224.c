@@ -104,11 +104,10 @@ void TT_EndEvent_DrawMenu(void)
 		// first transition is race clock
 		elapsedFrames -= TT_RACE_CLOCK_HOLD_FRAMES;
 
-		// race time
-		UI_Lerp2D_Linear(pos.v, -0x64, 90, 0x100, 90, elapsedFrames, TT_LERP_FRAMES);
-
-		TT_EndEvent_DisplayTime(pos.x, pos.y, sdata->flags_timeTrialEndOfRace);
-
+		// Retail draws the three result messages first and the race time last, so
+		// the flash flags raised below are already visible to TT_EndEvent_DisplayTime
+		// on the same frame.
+		s32 raceTimeFrame = elapsedFrames;
 
 		// Blink Orange/White
 		s32 textColor = (gGT->timer & 1) ? 0xffff8000 : 0xffff8004;
@@ -117,36 +116,49 @@ void TT_EndEvent_DrawMenu(void)
 		// "new high score" 1 second later
 		elapsedFrames -= TT_RESULT_MESSAGE_STEP_FRAMES;
 
-		if ((elapsedFrames > 0) &&
-
-		    // if there is a new high score
-		    gGT->newHighScoreIndex > -1)
+		if (elapsedFrames > 0)
 		{
 			UI_Lerp2D_Linear(pos.v, 0x264, 122, 0x100, 122, elapsedFrames, TT_LERP_FRAMES);
 
-			DecalFont_DrawLine(lngStrings[LNG_NEW_HIGH_SCORE], pos.x, pos.y, FONT_BIG, textColor);
+			// if there is a new high score
+			if (gGT->newHighScoreIndex > -1)
+			{
+				DecalFont_DrawLine(lngStrings[LNG_NEW_HIGH_SCORE], pos.x, pos.y, FONT_BIG, textColor);
 
-			// Total time should flash
-			sdata->flags_timeTrialEndOfRace |= TT_TOTAL_TIME_FLASH_FLAG;
+				// Total time should flash
+				sdata->flags_timeTrialEndOfRace |= TT_TOTAL_TIME_FLASH_FLAG;
+			}
 		}
 
 
 		// "new best lap" 1 second later
 		elapsedFrames -= TT_RESULT_MESSAGE_STEP_FRAMES;
 
-		if ((elapsedFrames > 0) &&
-
-		    // if got new best lap
-		    ((gameModeEnd & NEW_BEST_LAP) != 0))
+		if (elapsedFrames > 0)
 		{
 			UI_Lerp2D_Linear(pos.v, -0x64, 142, 0x100, 142, elapsedFrames, TT_LERP_FRAMES);
 
-			DecalFont_DrawLine(lngStrings[LNG_NEW_BEST_LAP], pos.x, pos.y, FONT_BIG, textColor);
-
-			if ((u32)gGT->lapIndexNewBest < 3)
+			// if got new best lap
+			if ((gameModeEnd & NEW_BEST_LAP) != 0)
 			{
-				// make the best row start flashing
-				sdata->flags_timeTrialEndOfRace |= 1 << (TT_BEST_LAP_FLASH_FLAG_FIRST + gGT->lapIndexNewBest);
+				DecalFont_DrawLine(lngStrings[LNG_NEW_BEST_LAP], pos.x, pos.y, FONT_BIG, textColor);
+
+				// make the best row start flashing. Retail tests the lap index
+				// against each value instead of shifting by it, so a value outside
+				// 0-2 simply raises nothing (and there is no shift to overflow).
+				if (gGT->lapIndexNewBest == 0)
+				{
+					sdata->flags_timeTrialEndOfRace |= 1 << TT_BEST_LAP_FLASH_FLAG_FIRST;
+				}
+				else if (gGT->lapIndexNewBest == 1)
+				{
+					sdata->flags_timeTrialEndOfRace |= 1 << (TT_BEST_LAP_FLASH_FLAG_FIRST + 1);
+				}
+
+				if (gGT->lapIndexNewBest == 2)
+				{
+					sdata->flags_timeTrialEndOfRace |= 1 << (TT_BEST_LAP_FLASH_FLAG_FIRST + 2);
+				}
 			}
 		}
 
@@ -156,25 +168,31 @@ void TT_EndEvent_DrawMenu(void)
 
 		s32 nTropyEventFlags = NTROPY_JUST_BEAT | NTROPY_JUST_OPENED;
 
-		if ((elapsedFrames > 0) &&
-
-		    // if just open, or beat, n tropy
-		    ((gameModeEnd & nTropyEventFlags) != 0))
+		if (elapsedFrames > 0)
 		{
 			UI_Lerp2D_Linear(pos.v, 0x264, 162, 0x100, 162, elapsedFrames, TT_LERP_FRAMES);
 
-			char *nTropyString;
-			if ((gameModeEnd & NTROPY_JUST_OPENED) != 0)
+			// if just open, or beat, n tropy
+			if ((gameModeEnd & nTropyEventFlags) != 0)
 			{
-				nTropyString = lngStrings[LNG_N_TROPY_OPENED];
-			}
-			else
-			{
-				nTropyString = lngStrings[LNG_N_TROPY_BEATEN];
-			}
+				char *nTropyString;
+				if ((gameModeEnd & NTROPY_JUST_OPENED) != 0)
+				{
+					nTropyString = lngStrings[LNG_N_TROPY_OPENED];
+				}
+				else
+				{
+					nTropyString = lngStrings[LNG_N_TROPY_BEATEN];
+				}
 
-			DecalFont_DrawLine(nTropyString, pos.x, pos.y, FONT_BIG, textColor);
+				DecalFont_DrawLine(nTropyString, pos.x, pos.y, FONT_BIG, textColor);
+			}
 		}
+
+		// race time
+		UI_Lerp2D_Linear(pos.v, -0x64, 90, 0x100, 90, raceTimeFrame, TT_LERP_FRAMES);
+
+		TT_EndEvent_DisplayTime(pos.x, pos.y, sdata->flags_timeTrialEndOfRace);
 
 		DecalFont_DrawLine(lngStrings[LNG_PRESS_TO_CONTINUE], 0x100, 0xbe, FONT_BIG, 0xffff8000);
 
@@ -188,12 +206,14 @@ void TT_EndEvent_DrawMenu(void)
 		return;
 	}
 
+	// start drawing the high score menu that shows the top 5 best times.
+	// Retail raises this for every frame past the result screen, including the
+	// ones where the end-of-race menu is already up.
+	gGT->gameModeEnd |= DRAW_HIGH_SCORES;
+
 	// Return at bottom of IF block
 	if (elapsedFrames < TT_FINAL_MENU_START_FRAME)
 	{
-		// start drawing the high score menu that shows the top 5 best times
-		gGT->gameModeEnd |= DRAW_HIGH_SCORES;
-
 		if ((gameModeEnd & NEW_HIGH_SCORE) == 0)
 		{
 			// ====== Draw High Score ===========

@@ -261,6 +261,18 @@ void RR_EndEvent_DrawMenu(void)
 	relic->matrix.t[0] = pos.x;
 	relic->matrix.t[1] = pos.y;
 
+	// NOTE: retail interpolates here but never consumes the result; the time-crate
+	// interpolation right below overwrites pos. Kept for parity with retail.
+	elapsedFrames = sdata->framesSinceRaceEnded;
+	if (elapsedFrames >= RR_FLYOUT_START_FRAME)
+	{
+		UI_Lerp2D_Linear(pos.v, 0x100, 0x20, 0x100, -0x44, elapsedFrames - RR_FLYOUT_FRAME_OFFSET, RR_LERP_FRAMES);
+	}
+	else
+	{
+		UI_Lerp2D_Linear(pos.v, 0x28a, 0x20, 0x100, 0x20, elapsedFrames, RR_LERP_FRAMES);
+	}
+
 	// Draw Time Crates
 	// Reset local frame counter
 	elapsedFrames = sdata->framesSinceRaceEnded;
@@ -290,6 +302,10 @@ void RR_EndEvent_DrawMenu(void)
 	// if collected all time boxes in level
 	if (driver->numTimeCrates == gGT->timeCratesInLEV)
 	{
+		// Retail formats the countdown default here, before the PERFECT block.
+		char *str = countdownText;
+		sprintf(str, s_countdownStartFormat223);
+
 		// copy to local frame counter
 		elapsedFrames = sdata->framesSinceRaceEnded;
 
@@ -302,6 +318,10 @@ void RR_EndEvent_DrawMenu(void)
 			// 170 frames after the first 80
 			if (elapsedFrames >= RR_PERFECT_FLYOUT_OFFSET)
 			{
+				// Retail restarts the interpolation at the fly-out frame, so the
+				// text slides off instead of snapping to the end position.
+				elapsedFrames -= RR_PERFECT_FLYOUT_OFFSET;
+
 				startX = 0x100;
 				endX = 0x296;
 			}
@@ -320,9 +340,9 @@ void RR_EndEvent_DrawMenu(void)
 				}
 			}
 
-			UI_Lerp2D_Linear(pos.v, startX, 0, endX, 0, elapsedFrames, RR_LERP_FRAMES);
+			UI_Lerp2D_Linear(pos.v, startX, 0x8a, endX, 0x8a, elapsedFrames, RR_LERP_FRAMES);
 
-			DecalFont_DrawLine(sdata->lngStrings[LNG_PERFECT], pos.x, 0x8a, 1, textColor);
+			DecalFont_DrawLine(sdata->lngStrings[LNG_PERFECT], pos.x, pos.y, 1, textColor);
 		}
 
 		// copy to local frame counter
@@ -331,9 +351,6 @@ void RR_EndEvent_DrawMenu(void)
 		// fade-in COUNTDOWN (-10, -9, -8...)
 		if (elapsedFrames >= RR_COUNTDOWN_START_FRAME)
 		{
-			char *str = countdownText;
-			sprintf(str, s_countdownStartFormat223);
-
 			drawCountdown = 0;
 
 			if (elapsedFrames >= RR_FLYOUT_FRAME_OFFSET)
@@ -459,6 +476,7 @@ skipRelicAwarded:
 	// copy to local frame counter
 	elapsedFrames = sdata->framesSinceRaceEnded;
 
+	pos.x = 0;
 	pos.y = 0xc;
 
 	// if race ended more than 490 frames ago

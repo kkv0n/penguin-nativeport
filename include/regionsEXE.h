@@ -3614,7 +3614,10 @@ struct sData
 	// 80090998 -- JpnRetail
 	// end of race Arcade Adventure
 	// counts 1 - 8 over a few seconds
-	int numIconsEOR;
+	// Retail only ever touches this field 16 bits wide (lh/lhu/sh, never lw/sw):
+	// 8 accesses in the EXE plus 5 in overlay 222. The upper halfword is padding.
+	s16 numIconsEOR;
+	s16 pad_8008d572;
 
 	// 8d574
 	char s_additionInt[4];
@@ -3898,7 +3901,10 @@ struct sData
 	int boolGhostsDrawing;
 
 	// 8008d744
-	int boolGhostTooBigToSave;
+	// Retail only ever touches this field 16 bits wide (sh in the EXE, lh in
+	// overlay 224). The upper halfword is padding.
+	s16 boolGhostTooBigToSave;
+	s16 pad_8008d746;
 
 	// 8008d748
 	int ghostOverflowTextTimer;

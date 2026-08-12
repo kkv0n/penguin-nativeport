@@ -73,7 +73,9 @@ void AA_EndEvent_DrawMenu(void)
 	struct Instance *hudR = sdata->ptrHudR;
 	struct Instance *hudLetters[3] = {hudC, hudT, hudR};
 	struct Instance *hudToken = sdata->ptrToken;
-	struct UiElement2D *hudCTR = &data.hud_1P_P1[AA_CTR_HUD_SLOT];
+
+	// Retail indexes the HUD table by player count here, same as AA_EndEvent_DisplayTime.
+	struct UiElement2D *hudCTR = &data.hudStructPtr[numPlayers - 1][AA_CTR_HUD_SLOT];
 
 	s32 elapsedFrames = sdata->framesSinceRaceEnded;
 
@@ -209,7 +211,10 @@ void AA_EndEvent_DrawMenu(void)
 
 			for (s32 i = 0; i < 3; i++)
 			{
-				hudLetters[i]->matrix.t[0] = UI_ConvertX_2(letterPos.x + (letterScaleOffset * (i * 12)) + (i * 29), AA_SCREEN_DEPTH);
+				// Retail narrows the scaled offset to 16 bits before adding it to letterPos.x.
+				s16 letterScaleSpread = (s16)(letterScaleOffset * (i * 12));
+
+				hudLetters[i]->matrix.t[0] = UI_ConvertX_2(letterPos.x + letterScaleSpread + (i * 29), AA_SCREEN_DEPTH);
 				hudLetters[i]->matrix.t[1] = UI_ConvertY_2(letterPos.y - (i & 1), AA_SCREEN_DEPTH);
 			}
 
@@ -217,7 +222,7 @@ void AA_EndEvent_DrawMenu(void)
 			{
 				hudR->depthBiasNormal = 1;
 				hudToken->flags &= ~HIDE_MODEL;
-				hudToken->matrix.t[0] = hudT->matrix.t[0];
+				hudToken->matrix.t[0] = UI_ConvertX_2(letterPos.x + (s16)(letterScaleOffset * 12) + 29, AA_SCREEN_DEPTH);
 				hudToken->matrix.t[1] = UI_ConvertY_2(letterPos.y + 0x18, AA_SCREEN_DEPTH);
 
 				if ((tokenAwardTextFrame >= 0) && (hudToken->scale.x < AA_TOKEN_GROW_LIMIT))
@@ -236,6 +241,7 @@ void AA_EndEvent_DrawMenu(void)
 					DecalFont_DrawLine(sdata->lngStrings[LNG_CTR_TOKEN_AWARDED], textPos.x, textPos.y, FONT_BIG, textColor);
 				}
 			}
+
 		}
 
 		// If you did not collect all 3 letters (C, T, and R), or you lost the race.
@@ -401,15 +407,15 @@ void AA_EndEvent_DrawMenu(void)
 		return;
 	}
 
-	// if the menu is already drawing
-	if (sdata->menuReadyToPass & AA_MENU_READY_FLAG)
-	{
-		return;
-	}
-
 	// If you're in Arcade mode
 	if ((gGT->gameMode1 & ARCADE_MODE) != 0)
 	{
+		// if the menu is already drawing
+		if (sdata->menuReadyToPass & AA_MENU_READY_FLAG)
+		{
+			return;
+		}
+
 		RECTMENU_Show((numPlayers == 1) ? &menu222 : &menu222_2P);
 
 		// record that the menu is drawing
@@ -417,9 +423,27 @@ void AA_EndEvent_DrawMenu(void)
 		return;
 	}
 
-	// If you are in adventure mode
-	if ((gGT->gameMode1 & ADVENTURE_MODE) == 0)
+	// Retail re-derives the win condition here instead of reusing the value
+	// computed at the top of the frame; both read the same fields.
+	if (!didWin)
 	{
+		// if the menu is already drawing
+		if (sdata->menuReadyToPass & AA_MENU_READY_FLAG)
+		{
+			return;
+		}
+
+		DecalFont_DrawLine(sdata->lngStrings[LNG_PRESS_TO_CONTINUE], 0x100, 0xbe, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
+
+		// If you have not pressed X
+		if ((sdata->AnyPlayerTap & AA_CONFIRM_BUTTON_MASK) == 0)
+		{
+			return;
+		}
+
+		RECTMENU_ClearInput();
+		RECTMENU_Show(&data.menuRetryExit);
+		sdata->menuReadyToPass |= AA_MENU_READY_FLAG;
 		return;
 	}
 
@@ -431,18 +455,9 @@ void AA_EndEvent_DrawMenu(void)
 		return;
 	}
 
-	// === If Pressed X ===
+	// === If Pressed X, and you won the race ===
 
 	RECTMENU_ClearInput();
-
-	if (!didWin)
-	{
-		RECTMENU_Show(&data.menuRetryExit);
-		sdata->menuReadyToPass |= AA_MENU_READY_FLAG;
-		return;
-	}
-
-	// === If you won the race ===
 
 	sdata->framesSinceRaceEnded = 0;
 	sdata->numIconsEOR = 1;
