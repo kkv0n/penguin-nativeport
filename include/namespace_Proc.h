@@ -10,6 +10,16 @@ enum STACK_POOL
 	SMALL = 0x300
 };
 
+// Retail hardcodes these three sizes as immediates in PROC_BirthWithObject
+// (0x670/0x88/0x48) instead of reading JitPool.itemSize back from the pool.
+// They are the same values MainInit passes to JitPool_Init.
+enum STACK_POOL_ITEM_SIZE
+{
+	SMALL_STACK_ITEM_SIZE = 0x48,
+	MEDIUM_STACK_ITEM_SIZE = 0x88,
+	LARGE_STACK_ITEM_SIZE = 0x670
+};
+
 enum THREAD_RELATIVE
 {
 	// yes, both are zero

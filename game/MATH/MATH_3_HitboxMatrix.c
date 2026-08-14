@@ -1,7 +1,10 @@
 #include <common.h>
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003d264-0x8003d328.
-MATRIX *MATH_HitboxMatrix(MATRIX *output, MATRIX *input)
+// Retail returns nothing: it ends on `jr $ra` + `nop`, so $v0 is left holding
+// -input->t[2] from the last mtc2. Both retail call sites spill that leftover to
+// the stack and never read it back, so there is no return contract to honour.
+void MATH_HitboxMatrix(MATRIX *output, MATRIX *input)
 {
 	u32 *in = (u32 *)input;
 	u32 *out = (u32 *)output;
@@ -28,6 +31,4 @@ MATRIX *MATH_HitboxMatrix(MATRIX *output, MATRIX *input)
 	out[3] = r31r32;
 	*(s16 *)&out[4] = r33;
 	CTR_GteStoreMAC(output->t);
-
-	return output;
 }

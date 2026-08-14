@@ -19,7 +19,7 @@ struct sData sdata_static = {.langBufferSize = 0x3F04,
                              .cup_difficultyParams = &sdata_static.cupDiff[0],
 #endif
 
-                             .driver_pathIndexIDs = {0, -1, -1, 2, 0, -1, -1, 2},
+                             .driver_pathIndexIDs = {0, 0xff, 0xff, 2, 0, 0xff, 0xff, 2},
 
                              // twice as many frames, half as much
                              // step for each frame of acceleration

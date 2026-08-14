@@ -188,7 +188,7 @@ static void MainGameEnd_UpdateAdventureLosses(struct GameTracker *gGT, struct Dr
 		return;
 	}
 
-	char *lossCounter;
+	s8 *lossCounter;
 
 	if (IS_BOSS_RACE(gGT->gameMode1))
 	{

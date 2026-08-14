@@ -27,19 +27,19 @@ void CTR_MatrixToRot(SVECTOR *rot, MATRIX *matrix, u32 flags)
 	// char unk_CTR_MatrixToRot_table[0x10];
 // NOTE(aalhendi): CTR_NATIVE mirrors the retail 0x8008d004 table through sdata.
 #if defined(CTR_NATIVE)
-	char *table1 = &sdata->unk_CTR_MatrixToRot_table[0];
-	char *table2 = &sdata->unk_CTR_MatrixToRot_table[8];
+	const u8 *table1 = &sdata->unk_CTR_MatrixToRot_table[0];
+	const u8 *table2 = &sdata->unk_CTR_MatrixToRot_table[8];
 #else
-	char *table1 = (char *)0x8008d004;
-	char *table2 = (char *)0x8008d00C;
+	const u8 *table1 = (const u8 *)0x8008d004;
+	const u8 *table2 = (const u8 *)0x8008d00C;
 #endif
 
 	// take value from the first table
-	u32 t1value = (u32)table1[flags >> 3 & 3];
+	u32 t1value = table1[flags >> 3 & 3];
 
 	// take two values from the second table
-	u32 t2value1 = (u32)table2[t1value + uVar7];
-	u32 t2value2 = (u32)table2[t1value - (uVar7 - 1)];
+	u32 t2value1 = table2[t1value + uVar7];
+	u32 t2value2 = table2[t1value - (uVar7 - 1)];
 
 	// bit 1 check - uses flipped matrix or smth?
 	if ((flags >> 1 & 1) == 1)
@@ -109,10 +109,12 @@ void CTR_MatrixToRot(SVECTOR *rot, MATRIX *matrix, u32 flags)
 	// bit 0 check - switch XZ axis
 	if ((flags & 1) == 1)
 	{
-		// can use pad for the swap
-		rot->pad = rot->vx;
+		// Retail swaps through registers (lhu/lh then two sh) and never writes
+		// rot->pad here; using the pad field as scratch would add a store to the
+		// caller's struct that retail does not make.
+		s16 swapTmp = rot->vx;
 		rot->vx = rot->vz;
-		rot->vz = rot->pad;
+		rot->vz = swapTmp;
 	}
 
 	// copy flags to pad

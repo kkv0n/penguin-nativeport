@@ -19,7 +19,7 @@ void MainStats_ClearBattleVS(void)
 void MainStats_RestartRaceCountLoss(void)
 {
 	int index;
-	char *countPtr;
+	s8 *countPtr;
 
 	int gameMode1;
 	struct GameTracker *gGT;

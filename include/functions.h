@@ -457,7 +457,7 @@ void TRIG_AngleSinCos_r15r16r17(u32 angle, s32 *sine, s32 *cosine);
 void TRIG_AngleSinCos_r16r17r18_duplicate(u32 angle, u32 *sine, u32 *cosine);
 void TRIG_AngleSinCos_r9r8r10(u32 angle, s32 *sine, s32 *cosine);
 void TRIG_AngleSinCos_r16r17r18(u32 angle, s32 *sine, s32 *cosine);
-MATRIX *MATH_HitboxMatrix(MATRIX *output, MATRIX *input);
+void MATH_HitboxMatrix(MATRIX *output, MATRIX *input);
 void ConvertRotToMatrix_InverseTranspose_NoRotY(MATRIX *m, const SVec3 *rot);
 void ConvertRotToMatrix_InverseTranspose(MATRIX *m, const SVec3 *rot);
 void ConvertRotToMatrix(MATRIX *m, const SVec3 *rot);
@@ -574,7 +574,7 @@ void RECTMENU_Show(struct RectMenu *m);
 
 int MixRNG_Scramble(void);
 int MixRNG_Particles(int param_1);
-u32 MixRNG_GetValue(int param_1);
+int MixRNG_GetValue(int param_1);
 int RngDeadCoed(struct RngDeadCoedState *state);
 
 void MainStats_ClearBattleVS(void);
@@ -1311,7 +1311,7 @@ b32 MainFrame_HaveAllPads(s16 numPlyrNextGame);
 void RB_CtrLetter_ThTick(struct Thread *t);
 void BOTS_ThTick_Drive(struct Thread *botThread);
 void BOTS_ThTick_RevEngine(struct Thread *botThread);
-void BOTS_SetRotation(struct Driver *driver, int useSpawnYaw);
+void BOTS_SetRotation(struct Driver *driver, s16 useSpawnYaw);
 u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver *driverAttacker, int reason);
 void BOTS_LevInstColl(struct Thread *botThread);
 void BOTS_Killplane(struct Thread *botThread);

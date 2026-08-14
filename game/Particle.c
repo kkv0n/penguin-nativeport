@@ -301,7 +301,7 @@ static int Particle_OscillatorValue(struct ParticleOscillator *osc)
 		break;
 
 	case PARTICLE_OSC_MODE_SEEDED_RANDOM:
-		value = ((int)MixRNG_GetValue((s16)osc->previousValue) >> PARTICLE_OSC_RANDOM_SHIFT) - PARTICLE_OSC_WAVE_CENTER;
+		value = (MixRNG_GetValue((s16)osc->previousValue) >> PARTICLE_OSC_RANDOM_SHIFT) - PARTICLE_OSC_WAVE_CENTER;
 		break;
 
 	case PARTICLE_OSC_MODE_TIMER:

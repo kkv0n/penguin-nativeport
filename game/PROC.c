@@ -182,8 +182,11 @@ void PROC_CheckAllForDead()
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8004205c-0x8004228c.
 struct Thread *PROC_BirthWithObject(int flags, void *funcThTick, const char *name, struct Thread *relativeTh)
 {
-	int bucketID;
+	// Retail compares this with `sltiu` and loads it with `lbu`/`andi 0xff`:
+	// the bucket id is an unsigned quantity, not a signed int.
+	u32 bucketID;
 	struct JitPool *stackPool;
+	u32 stackItemSize;
 	void *stackObj;
 	struct Thread *th;
 	struct GameTracker *gGT;
@@ -205,12 +208,15 @@ struct Thread *PROC_BirthWithObject(int flags, void *funcThTick, const char *nam
 	{
 	case 0x100: // largeStack
 		stackPool = &gGT->JitPools.largeStack;
+		stackItemSize = LARGE_STACK_ITEM_SIZE;
 		break;
 	case 0x200: // mediumStack
 		stackPool = &gGT->JitPools.mediumStack;
+		stackItemSize = MEDIUM_STACK_ITEM_SIZE;
 		break;
 	default: // 0x300 = smallStack
 		stackPool = &gGT->JitPools.smallStack;
+		stackItemSize = SMALL_STACK_ITEM_SIZE;
 		break;
 	}
 
@@ -228,7 +234,9 @@ struct Thread *PROC_BirthWithObject(int flags, void *funcThTick, const char *nam
 	}
 
 	// validate size fits in pool
-	if ((u32)(flags >> 0x10) >= (stackPool->itemSize - 8))
+	// Retail extracts the size field with `srl` (logical), so the cast has to
+	// happen BEFORE the shift; `(u32)(flags >> 0x10)` would sign-extend first.
+	if (((u32)flags >> 0x10) >= (stackItemSize - 8))
 	{
 		if (stackObj != 0)
 		{
@@ -568,6 +576,10 @@ void PROC_CollideHitboxWithBucket(struct Thread *collThread, struct ScratchpadSt
 }
 
 
+// Retail keeps this pending list as a LIFO in scratchpad starting at 0x1F8000E8
+// and never bounds-checks it, so a deep enough bucket just walks over whatever
+// follows in scratchpad. Native cannot reproduce that, so the list is capped and
+// threads past the cap are dropped instead.
 enum
 {
 	THTICK_MAX_PENDING = 128
@@ -652,6 +664,12 @@ void ThTick_RunBucket(struct Thread *thread)
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80071694-0x800716ec as native-equivalent divergence.
+// Retail does NOT return to its caller: it pushes the child thread and branches
+// straight back into the ThTick_RunBucket loop, abandoning the rest of the tick.
+// Here the child push lives in ThTick_RunBucket instead, so this is a no-op and
+// control does return. That is only equivalent because every call site has this
+// as its last statement -- putting code after a ThTick_FastRET call would run in
+// native and be skipped on retail.
 void ThTick_FastRET(struct Thread *thread)
 {
 	(void)thread;

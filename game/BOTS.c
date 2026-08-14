@@ -91,11 +91,14 @@ int BOTS_Adv_NumTimesLostEvent(int numLost)
 		numLost = BOTS_ADV_MAX_LOSS_DIFFICULTY_INDEX;
 	}
 
-	return data.advDifficulty[numLost];
+	// retail truncates the index to 16 bits before scaling it by the element
+	// size (`sll 16; sra 15`), so a value like 0x10000 passes the clamp above
+	// and still indexes element 0.
+	return data.advDifficulty[(s16)numLost];
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800123e0-0x80012440
-void BOTS_SetGlobalNavData(u16 index)
+void BOTS_SetGlobalNavData(s16 index)
 {
 	sdata->lastPathIndex = index;
 
@@ -223,6 +226,8 @@ void BOTS_Adv_AdjustDifficulty(void)
 
 	if ((gameMode1 & ARCADE_MODE) != 0)
 	{
+		// arcadeDifficulty is a 32-bit field (retail has lw/sw on it elsewhere),
+		// but retail reads it here with `lhu`: the (u16) truncation is real.
 		currDifficulty = (u16)gGT->arcadeDifficulty;
 
 		if ((gameMode2 & CHEAT_SUPERHARD) != 0)
@@ -235,12 +240,15 @@ void BOTS_Adv_AdjustDifficulty(void)
 	else if ((gameMode1 & ADVENTURE_CUP) != 0)
 	{
 		s32 track = gGT->cup.trackIndex;
-		s32 lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostCupRace[track]);
-		s32 maxDifficulty = track * BOTS_ADV_NORMAL_SCALE;
+		s32 lostModifier;
+		s32 maxDifficulty;
 
+		// retail calls BOTS_Adv_NumTimesLostEvent once per branch, not once
+		// hoisted above the `if` -- keep the call count at 4 like the ASM.
 		if (gGT->cup.cupID == 4)
 		{
-			lostModifier -= BOTS_ADV_HIGH_TIER_LOSS_BASE;
+			lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostCupRace[track]) - BOTS_ADV_HIGH_TIER_LOSS_BASE;
+			maxDifficulty = track * BOTS_ADV_NORMAL_SCALE;
 
 			if ((gameMode2 & CHEAT_ADV) != 0)
 			{
@@ -250,7 +258,8 @@ void BOTS_Adv_AdjustDifficulty(void)
 		}
 		else
 		{
-			lostModifier -= BOTS_ADV_CUP_LOSS_BASE;
+			lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostCupRace[track]) - BOTS_ADV_CUP_LOSS_BASE;
+			maxDifficulty = track * BOTS_ADV_NORMAL_SCALE;
 
 			if ((gameMode2 & CHEAT_ADV) != 0)
 			{
@@ -278,7 +287,10 @@ void BOTS_Adv_AdjustDifficulty(void)
 	}
 	else
 	{
-		s16 numTrophies = (s16)gGT->currAdvProfile.numTrophies + 1;
+		// numTrophies is a 32-bit field (retail has lw/sw on it elsewhere) that
+		// retail reads here with `lhu` + sign-extend, so the (s16) is real. The
+		// local, though, stays 32-bit: retail never re-narrows it after the +1.
+		s32 numTrophies = (s16)gGT->currAdvProfile.numTrophies + 1;
 		s32 lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostRacePerLev[gGT->levelID]) - BOTS_ADV_RACE_LOSS_BASE;
 		s32 maxDifficulty = numTrophies * BOTS_ADV_RACE_TROPHY_SCALE;
 
@@ -381,7 +393,7 @@ void BOTS_Adv_AdjustDifficulty(void)
 
 	for (s16 i = 0; i < BOTS_MAX_KARTS; i++)
 	{
-		sdata->driver_pathIndexIDs[i] = pathOrder[(u8)sdata->kartSpawnOrderArray[i]];
+		sdata->driver_pathIndexIDs[i] = pathOrder[sdata->kartSpawnOrderArray[i]];
 	}
 
 	if ((gameMode1 & ADVENTURE_BOSS) != 0)
@@ -415,7 +427,7 @@ void BOTS_Adv_AdjustDifficulty(void)
 
 		for (s16 i = 0; i < BOTS_MAX_KARTS; i++)
 		{
-			sdata->accelerateOrder[i] = accelOrder[(u8)sdata->kartSpawnOrderArray[i]];
+			sdata->accelerateOrder[i] = accelOrder[sdata->kartSpawnOrderArray[i]];
 		}
 	}
 
@@ -429,7 +441,7 @@ void BOTS_Adv_AdjustDifficulty(void)
 		{
 			if ((gGT->numPlyrCurrGame <= i) && (bestPoints < gGT->cup.points[i]))
 			{
-				bestPoints = (s16)gGT->cup.points[i];
+				bestPoints = gGT->cup.points[i];
 				bestDriverIndex = i;
 			}
 
@@ -492,7 +504,7 @@ void BOTS_UpdateGlobals(void)
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80013444-0x800135d8
-void BOTS_SetRotation(struct Driver *bot, int useSpawnYaw)
+void BOTS_SetRotation(struct Driver *bot, s16 useSpawnYaw)
 {
 	struct NavFrame *nf = bot->botData.botNavFrame;
 
@@ -1095,12 +1107,13 @@ UpdateTireColorTimer:
 				struct Driver *otherDriver = NULL; // iVar4
 				if ((botFlags & BOT_FLAG_ESTIMATE_NAV) == 0)
 				{
-					int iVar3 = 1000;
-					s16 sVar7 = 1000;
+					// retail keeps this in a 16-bit slot: every compare on it is
+					// preceded by `sll 16`, and so is the `< 3` check below.
+					s16 iVar3 = 1000;
 					struct BotData *botData;
 
 					for (botData = (struct BotData *)LIST_GetFirstItem(&sdata->navBotList[botDriver->botData.botPath]); botData != NULL;
-					     botData = (struct BotData *)LIST_GetNextItem((struct Item *)botData), sVar7 = (s16)iVar3)
+					     botData = (struct BotData *)LIST_GetNextItem((struct Item *)botData))
 					{
 						struct Driver *driverFromBotData = (struct Driver *)((char *)botData - offsetof(struct Driver, botData));
 
@@ -1111,13 +1124,13 @@ UpdateTireColorTimer:
 
 
 						// Find the signed index difference between nav frames on this path.
-						int iVar13 = (int)(botData->botNavFrame - botDriver->botData.botNavFrame);
+						s16 iVar13 = (s16)(botData->botNavFrame - botDriver->botData.botNavFrame);
 
 						// if "other" botData driver is behind "this" botDriver driver,
 						if (iVar13 < 0)
 						{
 							// assume number of points "away" is large (add track length)
-							iVar13 = CTR_MipsAddLo(iVar13, sdata->NavPath_ptrHeader[botDriver->botData.botPath]->numPoints);
+							iVar13 = (s16)CTR_MipsAddLo(iVar13, sdata->NavPath_ptrHeader[botDriver->botData.botPath]->numPoints);
 						}
 
 						// find closest "other" botData driver
@@ -1132,7 +1145,7 @@ UpdateTireColorTimer:
 					}
 
 					// If two drivers are within 3 navframe points of each other
-					if ((otherDriver != NULL) && (sVar7 < 3))
+					if ((otherDriver != NULL) && (iVar3 < 3))
 					{
 						int diff = CTR_MipsSubLo(botDriver->distanceToFinish_curr, otherDriver->distanceToFinish_curr);
 
@@ -1161,7 +1174,7 @@ UpdateTireColorTimer:
 								LIST_AddFront(&sdata->navBotList[newPathID], &botDriver->botData.item);
 
 								struct NavFrame *firstNavFrameOnPath = sdata->NavPath_ptrNavFrameArray[newPathID];
-								botDriver->botData.botNavFrame = &firstNavFrameOnPath[newFrameIndex & BOTS_PATH_CHANGE_FRAME_MASK];
+								botDriver->botData.botNavFrame = &firstNavFrameOnPath[newFrameIndex];
 
 								BOTS_SetRotation(botDriver, 0);
 
@@ -1231,7 +1244,8 @@ UpdateTireColorTimer:
 			}
 			else
 			{
-				int driverRank = botDriver->driverRank; // uVar8
+				// retail keeps this in a 16-bit slot (`sll 16` before every use)
+				s16 driverRank = botDriver->driverRank; // uVar8
 				b32 isInAdvArcadeOrVSCup = false;       // bVar1
 
 				if (((gGT->gameMode1 & ADVENTURE_CUP) != 0) || ((gGT->gameMode2 & CUP_ANY_KIND) != 0))
@@ -1303,7 +1317,7 @@ UpdateTireColorTimer:
 				    CTR_MipsAddLo(sdata->arcade_difficultyParams[driverRank], difficultyStat));
 
 				int otherDifficultyStat; // iVar13
-				if (isInAdvArcadeOrVSCup && ((driverRank & 0xffff) == 0))
+				if (isInAdvArcadeOrVSCup && (driverRank == 0))
 				{
 					if (complexDifficultyStat < 1)
 					{
@@ -1538,7 +1552,9 @@ UpdateTireColorTimer:
 					}
 				}
 
-				int navFrameIndexOnPath = (int)(navFrameCurr - sdata->NavPath_ptrNavFrameArray[botDriver->botData.botPath]);
+				// retail truncates this to 16 bits inside the divide-by-20
+				// sequence itself (`sll 14; sra 16`), not just at the compares
+				s16 navFrameIndexOnPath = (s16)(navFrameCurr - sdata->NavPath_ptrNavFrameArray[botDriver->botData.botPath]);
 
 				if ((data.botsThrottle[botPathIndex] <= navFrameIndexOnPath) && (navFrameIndexOnPath < CTR_MipsAddLo(data.botsThrottle[botPathIndex], 0xb)) &&
 				    (9000 < botDriver->botData.aiPhysics.speedLinear))
@@ -1556,7 +1572,7 @@ UpdateTireColorTimer:
 
 				if (botDriver->botData.aiPhysics.speedLinear < velocityAccountingForTerrain)
 				{
-					u32 var = (u32)navFrameCurr->rot[3];
+					u32 var = navFrameCurr->rot[3];
 					int sinOfAngle = MATH_Sin(CTR_MipsSll(var, 4));
 
 					botDriver->botData.aiPhysics.speedLinear =
@@ -2512,7 +2528,8 @@ UpdateTireColorTimer:
 		}
 
 		botDriver->wheelRotation = (s16)CTR_MipsAddLo((u16)botDriver->wheelRotation, sVar7);
-		botDriver->simpTurnState = (s8)(u8)botDriver->botData.aiPhysics.simpTurnState;
+		// retail copies byte to byte here (lbu 0x5c2 -> sb 0x4b)
+		botDriver->simpTurnState = botDriver->botData.aiPhysics.simpTurnState;
 	}
 
 	botDriver->rotCurr.x = botDriver->botData.aiRot.x;
@@ -3052,7 +3069,7 @@ void BOTS_GotoStartingLine(struct Driver *d)
 	d->actionsFlagSet |= ACTION_BOT;
 
 	// calculate Y rotation
-	s16 rotY = (s16)CTR_MipsSll((u8)d->botData.estimateRotNav[1], BOTS_ROT_BYTE_SHIFT);
+	s16 rotY = (s16)CTR_MipsSll(d->botData.estimateRotNav[1], BOTS_ROT_BYTE_SHIFT);
 
 	// every possible Y rotation
 	d->botData.ai_rotY_608 = rotY;
@@ -3072,8 +3089,10 @@ void BOTS_GotoStartingLine(struct Driver *d)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80017164-0x80017318.
 struct Driver *BOTS_Driver_Init(int driverID)
 {
-	s8 initialNavPathIndex = sdata->driver_pathIndexIDs[driverID];
-	s8 navPathIndex = initialNavPathIndex;
+	// retail narrows the table entry to signed 8-bit, but keeps both indices
+	// in 16-bit slots (`sll 16` on every compare)
+	s16 initialNavPathIndex = (s8)sdata->driver_pathIndexIDs[driverID];
+	s16 navPathIndex = initialNavPathIndex;
 	while (1)
 	{
 		s16 navPathPointsCount = sdata->NavPath_ptrHeader[navPathIndex]->numPoints;
@@ -3103,9 +3122,9 @@ struct Driver *BOTS_Driver_Init(int driverID)
 	    // creation flags
 	    SIZE_RELATIVE_POOL_BUCKET(DRIVER_NTSC_RETAIL_SIZE, NONE, LARGE, ROBOT),
 
-	    BOTS_ThTick_Drive, // behavior
-	    0,                 //"robotcar",	// debug name
-	    0                  // thread relative
+	    BOTS_ThTick_Drive,    // behavior
+	    rdata.s_robotcar,     // debug name
+	    0                     // thread relative
 	);
 
 	struct Driver *d = t->object;
@@ -3135,8 +3154,10 @@ void BOTS_Driver_Convert(struct Driver *d)
 
 	UI_RaceEnd_GetDriverClock(d);
 
-	s8 initialNavPathIndex = sdata->driver_pathIndexIDs[d->driverID];
-	s8 navPathIndex = initialNavPathIndex;
+	// retail narrows the table entry to signed 8-bit, but keeps both indices
+	// in 16-bit slots (`sll 16` on every compare)
+	s16 initialNavPathIndex = (s8)sdata->driver_pathIndexIDs[d->driverID];
+	s16 navPathIndex = initialNavPathIndex;
 	while (1)
 	{
 		s16 navPathPointsCount = sdata->NavPath_ptrHeader[navPathIndex]->numPoints;

@@ -20,32 +20,9 @@ static inline u32 MATH_Matrix_NegHighWord(u32 value)
 	return MATH_Matrix_NegLowWord(value) << 0x10;
 }
 
-static void MATH_Matrix_TrigSinCos(u32 angle, u32 *sinOut, u32 *cosOut)
-{
-	u32 trig = CTR_ReadU32LE(&data.trigApprox[ANG_MODULO_HALF_PI(angle)]);
-	u32 quadrant = angle & ANG_QUADRANT_BITS;
-
-	if (quadrant == 0)
-	{
-		*sinOut = trig & 0xffff;
-		*cosOut = trig >> 0x10;
-	}
-	else if (quadrant == ANG_QUADRANT_BIT)
-	{
-		*sinOut = trig >> 0x10;
-		*cosOut = MATH_Matrix_NegLowWord(trig);
-	}
-	else if (quadrant == ANG_SIGN_BIT)
-	{
-		*sinOut = MATH_Matrix_NegLowWord(trig);
-		*cosOut = MATH_Matrix_NegLowWord(trig >> 0x10);
-	}
-	else
-	{
-		*sinOut = MATH_Matrix_NegLowWord(trig >> 0x10);
-		*cosOut = trig & 0xffff;
-	}
-}
+// NOTE: retail's ConvertRotToMatrix* call TRIG_AngleSinCos_r16r17r18_duplicate
+// (8 jal to 0x8006c430). This file used to carry a private, branch-for-branch
+// identical copy of it; the call sites now use the retail one directly.
 
 static void MATH_Matrix_LoadRotWords(u32 r0, u32 r1, u32 r2, u32 r3, u32 r4)
 {
@@ -203,7 +180,7 @@ static void MATH_Matrix_MulIfNonZero(s32 angle, u32 *r0, u32 *r1, u32 *r2, u32 *
 		return;
 	}
 
-	MATH_Matrix_TrigSinCos(angle, &sine, &cosine);
+	TRIG_AngleSinCos_r16r17r18_duplicate(angle, &sine, &cosine);
 
 	if (axis == 0)
 	{
@@ -244,13 +221,13 @@ void ConvertRotToMatrix_InverseTranspose_NoRotY(MATRIX *m, const SVec3 *rot)
 	u32 r3 = 0;
 	u32 r4 = FP_ONE;
 
-	MATH_Matrix_TrigSinCos((s32)rot->z, &sine, &cosine);
+	TRIG_AngleSinCos_r16r17r18_duplicate(rot->z, &sine, &cosine);
 	r0 = MATH_Matrix_NegHighWord(sine) | cosine;
 	r1 = sine << 0x10;
 	r2 = cosine;
 	MATH_Matrix_LoadRotWords(r0, r1, r2, r3, r4);
 
-	MATH_Matrix_MulIfNonZero((s32)rot->x, &r0, &r1, &r2, &r3, &r4, 0);
+	MATH_Matrix_MulIfNonZero(rot->x, &r0, &r1, &r2, &r3, &r4, 0);
 	MATH_Matrix_StoreWords(m, r0, r1, r2, r3, r4);
 }
 
@@ -264,7 +241,7 @@ static void MATH_Matrix_InverseTransposeBody(MATRIX *m, s32 rotX, s32 rotZ, s32 
 	u32 r3 = 0;
 	u32 r4 = FP_ONE;
 
-	MATH_Matrix_TrigSinCos(rotZ, &sine, &cosine);
+	TRIG_AngleSinCos_r16r17r18_duplicate(rotZ, &sine, &cosine);
 	r0 = MATH_Matrix_NegHighWord(sine) | cosine;
 	r1 = sine << 0x10;
 	r2 = cosine;
@@ -278,7 +255,7 @@ static void MATH_Matrix_InverseTransposeBody(MATRIX *m, s32 rotX, s32 rotZ, s32 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006c1d0-0x8006c2a4.
 void ConvertRotToMatrix_InverseTranspose(MATRIX *m, const SVec3 *rot)
 {
-	MATH_Matrix_InverseTransposeBody(m, (s32)rot->x, (s32)rot->z, (s32)rot->y);
+	MATH_Matrix_InverseTransposeBody(m, rot->x, rot->z, rot->y);
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006c2a4-0x8006c378.
@@ -292,22 +269,22 @@ void ConvertRotToMatrix(MATRIX *m, const SVec3 *rot)
 	u32 r3;
 	u32 r4;
 
-	MATH_Matrix_TrigSinCos((s32)rot->y, &sine, &cosine);
+	TRIG_AngleSinCos_r16r17r18_duplicate(rot->y, &sine, &cosine);
 	r0 = cosine;
 	r1 = sine;
 	r3 = MATH_Matrix_NegLowWord(sine);
 	r4 = cosine;
 	MATH_Matrix_LoadRotWords(r0, r1, r2, r3, r4);
 
-	MATH_Matrix_MulIfNonZero((s32)rot->x, &r0, &r1, &r2, &r3, &r4, 0);
-	MATH_Matrix_MulIfNonZero((s32)rot->z, &r0, &r1, &r2, &r3, &r4, 2);
+	MATH_Matrix_MulIfNonZero(rot->x, &r0, &r1, &r2, &r3, &r4, 0);
+	MATH_Matrix_MulIfNonZero(rot->z, &r0, &r1, &r2, &r3, &r4, 2);
 	MATH_Matrix_StoreWords(m, r0, r1, r2, r3, r4);
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006c378-0x8006c3b0.
 void ConvertRotToMatrix_Transpose(MATRIX *m, const SVec3 *rot)
 {
-	MATH_Matrix_InverseTransposeBody(m, -(s32)rot->x, -(s32)rot->z, -(s32)rot->y);
+	MATH_Matrix_InverseTransposeBody(m, -rot->x, -rot->z, -rot->y);
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006c3b0-0x8006c430.

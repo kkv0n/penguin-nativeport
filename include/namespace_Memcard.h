@@ -519,15 +519,17 @@ struct AdvProgress
 	// 8FBD4
 	// Count up to 10 times player lost
 	// Including Crystal Challenge
-	char timesLostRacePerLev[0x12];
+	// Retail reads these with `lb` (signed): BOTS_Adv_AdjustDifficulty x8 and
+	// MainStats. Spelled out as s8 because plain `char` is unsigned on ARM.
+	s8 timesLostRacePerLev[0x12];
 
 	// 8fbe6
 	// Count up to 10 times player lost
-	char timesLostCupRace[5];
+	s8 timesLostCupRace[5];
 
 	// 8FBEB
 	// Count up to 10 times player lost
-	char timesLostBossRace[5];
+	s8 timesLostBossRace[5];
 
 	// 8FBF0
 	// definitely saves to profile

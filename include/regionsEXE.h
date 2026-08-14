@@ -2816,7 +2816,9 @@ struct sData
 
 	// 0x8008CF78
 	// path index for each AI
-	char driver_pathIndexIDs[8];
+	// Retail reads this with `lbu` and narrows to signed 8-bit at the use
+	// site (BOTS_Driver_Init, BOTS_Driver_Convert), and writes it with `sb`.
+	u8 driver_pathIndexIDs[8];
 
 	// 0x8008CF80
 	// both these are multiplied by accelerateOrder,
@@ -2887,7 +2889,9 @@ struct sData
 	u32 HudAndDebugFlags;
 
 	// 8008D004
-	char unk_CTR_MatrixToRot_table[0x10];
+	// Retail reads this table only from CTR_MatrixToRot, and all three reads are
+	// `lbu` (unsigned byte): the entries are unsigned, not signed chars.
+	u8 unk_CTR_MatrixToRot_table[0x10];
 
 	// 8008d014
 	// used for "honk" sounds
@@ -3706,7 +3710,10 @@ struct sData
 	// 8008d670
 	// once used to load path files (Spyro 2 demo),
 	// does nothing in retail game
-	int lastPathIndex;
+	// Retail only ever touches this with `sh` (BOTS_SetGlobalNavData) and
+	// never reads it back, so the slot is 16 bits wide.
+	s16 lastPathIndex;
+	s16 pad_8008d672;
 
 	// 8008d674
 	// whoever leads out of all human drivers,
@@ -3747,7 +3754,10 @@ struct sData
 	// 8008c5ec -- JpnTrial
 	// 8008da48 -- EurRetail
 	// 80090abc -- JpnRetail
-	int nav_NumPointsOnPath;
+	// Retail only ever touches this with `sh` (BOTS_SetGlobalNavData) and
+	// never reads it back, so the slot is 16 bits wide.
+	s16 nav_NumPointsOnPath;
+	s16 pad_8008d696;
 
 	// 8008d698
 	int aiCollisionDelayFrameCount;

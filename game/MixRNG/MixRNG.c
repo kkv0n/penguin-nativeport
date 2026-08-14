@@ -18,7 +18,10 @@ int MixRNG_Particles(int param_1)
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003eaac-0x8003eae0
-u32 MixRNG_GetValue(int param_1)
+// The result is signed: retail's only caller shifts it with sra, same as it does
+// with MixRNG_Scramble. The 0xffff is an explicit mask in retail (andi between a
+// lw/sw pair), not a narrower storage type.
+int MixRNG_GetValue(int param_1)
 {
 	return (param_1 * 0x6255 + 0x3619U) & 0xffff;
 }
