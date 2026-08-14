@@ -92,7 +92,10 @@ int RaceFlag_MoveModels(int frameIndex, int numFrames)
 	// on and off the screen in character selection
 
 	int angle;
-	int midpoint;
+
+	// retail keeps the halved frame count in 16 bits: the division and the
+	// truncation are fused into `sll 15` + `sra 16`.
+	s16 midpoint;
 	int result;
 
 	if (frameIndex < 0)
@@ -114,7 +117,7 @@ int RaceFlag_MoveModels(int frameIndex, int numFrames)
 		angle = (midpoint - frameIndex) * 0x400;
 
 		// 50% - sin(angle) / 2
-		result = 0x800 - MATH_Sin(angle / midpoint) / 2;
+		result = 0x800 - MATH_Sin(CTR_MipsDiv(angle, midpoint)) / 2;
 	}
 	// if more than half done
 	else
@@ -122,7 +125,7 @@ int RaceFlag_MoveModels(int frameIndex, int numFrames)
 		angle = (frameIndex - midpoint) * 0x400;
 
 		// sin(angle) / 2 + 50%
-		result = MATH_Sin(angle / midpoint) / 2 + 0x800;
+		result = MATH_Sin(CTR_MipsDiv(angle, midpoint)) / 2 + 0x800;
 	}
 	return result;
 }
@@ -240,7 +243,6 @@ s16 RaceFlag_GetCanDraw(void)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800440a0-0x80044290.
 u32 *RaceFlag_GetOT(void)
 {
-	s16 positionStep;
 	int position;
 	struct GameTracker *gGT = sdata->gGT;
 
@@ -282,22 +284,24 @@ u32 *RaceFlag_GetOT(void)
 			{
 				// rate of transition
 
-				position = ((u16)sdata->RaceFlag_Position >> RACE_FLAG_TRANSITION_ONSCREEN_POSITION_SHIFT) * gGT->elapsedTimeMS;
+				// retail: `sra 19` over the sign-extended halfword, an arithmetic shift
+				position = (sdata->RaceFlag_Position >> RACE_FLAG_TRANSITION_ONSCREEN_POSITION_SHIFT) * gGT->elapsedTimeMS;
 				position = position >> RACE_FLAG_TRANSITION_TIME_SHIFT;
 
-				positionStep = -(s16)position;
 				if (position < 1)
 				{
-					positionStep = -1;
+					position = 1;
 				}
 
-				sdata->RaceFlag_Position += positionStep;
+				sdata->RaceFlag_Position -= position;
 			}
 		}
 
 		// transition is finished
 		else
 		{
+			sdata->RaceFlag_Position = RACE_FLAG_POSITION_ONSCREEN;
+
 			if (sdata->RaceFlag_DrawOrder != RACE_FLAG_DRAW_ORDER_AFTER_FLAG)
 			{
 				if (sdata->RaceFlag_DrawOrder != RACE_FLAG_DRAW_ORDER_BEFORE_FLAG)
@@ -305,7 +309,8 @@ u32 *RaceFlag_GetOT(void)
 					return otDrawFirst_FarthestDepth;
 				}
 
-				sdata->RaceFlag_DrawOrder = RACE_FLAG_DRAW_ORDER_DONE;
+				// guarded by DrawOrder == BEFORE_FLAG, so this lands on DRAW_ORDER_DONE
+				sdata->RaceFlag_DrawOrder++;
 			}
 		}
 	}
@@ -315,13 +320,15 @@ u32 *RaceFlag_GetOT(void)
 	{
 		if (sdata->RaceFlag_TransitionSpeed < RACE_FLAG_TRANSITION_OFFSCREEN_SPEED_MAX)
 		{
-			sdata->RaceFlag_TransitionSpeed += (s16)((gGT->elapsedTimeMS * RACE_FLAG_TRANSITION_OFFSCREEN_ACCEL_SCALE) >> RACE_FLAG_TRANSITION_TIME_SHIFT);
+			sdata->RaceFlag_TransitionSpeed += (gGT->elapsedTimeMS * RACE_FLAG_TRANSITION_OFFSCREEN_ACCEL_SCALE) >> RACE_FLAG_TRANSITION_TIME_SHIFT;
 		}
 
 		// If transitioning "off"
 		if (sdata->RaceFlag_Position > RACE_FLAG_POSITION_OFFSCREEN_LEFT)
 		{
-			sdata->RaceFlag_Position -= (((u32)sdata->RaceFlag_TransitionSpeed >> RACE_FLAG_TRANSITION_OFFSCREEN_POSITION_SHIFT) * gGT->elapsedTimeMS) >>
+			// retail: `sll 16` + `sra 18` over the speed, then `mult` and `sra 5`; every
+			// shift here is arithmetic
+			sdata->RaceFlag_Position -= ((sdata->RaceFlag_TransitionSpeed >> RACE_FLAG_TRANSITION_OFFSCREEN_POSITION_SHIFT) * gGT->elapsedTimeMS) >>
 			                            RACE_FLAG_TRANSITION_TIME_SHIFT;
 		}
 
@@ -351,7 +358,11 @@ void RaceFlag_DrawLoadingString(void)
 	struct GameTracker *gGT = sdata->gGT;
 	int loadingTextBytes;
 	int letterAnimFrame;
-	int letterX;
+
+	// retail keeps the per-letter X in 16 bits: it re-normalizes with `sll 16` +
+	// `sra 16` before every use
+	s16 letterX;
+	int letterWidth;
 	int glyphByteCount;
 	int textByteIndex;
 	char *loadingText;
@@ -372,7 +383,9 @@ void RaceFlag_DrawLoadingString(void)
 	// get length of "LOADING..." string
 	loadingTextBytes = strlen(loadingText);
 
-	int textWidth = DecalFont_GetLineWidth(loadingText, RACE_FLAG_LOADING_FONT_SIZE);
+	// retail truncates the measured width to 16 bits and halves it with a signed
+	// division, not with a shift (`sll 16` / `sra 16` / `srl 31` / `sra 1`)
+	s16 textWidth = DecalFont_GetLineWidth(loadingText, RACE_FLAG_LOADING_FONT_SIZE);
 
 	// loop counter
 	textByteIndex = 0;
@@ -380,7 +393,7 @@ void RaceFlag_DrawLoadingString(void)
 	// if game is not loading
 	if (sdata->Loading.stage == LOAD_IDLE)
 	{
-		if (RACE_FLAG_LOADING_IDLE_SLIDE_LIMIT < (int)sdata->RaceFlag_Transition)
+		if (RACE_FLAG_LOADING_IDLE_SLIDE_LIMIT < sdata->RaceFlag_Transition)
 		{
 			sdata->RaceFlag_Transition -= RACE_FLAG_LOADING_IDLE_SLIDE_STEP;
 		}
@@ -390,7 +403,8 @@ void RaceFlag_DrawLoadingString(void)
 		sdata->RaceFlag_Transition = 0;
 	}
 
-	drawX = (sdata->RaceFlag_Transition & 0xffff) - (textWidth >> 1);
+	// the mask models retail's `lhu` over the low half of the 32-bit field
+	drawX = (sdata->RaceFlag_Transition & 0xffff) - (textWidth / 2);
 
 	letterAnimFrame = sdata->RaceFlag_LoadingTextAnimFrame;
 
@@ -441,15 +455,15 @@ void RaceFlag_DrawLoadingString(void)
 
 				glyphByteCount = 2;
 			}
-			if ((s16)letterX != RACE_FLAG_LOADING_OFFSCREEN_X)
+			if (letterX != RACE_FLAG_LOADING_OFFSCREEN_X)
 			{
 				DecalFont_DrawLineStrlen((char *)glyph, glyphByteCount, (s16)(drawX + letterX), RACE_FLAG_LOADING_Y, RACE_FLAG_LOADING_FONT_SIZE,
 				                         RACE_FLAG_LOADING_TEXT_FLAGS);
 			}
 
-			letterX = DecalFont_GetLineWidthStrlen((char *)glyph, glyphByteCount, RACE_FLAG_LOADING_FONT_SIZE);
+			letterWidth = DecalFont_GetLineWidthStrlen((char *)glyph, glyphByteCount, RACE_FLAG_LOADING_FONT_SIZE);
 
-			drawX = drawX + letterX;
+			drawX = drawX + letterWidth;
 			nextLetterStartX = nextLetterStartX + RACE_FLAG_LOADING_NEXT_LETTER_START_X;
 
 			// increment loop counter
@@ -576,7 +590,9 @@ SKIP_LOADING_TEXT:
 	gte_SetGeomOffset(0x100, 0x78);
 	gte_SetGeomScreen(0x100);
 
-	p = (POLY_G4 *)gGT->backBuffer->primMem.cursor;
+	// retail allocates one primitive at a time inside the loop, and leaves the
+	// pointer at NULL until the first allocation succeeds
+	p = nullptr;
 
 	scratch = CTR_SCRATCHPAD_PTR(struct RaceFlagScratch, 0);
 
@@ -599,26 +615,37 @@ SKIP_LOADING_TEXT:
 		local[4] = data.checkerFlagVariables[4];
 
 		// === Step 1 ===
+		// only this first column writes the globals back; the remaining 34 run on
+		// the local copies, exactly like retail (which spills them to the stack)
 		int stepRate = gGT->elapsedTimeMS;
 		local[4] += local[3] * stepRate;
-		var1 = (int)local[4] >> 5;
+		data.checkerFlagVariables[4] = local[4];
+		var1 = local[4] >> 5;
 
 		// === Step 2 ===
 		if (0xfff < var1)
 		{
 			// reset counter
 			local[4] &= 0x1ffff;
-			var1 = (int)local[4] >> 5;
+			data.checkerFlagVariables[4] = local[4];
+			var1 = local[4] >> 5;
 
 			local[0] += 0x200;
-			local[2] += 200;
+			data.checkerFlagVariables[0] = local[0];
 
 			int sin0 = RaceFlag_Sin(local[0]) + 0xfff;
-			int sin2 = RaceFlag_Sin(local[2]) + 0xfff;
 
 			// reset based on trig
 			local[1] = (sin0 * 0x20 >> 0xd) + 0x96;
+			data.checkerFlagVariables[1] = local[1];
+
+			local[2] += 200;
+			data.checkerFlagVariables[2] = local[2];
+
+			int sin2 = RaceFlag_Sin(local[2]) + 0xfff;
+
 			local[3] = (sin2 * 0x40 >> 0xd) + 0xb4;
+			data.checkerFlagVariables[3] = local[3];
 		}
 
 		// === Step 3 ===
@@ -636,12 +663,6 @@ SKIP_LOADING_TEXT:
 		pos[2].vy = 0xfd2e;
 
 		// === Step 6 ===
-		data.checkerFlagVariables[0] = local[0];
-		data.checkerFlagVariables[1] = local[1];
-		data.checkerFlagVariables[2] = local[2];
-		data.checkerFlagVariables[3] = local[3];
-		data.checkerFlagVariables[4] = local[4];
-
 		time = sdata->RaceFlag_ElapsedTime >> 5;
 		var1 = time;
 
@@ -663,7 +684,7 @@ SKIP_LOADING_TEXT:
 				var1 += 300;
 
 				// change all vector posZ
-				vect->vz = (s16)var2 + (s16)(var3 * 0x20 >> 0xd);
+				vect->vz = var2 + (var3 * 0x20 >> 0xd);
 			}
 
 			CTR_GteLoadSV3WithPad(&pos[0], &pos[1], &pos[2]);
@@ -691,14 +712,14 @@ SKIP_LOADING_TEXT:
 		// === Step 1 ===
 		int stepRate = 0x40;
 		local[4] += local[3] * stepRate;
-		var1 = (int)local[4] >> 5;
+		var1 = local[4] >> 5;
 
 		// === Step 2 ===
 		if (0xfff < var1)
 		{
 			// reset counter
 			local[4] &= 0x1ffff;
-			var1 = (int)local[4] >> 5;
+			var1 = local[4] >> 5;
 
 			local[0] += 0x200;
 			local[2] += 200;
@@ -745,7 +766,7 @@ SKIP_LOADING_TEXT:
 				var1 += 300;
 
 				// change all vector posZ
-				vect->vz = (s16)var2 + (s16)(var3 * 0x20 >> 0xd);
+				vect->vz = var2 + (var3 * 0x20 >> 0xd);
 			}
 
 			CTR_GteLoadSV3WithPad(&pos[0], &pos[1], &pos[2]);
@@ -770,16 +791,35 @@ SKIP_LOADING_TEXT:
 				if (((read0 & read1 & write0 & write1 & screenlimit) == 0) &&
 				    (((dimensions - read0) & (dimensions - read1) & (dimensions - write0) & (dimensions - write1) & screenlimit) == 0))
 				{
+					struct PrimMem *primMem = &gGT->backBuffer->primMem;
+
+					// one primitive per quad, guard-checked. When the guard is hit retail
+					// keeps writing over the last primitive it managed to allocate.
+					if (primMem->cursor <= primMem->guardEnd)
+					{
+						p = (POLY_G4 *)primMem->cursor;
+						primMem->cursor = (void *)((char *)primMem->cursor + sizeof(POLY_G4));
+					}
+
+					if (p == nullptr)
+					{
+						return;
+					}
+
 					// TRUE for gray, FALSE for white
 					u8 boolDark = ((((column >> 2) + (i >> 2)) & 1U) != 0);
 
+					// retail builds the whole colour word (`c | c << 8 | c << 16`) and stores
+					// it twice, so the code/pad byte of every colour word ends up zeroed
 					u8 colorR = RaceFlag_CalculateBrightness(lightR, boolDark);
-					setRGB0(p, colorR, colorR, colorR);
-					CTR_WriteU32LE(&p->r2, CTR_ReadU32LE(&p->r0));
+					u32 packedR = CtrGpu_PackColorCode((u32)colorR * 0x10101u, 0);
+					CTR_WriteU32LE(&p->r0, packedR);
+					CTR_WriteU32LE(&p->r2, packedR);
 
 					u8 colorL = RaceFlag_CalculateBrightness(lightL, boolDark);
-					setRGB1(p, colorL, colorL, colorL);
-					CTR_WriteU32LE(&p->r3, CTR_ReadU32LE(&p->r1));
+					u32 packedL = CtrGpu_PackColorCode((u32)colorL * 0x10101u, 0);
+					CTR_WriteU32LE(&p->r1, packedL);
+					CTR_WriteU32LE(&p->r3, packedL);
 
 					// positions
 					CtrGpu_WritePackedXY(&p->x0, read0);
@@ -794,8 +834,6 @@ SKIP_LOADING_TEXT:
 					// addPrim(ot, p); works but uses more instructions.
 					p->tag = CtrGpu_PackOTTag(*ot, 0x8000000);
 					*ot = CtrGpu_PrimToOTLink24(p);
-
-					p++;
 				}
 			}
 		}
@@ -803,6 +841,6 @@ SKIP_LOADING_TEXT:
 		lightR = lightL;
 	}
 
-	gGT->backBuffer->primMem.cursor = p;
 	sdata->RaceFlag_ElapsedTime += gGT->elapsedTimeMS * 100;
 }
+
