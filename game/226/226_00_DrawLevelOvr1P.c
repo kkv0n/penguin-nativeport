@@ -1,19 +1,5 @@
 #include <common.h>
 
-struct DrawLevelOvr1PFaceSelector
-{
-	u32 selector;
-	u8 drawOrderShift;
-};
-
-struct DrawLevelOvr1PNearSubdivisionCase
-{
-	u32 listHandlerAddress;
-	u32 renderedHandlerAddress;
-	u8 subIndices[2][4];
-	u32 directMasks[2];
-	u32 slotWords[2];
-};
 
 enum DrawLevelOvr1PLod
 {
@@ -111,12 +97,6 @@ static void DrawLevelOvr1P_WritePackedHalf(void *dst, u16 value)
 	bytes[1] = (u8)(value >> 8);
 }
 
-struct DrawLevelOvr1PFullDynamicRecursiveGate
-{
-	u32 directMask;
-	int forceDirect;
-};
-
 static const int sDrawLevelOvr1PHighLodIndices[16] = {
     5, 0, 6, 4, 6, 4, 7, 1, 2, 5, 8, 6, 8, 6, 3, 7,
 };
@@ -156,7 +136,7 @@ static const int sDrawLevelOvr1PGridMixedFaceIndices[4][4] = {
     {0, 6, 2, 8},
 };
 
-static const struct DrawLevelOvr1PFaceSelector sDrawLevelOvr1P4x1FaceSelectors[4] = {
+static const struct DrawLevelOvrFaceSelector sDrawLevelOvr1P4x1FaceSelectors[4] = {
     {0x00506478, 8},
     {0x5014788c, 13},
     {0x647828a0, 18},
@@ -166,7 +146,7 @@ static const struct DrawLevelOvr1PFaceSelector sDrawLevelOvr1P4x1FaceSelectors[4
 // NOTE(aalhendi): Deepest generic-grid helpers at 0x800a535c..0x800a557c /
 // 0x800a6260..0x800a6480 fall through to a 3x3 topology, not the 4x1 compact
 // topology above. The bottom/right cases use projected record 8.
-static const struct DrawLevelOvr1PNearSubdivisionCase sDrawLevelOvr1PDeepestGridSubdivisionCases[3] = {
+static const struct DrawLevelOvrNearSubdivisionCase sDrawLevelOvr1PDeepestGridSubdivisionCases[3] = {
     {0,
      0,
      {{0, 4, 2, 3}, {1, 3, 4, 2}},
@@ -182,23 +162,23 @@ static const struct DrawLevelOvr1PNearSubdivisionCase sDrawLevelOvr1PDeepestGrid
 
 // NOTE(aalhendi): Retail overlay 226 dispatches the render-list offsets from
 // FULL_DYNAMIC_LIST down to 4X4_RENDERED through tables at 0x800ab40c/0x800ab438.
-static const struct DrawLevelOvr1PBucket sDrawLevelOvr1PBuckets[] = {
-    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_4X4_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_4X4_RENDERED,
+static const struct DrawLevelOvrBucket sDrawLevelOvr1PBuckets[] = {
+    {DRAW_LEVEL_OVR_RENDER_LIST_OFFSET_4X4_RENDERED, DRAW_LEVEL_OVR_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR_BUCKET_4X4_RENDERED,
      DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_4X4_LIST, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_4X4_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_DYNAMIC_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_RENDERED,
+    {DRAW_LEVEL_OVR_RENDER_LIST_OFFSET_4X4_LIST, DRAW_LEVEL_OVR_BUCKET_BSP_LIST, DRAW_LEVEL_OVR_BUCKET_4X4_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
+    {DRAW_LEVEL_OVR_RENDER_LIST_OFFSET_DYNAMIC_RENDERED, DRAW_LEVEL_OVR_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR_BUCKET_DYNAMIC_RENDERED,
      DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_DYNAMIC_LIST, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_4X2_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_4X2_RENDERED,
+    {DRAW_LEVEL_OVR_RENDER_LIST_OFFSET_DYNAMIC_LIST, DRAW_LEVEL_OVR_BUCKET_BSP_LIST, DRAW_LEVEL_OVR_BUCKET_DYNAMIC_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
+    {DRAW_LEVEL_OVR_RENDER_LIST_OFFSET_4X2_RENDERED, DRAW_LEVEL_OVR_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR_BUCKET_4X2_RENDERED,
      DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_4X2_LIST, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_4X2_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_4X1_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_4X1_RENDERED,
+    {DRAW_LEVEL_OVR_RENDER_LIST_OFFSET_4X2_LIST, DRAW_LEVEL_OVR_BUCKET_BSP_LIST, DRAW_LEVEL_OVR_BUCKET_4X2_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
+    {DRAW_LEVEL_OVR_RENDER_LIST_OFFSET_4X1_RENDERED, DRAW_LEVEL_OVR_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR_BUCKET_4X1_RENDERED,
      DRAW_LEVEL_OVR1P_LOD_LOW},
-    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_4X1_LIST, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_4X1_LIST, DRAW_LEVEL_OVR1P_LOD_LOW},
-    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_WATER_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR1P_BUCKET_WATER_RENDERED,
+    {DRAW_LEVEL_OVR_RENDER_LIST_OFFSET_4X1_LIST, DRAW_LEVEL_OVR_BUCKET_BSP_LIST, DRAW_LEVEL_OVR_BUCKET_4X1_LIST, DRAW_LEVEL_OVR1P_LOD_LOW},
+    {DRAW_LEVEL_OVR_RENDER_LIST_OFFSET_WATER_RENDERED, DRAW_LEVEL_OVR_BUCKET_QUADBLOCKS_RENDERED, DRAW_LEVEL_OVR_BUCKET_WATER_RENDERED,
      DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_WATER_LIST, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_WATER_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
-    {DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_FULL_DYNAMIC_LIST, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_FULL_DYNAMIC_LIST,
+    {DRAW_LEVEL_OVR_RENDER_LIST_OFFSET_WATER_LIST, DRAW_LEVEL_OVR_BUCKET_BSP_LIST, DRAW_LEVEL_OVR_BUCKET_WATER_LIST, DRAW_LEVEL_OVR1P_LOD_HIGH},
+    {DRAW_LEVEL_OVR_RENDER_LIST_OFFSET_FULL_DYNAMIC_LIST, DRAW_LEVEL_OVR_BUCKET_BSP_LIST, DRAW_LEVEL_OVR_BUCKET_FULL_DYNAMIC_LIST,
      DRAW_LEVEL_OVR1P_LOD_LOW},
 };
 
@@ -208,13 +188,13 @@ CTR_STATIC_ASSERT(sizeof(struct DrawLevelOvrBucketSetupRecord) == 0x64);
 CTR_STATIC_ASSERT(sizeof(((struct OverlayRDATA_226 *)0)->scratchInitTable) == 0x60);
 CTR_STATIC_ASSERT(sizeof(((struct OverlayRDATA_226 *)0)->clipRecordJumpTable) == 0x60);
 
-static void DrawLevelOvr1P_SetGridFaceSlot(const struct DrawLevelOvr1PScratchVertex *projected, int faceIndex);
-static int DrawLevelOvr1P_IsDeepestSubdivisionFrame(const struct DrawLevelOvr1PScratchVertex *projected);
+static void DrawLevelOvr1P_SetGridFaceSlot(const struct DrawLevelOvrScratchVertex *projected, int faceIndex);
+static int DrawLevelOvr1P_IsDeepestSubdivisionFrame(const struct DrawLevelOvrScratchVertex *projected);
 static void Ovr226_800a0d34_SetEntryGteAndCameraScratch(struct PushBuffer *pb);
 
-static struct DrawLevelOvr1PStableScratch *DrawLevelOvr1P_Scratch(void)
+static struct DrawLevelOvrStableScratch *DrawLevelOvr1P_Scratch(void)
 {
-	return CTR_SCRATCHPAD_PTR(struct DrawLevelOvr1PStableScratch, 0);
+	return CTR_SCRATCHPAD_PTR(struct DrawLevelOvrStableScratch, 0);
 }
 
 static struct MainRenderLevelGeometryScratch *DrawLevelOvr1P_RenderScratch(void)
@@ -224,13 +204,13 @@ static struct MainRenderLevelGeometryScratch *DrawLevelOvr1P_RenderScratch(void)
 
 static u32 *DrawLevelOvr1P_TerminalReturnPcScratch(void)
 {
-	return CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_TERMINAL_RETURN_PC_OFFSET);
+	return CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_TERMINAL_RETURN_PC_OFFSET);
 }
 
-static struct DrawLevelOvr1PScratchVertex *DrawLevelOvr1P_TerminalClipVertex(int index)
+static struct DrawLevelOvrScratchVertex *DrawLevelOvr1P_TerminalClipVertex(int index)
 {
-	return CTR_SCRATCHPAD_PTR(struct DrawLevelOvr1PScratchVertex,
-	                          DRAW_LEVEL_OVR1P_TERMINAL_CLIP_VERTEX_OFFSET + (index * (int)sizeof(struct DrawLevelOvr1PScratchVertex)));
+	return CTR_SCRATCHPAD_PTR(struct DrawLevelOvrScratchVertex,
+	                          DRAW_LEVEL_OVR_TERMINAL_CLIP_VERTEX_OFFSET + (index * (int)sizeof(struct DrawLevelOvrScratchVertex)));
 }
 
 static void DrawLevelOvr1P_SetActiveDrawOrderLow(const struct QuadBlock *block)
@@ -255,7 +235,7 @@ static void DrawLevelOvr1P_CopyScratchWords(const u32 *source, const struct Draw
 
 static void Ovr226_800ab3dc_CopyClipRecordJumpTable(void)
 {
-	u32 *clipRecordJumpTable = CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_GT3_CLIP_RECORD_JUMP_TABLE_OFFSET);
+	u32 *clipRecordJumpTable = CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_GT3_CLIP_RECORD_JUMP_TABLE_OFFSET);
 
 	for (s32 jumpWordIndex = 0; jumpWordIndex < OVR226_CLIP_RECORD_JUMP_WORD_COUNT; jumpWordIndex++)
 	{
@@ -285,7 +265,7 @@ static const struct DrawLevelOvrBucketSetupRecord *DrawLevelOvr1P_FindBucketSetu
 
 static void Ovr226_800a0ddc_CopyScratchInitTable(void)
 {
-	u32 *scratch = CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_SCRATCH_INIT_TABLE_OFFSET);
+	u32 *scratch = CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_SCRATCH_INIT_TABLE_OFFSET);
 
 	for (s32 scratchWordIndex = 0; scratchWordIndex < OVR226_SCRATCH_INIT_WORD_COUNT; scratchWordIndex++)
 	{
@@ -306,16 +286,16 @@ static void Ovr226_800a0e44_ApplyBucketSetup(u32 setupAddress)
 	DrawLevelOvr1P_CopyScratchWords(setup->copy1, &setup->copies[1]);
 }
 
-static u32 DrawLevelOvr1P_Select4x1ProjectedTableWord(const struct QuadBlock *block, const struct DrawLevelOvr1PFaceSelector *selector)
+static u32 DrawLevelOvr1P_Select4x1ProjectedTableWord(const struct QuadBlock *block, const struct DrawLevelOvrFaceSelector *selector)
 {
 	(void)block;
 
 	u32 tableIndex = (DrawLevelOvr1P_GetActiveDrawOrderLow() >> selector->drawOrderShift) & 0x1f;
 
-	return *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_SCRATCH_INIT_TABLE_OFFSET + (int)(tableIndex * sizeof(u32)));
+	return *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_SCRATCH_INIT_TABLE_OFFSET + (int)(tableIndex * sizeof(u32)));
 }
 
-static u32 DrawLevelOvr1P_Select4x1ProjectedIndices(const struct QuadBlock *block, const struct DrawLevelOvr1PFaceSelector *selector, int *indices)
+static u32 DrawLevelOvr1P_Select4x1ProjectedIndices(const struct QuadBlock *block, const struct DrawLevelOvrFaceSelector *selector, int *indices)
 {
 	u32 tableWord = DrawLevelOvr1P_Select4x1ProjectedTableWord(block, selector);
 
@@ -326,13 +306,13 @@ static u32 DrawLevelOvr1P_Select4x1ProjectedIndices(const struct QuadBlock *bloc
 		u32 tableShift = (tableWord >> ((3 - vertexIndex) * 8)) & 0x1f;
 		u32 recordOffset = (selector->selector >> tableShift) & 0xff;
 
-		indices[vertexIndex] = recordOffset / (int)sizeof(struct DrawLevelOvr1PScratchVertex);
+		indices[vertexIndex] = recordOffset / (int)sizeof(struct DrawLevelOvrScratchVertex);
 	}
 
 	return tableWord;
 }
 
-static u32 DrawLevelOvr1P_Select4x1ProjectedFace(const struct DrawLevelOvr1PScratchVertex *projected, const struct QuadBlock *block, int faceIndex,
+static u32 DrawLevelOvr1P_Select4x1ProjectedFace(const struct DrawLevelOvrScratchVertex *projected, const struct QuadBlock *block, int faceIndex,
                                                  int *indices)
 {
 	// NOTE(aalhendi): Retail selector helpers store the active face slot at
@@ -341,7 +321,7 @@ static u32 DrawLevelOvr1P_Select4x1ProjectedFace(const struct DrawLevelOvr1PScra
 	return DrawLevelOvr1P_Select4x1ProjectedIndices(block, &sDrawLevelOvr1P4x1FaceSelectors[faceIndex], indices);
 }
 
-static u32 DrawLevelOvr1P_GetGridFaceSlotWord(const struct DrawLevelOvr1PScratchVertex *projected)
+static u32 DrawLevelOvr1P_GetGridFaceSlotWord(const struct DrawLevelOvrScratchVertex *projected)
 {
 	return DrawLevelOvr1P_ReadPackedWord((const u8 *)projected + 0xb4);
 }
@@ -493,7 +473,7 @@ static int DrawLevelOvr1P_IsRetailOtActiveSlotWord(u32 slotWord)
 	return (slotWord & 3) == 0 && slotWord <= 0x3c;
 }
 
-static u32 DrawLevelOvr1P_GetProjectedOtSlotWord(const struct DrawLevelOvr1PScratchVertex *projected, int faceIndex)
+static u32 DrawLevelOvr1P_GetProjectedOtSlotWord(const struct DrawLevelOvrScratchVertex *projected, int faceIndex)
 {
 	u32 slotWord = projected != NULL ? DrawLevelOvr1P_GetGridFaceSlotWord(projected) : (u32)(faceIndex * 4);
 
@@ -592,7 +572,7 @@ static s8 DrawLevelOvr1P_ReadRetailQuadBlockByte(const struct QuadBlock *block, 
 	return *(const s8 *)((const u8 *)block + byteOffset);
 }
 
-static struct TextureLayout *DrawLevelOvr1P_ResolveProjectedMidTexture(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected)
+static struct TextureLayout *DrawLevelOvr1P_ResolveProjectedMidTexture(const struct QuadBlock *block, const struct DrawLevelOvrScratchVertex *projected)
 {
 	if (projected == NULL)
 	{
@@ -610,7 +590,7 @@ static struct TextureLayout *DrawLevelOvr1P_ResolveProjectedMidTexture(const str
 	return DrawLevelOvr1P_ResolveTexturePointerChecked((uintptr_t)*(void *const *)((const u8 *)block + 0x1c + slotWord));
 }
 
-static struct TextureLayout *DrawLevelOvr1P_GetProjectedMidTexture(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected,
+static struct TextureLayout *DrawLevelOvr1P_GetProjectedMidTexture(const struct QuadBlock *block, const struct DrawLevelOvrScratchVertex *projected,
                                                                    int faceIndex, u32 maxDepth)
 {
 	struct TextureLayout *texture = DrawLevelOvr1P_ResolveProjectedMidTexture(block, projected);
@@ -663,7 +643,7 @@ static u16 DrawLevelOvr1P_PackUv(u8 u, u8 v)
 	return (u16)u | ((u16)v << 8);
 }
 
-static void DrawLevelOvr1P_WriteProjectedUv(struct DrawLevelOvr1PScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
+static void DrawLevelOvr1P_WriteProjectedUv(struct DrawLevelOvrScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
                                             u32 tableWord)
 {
 	u16 uv[4];
@@ -703,7 +683,7 @@ static void DrawLevelOvr1P_WriteProjectedUv(struct DrawLevelOvr1PScratchVertex *
 	}
 }
 
-static void DrawLevelOvr1P_StoreProjectedDirectUvScratch(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count)
+static void DrawLevelOvr1P_StoreProjectedDirectUvScratch(const struct DrawLevelOvrScratchVertex *projected, const int *indices, int count)
 {
 	// NOTE(aalhendi): Retail terminal direct helpers update UV scratch before packet emission.
 	DrawLevelOvr1P_Scratch()->uv.flag0 = (s16)projected[indices[0]].flags;
@@ -820,11 +800,11 @@ static void DrawLevelOvr1P_SetMosaicReloadSpanOverride(u32 reloadSpan)
 	sDrawLevelOvr1P_MosaicReloadSpanOverride = reloadSpan;
 }
 
-static void DrawLevelOvr1P_PrepareDeepestMosaicUv(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, u32 directHandlerAddress)
+static void DrawLevelOvr1P_PrepareDeepestMosaicUv(const struct DrawLevelOvrScratchVertex *projected, const int *indices, u32 directHandlerAddress)
 {
 	u32 reloadSpan;
 
-	if (projected != CTR_SCRATCHPAD_PTR(struct DrawLevelOvr1PScratchVertex, DRAW_LEVEL_OVR1P_DEEPEST_PROJECTED_FRAME_OFFSET))
+	if (projected != CTR_SCRATCHPAD_PTR(struct DrawLevelOvrScratchVertex, DRAW_LEVEL_OVR_DEEPEST_PROJECTED_FRAME_OFFSET))
 	{
 		return;
 	}
@@ -855,12 +835,12 @@ static void DrawLevelOvr1P_PrepareDeepestMosaicUv(const struct DrawLevelOvr1PScr
 		return;
 	}
 
-	u32 sourceOffset = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_MOSAIC_SOURCE_INDEX_OFFSET) << 1;
+	u32 sourceOffset = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_MOSAIC_SOURCE_INDEX_OFFSET) << 1;
 	if ((s32)(DrawLevelOvr1P_Scratch()->selected4x1TableWord << 8) < 0)
 	{
 		sourceOffset += reloadSpan;
 	}
-	sourceOffset += *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_MOSAIC_SOURCE_BIAS_OFFSET);
+	sourceOffset += *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_MOSAIC_SOURCE_BIAS_OFFSET);
 
 	const u8 *source = (const u8 *)(uintptr_t)(mosaicBase + sourceOffset);
 	u32 uv0 = DrawLevelOvr1P_ReadPackedWord(source + 0);
@@ -868,7 +848,7 @@ static void DrawLevelOvr1P_PrepareDeepestMosaicUv(const struct DrawLevelOvr1PScr
 
 	// NOTE(aalhendi): Retail deepest fallthrough rewrites selected scratch-record
 	// UV halfwords before jumping through the direct table.
-	struct DrawLevelOvr1PScratchVertex *mutableProjected = (struct DrawLevelOvr1PScratchVertex *)projected;
+	struct DrawLevelOvrScratchVertex *mutableProjected = (struct DrawLevelOvrScratchVertex *)projected;
 	DrawLevelOvr1P_Scratch()->uv.uv0 = uv0;
 	DrawLevelOvr1P_Scratch()->uv.uv1 = uv1;
 	mutableProjected[indices[0]].flags = (u16)uv0;
@@ -877,13 +857,13 @@ static void DrawLevelOvr1P_PrepareDeepestMosaicUv(const struct DrawLevelOvr1PScr
 	mutableProjected[indices[3]].flags = DrawLevelOvr1P_ReadPackedHalf(source + 10);
 }
 
-static void DrawLevelOvr1P_SetGridFaceSlot(const struct DrawLevelOvr1PScratchVertex *projected, int faceIndex)
+static void DrawLevelOvr1P_SetGridFaceSlot(const struct DrawLevelOvrScratchVertex *projected, int faceIndex)
 {
 	// NOTE(aalhendi): Retail 3x3 helper frames use frame+0xb4 for face slot*4.
 	DrawLevelOvr1P_WritePackedWord((u8 *)projected + 0xb4, (u32)(faceIndex * 4));
 }
 
-static void DrawLevelOvr1P_SetGridFaceSlotWord(const struct DrawLevelOvr1PScratchVertex *projected, u32 slotWord)
+static void DrawLevelOvr1P_SetGridFaceSlotWord(const struct DrawLevelOvrScratchVertex *projected, u32 slotWord)
 {
 	DrawLevelOvr1P_WritePackedWord((u8 *)projected + 0xb4, slotWord);
 }
@@ -914,10 +894,10 @@ static u32 DrawLevelOvr1P_GetDefaultGridFaceSlotWord(u32 handlerAddress, int fac
 	}
 }
 
-static struct DrawLevelOvr1PScratchVertex *DrawLevelOvr1P_GetScratchVertices(void)
+static struct DrawLevelOvrScratchVertex *DrawLevelOvr1P_GetScratchVertices(void)
 {
 	// NOTE(aalhendi): Retail 4x1 handlers build 20-byte projected vertex records at scratch 0x1f8001b4.
-	return CTR_SCRATCHPAD_PTR(struct DrawLevelOvr1PScratchVertex, DRAW_LEVEL_OVR1P_PROJECTED_FRAME0_OFFSET);
+	return CTR_SCRATCHPAD_PTR(struct DrawLevelOvrScratchVertex, DRAW_LEVEL_OVR_PROJECTED_FRAME0_OFFSET);
 }
 
 static s32 DrawLevelOvr1P_GetDepthClipThreshold(void)
@@ -987,19 +967,19 @@ static void DrawLevelOvr1P_CopyColorWord(u8 *dst, const u8 *src)
 	DrawLevelOvr1P_WritePackedWord(dst, DrawLevelOvr1P_ReadPackedWord(src));
 }
 
-static void DrawLevelOvr1P_CopySourcePosFlags(struct DrawLevelOvr1PScratchVertex *projected, const struct LevVertex *vertex)
+static void DrawLevelOvr1P_CopySourcePosFlags(struct DrawLevelOvrScratchVertex *projected, const struct LevVertex *vertex)
 {
 	projected->posVec = vertex->pos;
 	projected->flags = vertex->flags;
 }
 
-static void DrawLevelOvr1P_CopySourceVertex(struct DrawLevelOvr1PScratchVertex *projected, const struct LevVertex *vertex)
+static void DrawLevelOvr1P_CopySourceVertex(struct DrawLevelOvrScratchVertex *projected, const struct LevVertex *vertex)
 {
 	DrawLevelOvr1P_CopySourcePosFlags(projected, vertex);
 	DrawLevelOvr1P_CopyColorWord(projected->color_hi, vertex->color_hi);
 }
 
-static void DrawLevelOvr1P_CopyProjectedScreenDepth(struct DrawLevelOvr1PScratchVertex *dst, const struct DrawLevelOvr1PScratchVertex *src)
+static void DrawLevelOvr1P_CopyProjectedScreenDepth(struct DrawLevelOvrScratchVertex *dst, const struct DrawLevelOvrScratchVertex *src)
 {
 	dst->posScreenVec = src->posScreenVec;
 	dst->depth = src->depth;
@@ -1007,7 +987,7 @@ static void DrawLevelOvr1P_CopyProjectedScreenDepth(struct DrawLevelOvr1PScratch
 	dst->clipHalfNear = src->clipHalfNear;
 }
 
-static void DrawLevelOvr1P_SetProjectedDepth(struct DrawLevelOvr1PScratchVertex *projected, u32 depth, int writeClipBytes)
+static void DrawLevelOvr1P_SetProjectedDepth(struct DrawLevelOvrScratchVertex *projected, u32 depth, int writeClipBytes)
 {
 	u32 threshold = (u32)DrawLevelOvr1P_GetDepthClipThreshold();
 
@@ -1026,10 +1006,10 @@ static void DrawLevelOvr1P_SetProjectedDepth(struct DrawLevelOvr1PScratchVertex 
 	}
 }
 
-static void DrawLevelOvr1P_StoreProjectedDepthWord(struct DrawLevelOvr1PScratchVertex *projected, u32 depth);
+static void DrawLevelOvr1P_StoreProjectedDepthWord(struct DrawLevelOvrScratchVertex *projected, u32 depth);
 
 static void Ovr226_800a0f78_ProjectVertexTripleFullDepth(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                         struct DrawLevelOvr1PScratchVertex *projected, int index0, int index1, int index2)
+                                                         struct DrawLevelOvrScratchVertex *projected, int index0, int index1, int index2)
 {
 	struct LevVertex *vertex0 = &vertices[block->index[index0]];
 	struct LevVertex *vertex1 = &vertices[block->index[index1]];
@@ -1053,7 +1033,7 @@ static void Ovr226_800a0f78_ProjectVertexTripleFullDepth(struct LevVertex *verti
 }
 
 static void Ovr226_800a1024_ProjectFullDynamicLowFourth(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                        struct DrawLevelOvr1PScratchVertex *projected)
+                                                        struct DrawLevelOvrScratchVertex *projected)
 {
 	struct LevVertex *vertex = &vertices[block->index[3]];
 	u32 depth;
@@ -1067,7 +1047,7 @@ static void Ovr226_800a1024_ProjectFullDynamicLowFourth(struct LevVertex *vertic
 	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[3], depth);
 }
 
-static void Ovr226_800a0f78_ProjectFullDynamicLowQuad(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected)
+static void Ovr226_800a0f78_ProjectFullDynamicLowQuad(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvrScratchVertex *projected)
 {
 	DrawLevelOvr1P_SetGridFaceSlot(projected, 0);
 	Ovr226_800a0f78_ProjectVertexTripleFullDepth(vertices, block, projected, 0, 1, 2);
@@ -1075,7 +1055,7 @@ static void Ovr226_800a0f78_ProjectFullDynamicLowQuad(struct LevVertex *vertices
 	DrawLevelOvr1P_SetActiveDrawOrderLow(block);
 }
 
-static void Ovr226_800a0d20_SeedEntryScratchPointers(struct DrawLevelOvr1PRenderList *renderList, struct PushBuffer *pb)
+static void Ovr226_800a0d20_SeedEntryScratchPointers(struct DrawLevelOvrRenderList *renderList, struct PushBuffer *pb)
 {
 	DrawLevelOvr1P_Scratch()->clipCursorPtr32 = (u32)(uintptr_t)data.PtrClipBuffer[0];
 	DrawLevelOvr1P_Scratch()->pushBufferPtr32[0] = (u32)(uintptr_t)pb;
@@ -1084,7 +1064,7 @@ static void Ovr226_800a0d20_SeedEntryScratchPointers(struct DrawLevelOvr1PRender
 
 static void Ovr226_800a0dc4_ClearProjectedScratch(void)
 {
-	u32 *projectedScratch = CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_PROJECTED_FRAME0_OFFSET);
+	u32 *projectedScratch = CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_PROJECTED_FRAME0_OFFSET);
 
 	// NOTE(aalhendi): Retail 0x800a0dc4 clears through scratch word 0x3d8.
 	for (int offset = 0; offset < 0x228; offset += (int)sizeof(u32))
@@ -1093,7 +1073,7 @@ static void Ovr226_800a0dc4_ClearProjectedScratch(void)
 	}
 }
 
-static void DrawLevelOvr1P_CopyProjectedSource(struct LevVertex *vertex, struct DrawLevelOvr1PScratchVertex *projected,
+static void DrawLevelOvr1P_CopyProjectedSource(struct LevVertex *vertex, struct DrawLevelOvrScratchVertex *projected,
                                                enum DrawLevelOvr1PProjectedSource source, int copyColorHi)
 {
 	switch (source)
@@ -1113,7 +1093,7 @@ static void DrawLevelOvr1P_CopyProjectedSource(struct LevVertex *vertex, struct 
 	}
 }
 
-static int DrawLevelOvr1P_ProjectListVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected,
+static int DrawLevelOvr1P_ProjectListVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvrScratchVertex *projected,
                                                   int index0, int index1, int index2, enum DrawLevelOvr1PProjectedSource source)
 {
 	struct LevVertex *vertex0 = &vertices[block->index[index0]];
@@ -1152,7 +1132,7 @@ static int DrawLevelOvr1P_ProjectListVertexTriple(struct LevVertex *vertices, co
 	return 0;
 }
 
-static void DrawLevelOvr1P_SetGridSlotMode(const struct DrawLevelOvr1PScratchVertex *projected, enum DrawLevelOvr1PGridSlotMode slotMode)
+static void DrawLevelOvr1P_SetGridSlotMode(const struct DrawLevelOvrScratchVertex *projected, enum DrawLevelOvr1PGridSlotMode slotMode)
 {
 	switch (slotMode)
 	{
@@ -1167,7 +1147,7 @@ static void DrawLevelOvr1P_SetGridSlotMode(const struct DrawLevelOvr1PScratchVer
 	}
 }
 
-static int DrawLevelOvr1P_ProjectListGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected,
+static int DrawLevelOvr1P_ProjectListGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvrScratchVertex *projected,
                                           enum DrawLevelOvr1PProjectedSource source, enum DrawLevelOvr1PGridSlotMode slotMode)
 {
 	DrawLevelOvr1P_SetGridSlotMode(projected, slotMode);
@@ -1186,7 +1166,7 @@ static int DrawLevelOvr1P_ProjectListGrid(struct LevVertex *vertices, const stru
 	return DrawLevelOvr1P_ProjectListVertexTriple(vertices, block, projected, 6, 7, 8, source);
 }
 
-static void DrawLevelOvr1P_ProjectRenderedVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected,
+static void DrawLevelOvr1P_ProjectRenderedVertexTriple(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvrScratchVertex *projected,
                                                        int index0, int index1, int index2, enum DrawLevelOvr1PProjectedSource source)
 {
 	struct LevVertex *vertex0 = &vertices[block->index[index0]];
@@ -1210,7 +1190,7 @@ static void DrawLevelOvr1P_ProjectRenderedVertexTriple(struct LevVertex *vertice
 	DrawLevelOvr1P_SetProjectedDepth(&projected[index2], depth2, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
 }
 
-static void DrawLevelOvr1P_ProjectRenderedGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected,
+static void DrawLevelOvr1P_ProjectRenderedGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvrScratchVertex *projected,
                                                enum DrawLevelOvr1PProjectedSource source, enum DrawLevelOvr1PGridSlotMode slotMode)
 {
 	DrawLevelOvr1P_SetGridSlotMode(projected, slotMode);
@@ -1220,7 +1200,7 @@ static void DrawLevelOvr1P_ProjectRenderedGrid(struct LevVertex *vertices, const
 	DrawLevelOvr1P_ProjectRenderedVertexTriple(vertices, block, projected, 6, 7, 8, source);
 }
 
-static u32 DrawLevelOvr1P_GetProjectedColorWord(const struct DrawLevelOvr1PScratchVertex *projected);
+static u32 DrawLevelOvr1P_GetProjectedColorWord(const struct DrawLevelOvrScratchVertex *projected);
 
 static u32 Ovr226_800a2234_ApplyWaterListColorFade(u32 color, s16 x, s16 z)
 {
@@ -1308,7 +1288,7 @@ static u32 Ovr226_800a2d30_ApplyWaterRenderedColorFade(u32 color, s16 x, s16 z)
 	return MFC2(22);
 }
 
-static void Ovr226_800a211c_ApplyWaterListColorFades(struct DrawLevelOvr1PScratchVertex *projected)
+static void Ovr226_800a211c_ApplyWaterListColorFades(struct DrawLevelOvrScratchVertex *projected)
 {
 	for (s32 waterVertexIndex = 0; waterVertexIndex < 9; waterVertexIndex++)
 	{
@@ -1318,7 +1298,7 @@ static void Ovr226_800a211c_ApplyWaterListColorFades(struct DrawLevelOvr1PScratc
 	}
 }
 
-static void Ovr226_800a2c4c_ApplyWaterRenderedColorFades(struct DrawLevelOvr1PScratchVertex *projected)
+static void Ovr226_800a2c4c_ApplyWaterRenderedColorFades(struct DrawLevelOvrScratchVertex *projected)
 {
 	for (s32 waterVertexIndex = 0; waterVertexIndex < 9; waterVertexIndex++)
 	{
@@ -1328,11 +1308,11 @@ static void Ovr226_800a2c4c_ApplyWaterRenderedColorFades(struct DrawLevelOvr1PSc
 	}
 }
 
-static int DrawLevelOvr1P_NclipProjected(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static int DrawLevelOvr1P_NclipProjected(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
-	const struct DrawLevelOvr1PScratchVertex *vertex0 = &projected[indices[0]];
-	const struct DrawLevelOvr1PScratchVertex *vertex1 = &projected[indices[1]];
-	const struct DrawLevelOvr1PScratchVertex *vertex2 = &projected[indices[2]];
+	const struct DrawLevelOvrScratchVertex *vertex0 = &projected[indices[0]];
+	const struct DrawLevelOvrScratchVertex *vertex1 = &projected[indices[1]];
+	const struct DrawLevelOvrScratchVertex *vertex2 = &projected[indices[2]];
 	u32 sxy2;
 	s32 nclip;
 
@@ -1351,12 +1331,12 @@ static int DrawLevelOvr1P_NclipProjected(const struct DrawLevelOvr1PScratchVerte
 	return nclip;
 }
 
-static u32 DrawLevelOvr1P_PackProjectedSxy(const struct DrawLevelOvr1PScratchVertex *projected)
+static u32 DrawLevelOvr1P_PackProjectedSxy(const struct DrawLevelOvrScratchVertex *projected)
 {
 	return (u16)projected->posScreen[0] | ((u32)(u16)projected->posScreen[1] << 16);
 }
 
-static int DrawLevelOvr1P_IsProjectedPolyOffscreenPacked(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count)
+static int DrawLevelOvr1P_IsProjectedPolyOffscreenPacked(const struct DrawLevelOvrScratchVertex *projected, const int *indices, int count)
 {
 	u32 packedWindow = DrawLevelOvr1P_Scratch()->clipWindowPacked;
 	u32 packedAnd = 0xffffffff;
@@ -1376,26 +1356,26 @@ static int DrawLevelOvr1P_IsProjectedPolyOffscreenPacked(const struct DrawLevelO
 	return ((s32)packedReject < 0) || ((s32)(packedReject << 16) < 0);
 }
 
-static int DrawLevelOvr1P_IsProjectedFaceOffscreen(struct PushBuffer *pb, const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static int DrawLevelOvr1P_IsProjectedFaceOffscreen(struct PushBuffer *pb, const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	(void)pb;
 
 	return DrawLevelOvr1P_IsProjectedPolyOffscreenPacked(projected, indices, 4);
 }
 
-static int DrawLevelOvr1P_IsProjectedTriOffscreen(struct PushBuffer *pb, const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static int DrawLevelOvr1P_IsProjectedTriOffscreen(struct PushBuffer *pb, const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	(void)pb;
 
 	return DrawLevelOvr1P_IsProjectedPolyOffscreenPacked(projected, indices, 3);
 }
 
-static int DrawLevelOvr1P_IsProjectedFaceFullyNear(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static int DrawLevelOvr1P_IsProjectedFaceFullyNear(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	return projected[indices[0]].clipHalfNear && projected[indices[1]].clipHalfNear && projected[indices[2]].clipHalfNear && projected[indices[3]].clipHalfNear;
 }
 
-static u32 DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, u32 scratchOffset)
+static u32 DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(const struct DrawLevelOvrScratchVertex *projected, const int *indices, u32 scratchOffset)
 {
 	static const u32 bits[4] = {0x4, 0x8, 0x10, 0x20};
 	u32 threshold = *CTR_SCRATCHPAD_PTR(u32, scratchOffset);
@@ -1412,19 +1392,19 @@ static u32 DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(const struct DrawL
 	return mask;
 }
 
-static u32 DrawLevelOvr1P_GetProjectedNearMask(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static u32 DrawLevelOvr1P_GetProjectedNearMask(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	return DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(projected, indices, 0x24);
 }
 
-static u32 DrawLevelOvr1P_GetProjectedRecursiveNearMask(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static u32 DrawLevelOvr1P_GetProjectedRecursiveNearMask(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	// NOTE(aalhendi): Retail helper recursion switches from the top-level
 	// 0x24 threshold to scratch 0x28 before selecting the next child handler.
 	return DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(projected, indices, 0x28);
 }
 
-static u32 DrawLevelOvr1P_GetProjectedWaterNearMask(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static u32 DrawLevelOvr1P_GetProjectedWaterNearMask(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	// NOTE(aalhendi): Retail water shared bodies test s8 against scratch 0x1b4;
 	// recursive frames use scratch 0x28 before selecting the next child.
@@ -1436,7 +1416,7 @@ static u32 DrawLevelOvr1P_GetProjectedWaterNearMask(const struct DrawLevelOvr1PS
 	return DrawLevelOvr1P_GetProjectedRecursiveNearMask(projected, indices);
 }
 
-static u32 DrawLevelOvr1P_GetProjectedCopiedGridNearMask(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static u32 DrawLevelOvr1P_GetProjectedCopiedGridNearMask(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	// NOTE(aalhendi): Copied/default body entries use scratch 0x28 here.
 	// Selector labels inside the same spans, like 0x800a7668/0x800a8380,
@@ -1444,14 +1424,14 @@ static u32 DrawLevelOvr1P_GetProjectedCopiedGridNearMask(const struct DrawLevelO
 	return DrawLevelOvr1P_GetProjectedRecursiveNearMask(projected, indices);
 }
 
-static void DrawLevelOvr1P_StoreProjectedDepthWord(struct DrawLevelOvr1PScratchVertex *projected, u32 depth)
+static void DrawLevelOvr1P_StoreProjectedDepthWord(struct DrawLevelOvrScratchVertex *projected, u32 depth)
 {
 	projected->depth = (u16)depth;
 	projected->clipNear = (u8)(depth >> 16);
 	projected->clipHalfNear = (u8)(depth >> 24);
 }
 
-static void DrawLevelOvr1P_ProjectCopiedGridListMidpoint(struct DrawLevelOvr1PScratchVertex *projected)
+static void DrawLevelOvr1P_ProjectCopiedGridListMidpoint(struct DrawLevelOvrScratchVertex *projected)
 {
 	u32 depth;
 
@@ -1464,7 +1444,7 @@ static void DrawLevelOvr1P_ProjectCopiedGridListMidpoint(struct DrawLevelOvr1PSc
 	DrawLevelOvr1P_StoreProjectedDepthWord(projected, depth);
 }
 
-static void DrawLevelOvr1P_ProjectCopiedGridRenderedMidpoint(struct DrawLevelOvr1PScratchVertex *projected)
+static void DrawLevelOvr1P_ProjectCopiedGridRenderedMidpoint(struct DrawLevelOvrScratchVertex *projected)
 {
 	u32 depth;
 	u32 threshold = (u32)DrawLevelOvr1P_GetDepthClipThreshold();
@@ -1479,8 +1459,8 @@ static void DrawLevelOvr1P_ProjectCopiedGridRenderedMidpoint(struct DrawLevelOvr
 	projected->clipHalfNear = DrawLevelOvr1P_MipsSubuSignBit(depth << 1, threshold);
 }
 
-static void DrawLevelOvr1P_BuildMidpointValue(struct DrawLevelOvr1PScratchVertex *dstMid, const struct DrawLevelOvr1PScratchVertex *srcA,
-                                              const struct DrawLevelOvr1PScratchVertex *srcB, int writeClipBytes)
+static void DrawLevelOvr1P_BuildMidpointValue(struct DrawLevelOvrScratchVertex *dstMid, const struct DrawLevelOvrScratchVertex *srcA,
+                                              const struct DrawLevelOvrScratchVertex *srcB, int writeClipBytes)
 {
 	for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
 	{
@@ -1511,9 +1491,9 @@ static void DrawLevelOvr1P_BuildMidpointValue(struct DrawLevelOvr1PScratchVertex
 	}
 }
 
-static void Ovr226_800a3a78_BuildGround4x1ListMidpointPair(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstB,
-                                                           struct DrawLevelOvr1PScratchVertex *dstMid, const struct DrawLevelOvr1PScratchVertex *srcA,
-                                                           const struct DrawLevelOvr1PScratchVertex *srcB)
+static void Ovr226_800a3a78_BuildGround4x1ListMidpointPair(struct DrawLevelOvrScratchVertex *dstA, struct DrawLevelOvrScratchVertex *dstB,
+                                                           struct DrawLevelOvrScratchVertex *dstMid, const struct DrawLevelOvrScratchVertex *srcA,
+                                                           const struct DrawLevelOvrScratchVertex *srcB)
 {
 	u8 *dstABytes = (u8 *)dstA;
 	u8 *dstBBytes = (u8 *)dstB;
@@ -1553,15 +1533,15 @@ static void Ovr226_800a3a78_BuildGround4x1ListMidpointPair(struct DrawLevelOvr1P
 	DrawLevelOvr1P_StoreProjectedDepthWord(dstMid, depth);
 }
 
-static void Ovr226_800a3a78_BuildGround4x1ListSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void Ovr226_800a3a78_BuildGround4x1ListSubdivisionFrame(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                                const int *indices)
 {
 	Ovr226_800a3a78_BuildGround4x1ListMidpointPair(&sub[0], &sub[1], &sub[4], &projected[indices[0]], &projected[indices[1]]);
 	Ovr226_800a3a78_BuildGround4x1ListMidpointPair(&sub[2], &sub[3], &sub[8], &projected[indices[2]], &projected[indices[3]]);
 }
 
-static void Ovr226_800a560c_BuildGround4x2ListEdgeMidpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstMid,
-                                                           const struct DrawLevelOvr1PScratchVertex *srcA, const struct DrawLevelOvr1PScratchVertex *srcB)
+static void Ovr226_800a560c_BuildGround4x2ListEdgeMidpoint(struct DrawLevelOvrScratchVertex *dstA, struct DrawLevelOvrScratchVertex *dstMid,
+                                                           const struct DrawLevelOvrScratchVertex *srcA, const struct DrawLevelOvrScratchVertex *srcB)
 {
 	u8 *dstABytes = (u8 *)dstA;
 	u8 *dstMidBytes = (u8 *)dstMid;
@@ -1596,9 +1576,9 @@ static void Ovr226_800a560c_BuildGround4x2ListEdgeMidpoint(struct DrawLevelOvr1P
 	DrawLevelOvr1P_StoreProjectedDepthWord(dstMid, depth);
 }
 
-static void Ovr226_800a56f4_BuildGround4x2ListPairMidpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstB,
-                                                           struct DrawLevelOvr1PScratchVertex *dstMid, const struct DrawLevelOvr1PScratchVertex *srcA,
-                                                           const struct DrawLevelOvr1PScratchVertex *srcB)
+static void Ovr226_800a56f4_BuildGround4x2ListPairMidpoint(struct DrawLevelOvrScratchVertex *dstA, struct DrawLevelOvrScratchVertex *dstB,
+                                                           struct DrawLevelOvrScratchVertex *dstMid, const struct DrawLevelOvrScratchVertex *srcA,
+                                                           const struct DrawLevelOvrScratchVertex *srcB)
 {
 	u8 *dstABytes = (u8 *)dstA;
 	u8 *dstBBytes = (u8 *)dstB;
@@ -1638,7 +1618,7 @@ static void Ovr226_800a56f4_BuildGround4x2ListPairMidpoint(struct DrawLevelOvr1P
 	DrawLevelOvr1P_StoreProjectedDepthWord(dstMid, depth);
 }
 
-static void Ovr226_800a56f4_BuildGround4x2ListSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void Ovr226_800a56f4_BuildGround4x2ListSubdivisionFrame(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                                const int *indices)
 {
 	Ovr226_800a56f4_BuildGround4x2ListPairMidpoint(&sub[0], &sub[1], &sub[4], &projected[indices[0]], &projected[indices[1]]);
@@ -1654,8 +1634,8 @@ static void Ovr226_800a56f4_BuildGround4x2ListSubdivisionFrame(struct DrawLevelO
 	Ovr226_800a560c_BuildGround4x2ListEdgeMidpoint(&sub[3], &sub[7], &projected[indices[3]], &projected[indices[1]]);
 }
 
-static void Ovr226_800a6510_BuildGround4x2RenderedEdgeMidpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstMid,
-                                                               const struct DrawLevelOvr1PScratchVertex *srcA, const struct DrawLevelOvr1PScratchVertex *srcB)
+static void Ovr226_800a6510_BuildGround4x2RenderedEdgeMidpoint(struct DrawLevelOvrScratchVertex *dstA, struct DrawLevelOvrScratchVertex *dstMid,
+                                                               const struct DrawLevelOvrScratchVertex *srcA, const struct DrawLevelOvrScratchVertex *srcB)
 {
 	u8 *dstABytes = (u8 *)dstA;
 	u8 *dstMidBytes = (u8 *)dstMid;
@@ -1690,7 +1670,7 @@ static void Ovr226_800a6510_BuildGround4x2RenderedEdgeMidpoint(struct DrawLevelO
 	DrawLevelOvr1P_SetProjectedDepth(dstMid, depth, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
 }
 
-static void Ovr226_800a6510_BuildGround4x2RenderedSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void Ovr226_800a6510_BuildGround4x2RenderedSubdivisionFrame(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                                    const int *indices)
 {
 	Ovr226_800a6510_BuildGround4x2RenderedEdgeMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
@@ -1700,8 +1680,8 @@ static void Ovr226_800a6510_BuildGround4x2RenderedSubdivisionFrame(struct DrawLe
 	Ovr226_800a6510_BuildGround4x2RenderedEdgeMidpoint(&sub[3], &sub[7], &projected[indices[3]], &projected[indices[1]]);
 }
 
-static void Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstMid,
-                                                              const struct DrawLevelOvr1PScratchVertex *srcA, const struct DrawLevelOvr1PScratchVertex *srcB)
+static void Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(struct DrawLevelOvrScratchVertex *dstA, struct DrawLevelOvrScratchVertex *dstMid,
+                                                              const struct DrawLevelOvrScratchVertex *srcA, const struct DrawLevelOvrScratchVertex *srcB)
 {
 	const u8 *srcAUv = (const u8 *)&srcA->flags;
 	const u8 *srcBUv = (const u8 *)&srcB->flags;
@@ -1736,7 +1716,7 @@ static void Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(struct DrawLevelOv
 	DrawLevelOvr1P_StoreProjectedDepthWord(dstMid, depth);
 }
 
-static void Ovr226_800a74a0_BuildDynamicListSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void Ovr226_800a74a0_BuildDynamicListSubdivisionFrame(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                              const int *indices)
 {
 	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
@@ -1746,7 +1726,7 @@ static void Ovr226_800a74a0_BuildDynamicListSubdivisionFrame(struct DrawLevelOvr
 	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[1], &sub[6], &projected[indices[1]], &projected[indices[2]]);
 }
 
-static void Ovr226_800a90c0_BuildWideDynamicSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void Ovr226_800a90c0_BuildWideDynamicSubdivisionFrame(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                              const int *indices)
 {
 	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
@@ -1756,9 +1736,9 @@ static void Ovr226_800a90c0_BuildWideDynamicSubdivisionFrame(struct DrawLevelOvr
 	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[4], &sub[6], &sub[4], &sub[8]);
 }
 
-static void Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstMid,
-                                                                  const struct DrawLevelOvr1PScratchVertex *srcA,
-                                                                  const struct DrawLevelOvr1PScratchVertex *srcB)
+static void Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(struct DrawLevelOvrScratchVertex *dstA, struct DrawLevelOvrScratchVertex *dstMid,
+                                                                  const struct DrawLevelOvrScratchVertex *srcA,
+                                                                  const struct DrawLevelOvrScratchVertex *srcB)
 {
 	const u8 *srcAUv = (const u8 *)&srcA->flags;
 	const u8 *srcBUv = (const u8 *)&srcB->flags;
@@ -1793,7 +1773,7 @@ static void Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(struct DrawLev
 	DrawLevelOvr1P_SetProjectedDepth(dstMid, depth, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
 }
 
-static void Ovr226_800a8150_BuildDynamicRenderedSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void Ovr226_800a8150_BuildDynamicRenderedSubdivisionFrame(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                                  const int *indices)
 {
 	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
@@ -1803,7 +1783,7 @@ static void Ovr226_800a8150_BuildDynamicRenderedSubdivisionFrame(struct DrawLeve
 	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[1], &sub[6], &projected[indices[1]], &projected[indices[2]]);
 }
 
-static void Ovr226_800a9d70_BuildQuad4x4RenderedSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void Ovr226_800a9d70_BuildQuad4x4RenderedSubdivisionFrame(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                                  const int *indices)
 {
 	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
@@ -1813,9 +1793,9 @@ static void Ovr226_800a9d70_BuildQuad4x4RenderedSubdivisionFrame(struct DrawLeve
 	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[4], &sub[6], &sub[4], &sub[8]);
 }
 
-static void Ovr226_800a4594_BuildGround4x1RenderedMidpointPair(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstB,
-                                                               struct DrawLevelOvr1PScratchVertex *dstMid, const struct DrawLevelOvr1PScratchVertex *srcA,
-                                                               const struct DrawLevelOvr1PScratchVertex *srcB)
+static void Ovr226_800a4594_BuildGround4x1RenderedMidpointPair(struct DrawLevelOvrScratchVertex *dstA, struct DrawLevelOvrScratchVertex *dstB,
+                                                               struct DrawLevelOvrScratchVertex *dstMid, const struct DrawLevelOvrScratchVertex *srcA,
+                                                               const struct DrawLevelOvrScratchVertex *srcB)
 {
 	u8 *dstABytes = (u8 *)dstA;
 	u8 *dstBBytes = (u8 *)dstB;
@@ -1855,15 +1835,15 @@ static void Ovr226_800a4594_BuildGround4x1RenderedMidpointPair(struct DrawLevelO
 	DrawLevelOvr1P_SetProjectedDepth(dstMid, depth, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
 }
 
-static void Ovr226_800a4594_BuildGround4x1RenderedSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void Ovr226_800a4594_BuildGround4x1RenderedSubdivisionFrame(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                                    const int *indices)
 {
 	Ovr226_800a4594_BuildGround4x1RenderedMidpointPair(&sub[0], &sub[1], &sub[4], &projected[indices[0]], &projected[indices[1]]);
 	Ovr226_800a4594_BuildGround4x1RenderedMidpointPair(&sub[2], &sub[3], &sub[8], &projected[indices[2]], &projected[indices[3]]);
 }
 
-static void DrawLevelOvr1P_BuildMidpointFromFirstEndpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstMid,
-                                                          const struct DrawLevelOvr1PScratchVertex *srcA, const struct DrawLevelOvr1PScratchVertex *srcB,
+static void DrawLevelOvr1P_BuildMidpointFromFirstEndpoint(struct DrawLevelOvrScratchVertex *dstA, struct DrawLevelOvrScratchVertex *dstMid,
+                                                          const struct DrawLevelOvrScratchVertex *srcA, const struct DrawLevelOvrScratchVertex *srcB,
                                                           int writeClipBytes)
 {
 	*dstA = *srcA;
@@ -1871,8 +1851,8 @@ static void DrawLevelOvr1P_BuildMidpointFromFirstEndpoint(struct DrawLevelOvr1PS
 	DrawLevelOvr1P_BuildMidpointValue(dstMid, srcA, srcB, writeClipBytes);
 }
 
-static void Ovr226_800a17d8_BuildFullDynamicSubdivideMidpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstMid,
-                                                              const struct DrawLevelOvr1PScratchVertex *srcA, const struct DrawLevelOvr1PScratchVertex *srcB)
+static void Ovr226_800a17d8_BuildFullDynamicSubdivideMidpoint(struct DrawLevelOvrScratchVertex *dstA, struct DrawLevelOvrScratchVertex *dstMid,
+                                                              const struct DrawLevelOvrScratchVertex *srcA, const struct DrawLevelOvrScratchVertex *srcB)
 {
 	const u8 *srcABytes = (const u8 *)&srcA->flags;
 	const u8 *srcBBytes = (const u8 *)&srcB->flags;
@@ -1907,7 +1887,7 @@ static void Ovr226_800a17d8_BuildFullDynamicSubdivideMidpoint(struct DrawLevelOv
 	DrawLevelOvr1P_StoreProjectedDepthWord(dstMid, depth);
 }
 
-static void Ovr226_800a17d8_BuildFullDynamicSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void Ovr226_800a17d8_BuildFullDynamicSubdivisionFrame(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                              const int *indices)
 {
 	Ovr226_800a17d8_BuildFullDynamicSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
@@ -1917,7 +1897,7 @@ static void Ovr226_800a17d8_BuildFullDynamicSubdivisionFrame(struct DrawLevelOvr
 	Ovr226_800a17d8_BuildFullDynamicSubdivideMidpoint(&sub[1], &sub[6], &projected[indices[1]], &projected[indices[2]]);
 }
 
-static u32 DrawLevelOvr1P_GetProjectedMaxDepth(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static u32 DrawLevelOvr1P_GetProjectedMaxDepth(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	u32 maxDepth = projected[indices[0]].depth;
 
@@ -1932,7 +1912,7 @@ static u32 DrawLevelOvr1P_GetProjectedMaxDepth(const struct DrawLevelOvr1PScratc
 	return maxDepth;
 }
 
-static u32 DrawLevelOvr1P_GetProjectedTriMaxDepth(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static u32 DrawLevelOvr1P_GetProjectedTriMaxDepth(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	u32 maxDepth = projected[indices[0]].depth;
 
@@ -1947,7 +1927,7 @@ static u32 DrawLevelOvr1P_GetProjectedTriMaxDepth(const struct DrawLevelOvr1PScr
 	return maxDepth;
 }
 
-static int DrawLevelOvr1P_GetProjectedOtIndex(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected, u32 maxDepth, int faceIndex)
+static int DrawLevelOvr1P_GetProjectedOtIndex(const struct QuadBlock *block, const struct DrawLevelOvrScratchVertex *projected, u32 maxDepth, int faceIndex)
 {
 	s32 otIndex;
 
@@ -1976,7 +1956,7 @@ static int DrawLevelOvr1P_GetProjectedOtIndex(const struct QuadBlock *block, con
 	return otIndex;
 }
 
-static void DrawLevelOvr1P_SetFullDynamicInheritedOtIndex(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected, u32 maxDepth,
+static void DrawLevelOvr1P_SetFullDynamicInheritedOtIndex(const struct QuadBlock *block, const struct DrawLevelOvrScratchVertex *projected, u32 maxDepth,
                                                           int faceIndex)
 {
 	// NOTE(aalhendi): Retail full-dynamic paths keep the selected OT entry in `gp`
@@ -1984,7 +1964,7 @@ static void DrawLevelOvr1P_SetFullDynamicInheritedOtIndex(const struct QuadBlock
 	sDrawLevelOvr1P_FullDynamicInheritedOtIndex = DrawLevelOvr1P_GetProjectedOtIndex(block, projected, maxDepth, faceIndex);
 }
 
-static int DrawLevelOvr1P_ResolveProjectedOtIndex(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected, u32 maxDepth,
+static int DrawLevelOvr1P_ResolveProjectedOtIndex(const struct QuadBlock *block, const struct DrawLevelOvrScratchVertex *projected, u32 maxDepth,
                                                   int faceIndex, int otIndexOverride)
 {
 	if (otIndexOverride >= 0)
@@ -1995,7 +1975,7 @@ static int DrawLevelOvr1P_ResolveProjectedOtIndex(const struct QuadBlock *block,
 	return DrawLevelOvr1P_GetProjectedOtIndex(block, projected, maxDepth, faceIndex);
 }
 
-static u32 DrawLevelOvr1P_GetWaterTopFrameOtDepth(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static u32 DrawLevelOvr1P_GetWaterTopFrameOtDepth(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	s32 depth0 = projected[indices[0]].depth;
 	s32 depth1 = projected[indices[1]].depth;
@@ -2030,7 +2010,7 @@ static u32 DrawLevelOvr1P_GetWaterTopFrameOtDepth(const struct DrawLevelOvr1PScr
 }
 
 static uint32_t *Ovr226_800a2690_ResolveWaterListInheritedOtEntry(struct PushBuffer *pb, const struct QuadBlock *block,
-                                                                  const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                                  const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                   uint32_t *inheritedOtEntry)
 {
 	u32 slotWord;
@@ -2069,17 +2049,17 @@ static void DrawLevelOvr1P_AddRawPrimToOt(struct PrimMem *primMem, void *packet,
 	primMem->primitiveCount++;
 }
 
-static u32 DrawLevelOvr1P_GetProjectedColorCode(const struct DrawLevelOvr1PScratchVertex *projected, u32 code)
+static u32 DrawLevelOvr1P_GetProjectedColorCode(const struct DrawLevelOvrScratchVertex *projected, u32 code)
 {
 	return DrawLevelOvr1P_ReadPackedWord(projected->color_hi) | (code << 24);
 }
 
-static u32 DrawLevelOvr1P_GetProjectedColorWord(const struct DrawLevelOvr1PScratchVertex *projected)
+static u32 DrawLevelOvr1P_GetProjectedColorWord(const struct DrawLevelOvrScratchVertex *projected)
 {
 	return DrawLevelOvr1P_ReadPackedWord(projected->color_hi);
 }
 
-static void DrawLevelOvr1P_WriteProjectedGT3(POLY_GT3 *poly, const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, u32 code, u32 uv0,
+static void DrawLevelOvr1P_WriteProjectedGT3(POLY_GT3 *poly, const struct DrawLevelOvrScratchVertex *projected, const int *indices, u32 code, u32 uv0,
                                              u32 uv1, u32 uv2)
 {
 	CtrGpu_WriteColorCode(&poly->r0, DrawLevelOvr1P_GetProjectedColorCode(&projected[indices[0]], code));
@@ -2093,7 +2073,7 @@ static void DrawLevelOvr1P_WriteProjectedGT3(POLY_GT3 *poly, const struct DrawLe
 	CtrGpu_WritePackedUVWord(&poly->u2, uv2);
 }
 
-static void DrawLevelOvr1P_WriteProjectedGT4(POLY_GT4 *poly, const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, u32 code, u32 uv0,
+static void DrawLevelOvr1P_WriteProjectedGT4(POLY_GT4 *poly, const struct DrawLevelOvrScratchVertex *projected, const int *indices, u32 code, u32 uv0,
                                              u32 uv1, u32 uv2)
 {
 	DrawLevelOvr1P_WriteProjectedGT3((POLY_GT3 *)poly, projected, indices, code, uv0, uv1, uv2);
@@ -2108,7 +2088,7 @@ static u32 DrawLevelOvr1P_SelectRawPrimitiveCode(u32 uv1Word, u32 semiTransCode,
 }
 
 static int DrawLevelOvr1P_EmitPreparedProjectedQuadRawCodeAtOtEntry(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                    const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
+                                                                    const struct DrawLevelOvrScratchVertex *projected, const int *indices,
                                                                     const struct TextureLayout *texture, uint32_t *otEntry, int primCodeOverride)
 {
 	(void)pb;
@@ -2134,7 +2114,7 @@ static int DrawLevelOvr1P_EmitPreparedProjectedQuadRawCodeAtOtEntry(struct PushB
 }
 
 static int DrawLevelOvr1P_EmitPreparedProjectedQuadRawCodeAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                               const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                const struct TextureLayout *texture, u32 maxDepth, int otIndexOverride, int primCodeOverride)
 {
 	int otIndex = DrawLevelOvr1P_ResolveProjectedOtIndex(block, projected, maxDepth, faceIndex, otIndexOverride);
@@ -2143,7 +2123,7 @@ static int DrawLevelOvr1P_EmitPreparedProjectedQuadRawCodeAtOt(struct PushBuffer
 }
 
 static int DrawLevelOvr1P_EmitPreparedProjectedTriRawCodeAtOtEntry(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                   const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
+                                                                   const struct DrawLevelOvrScratchVertex *projected, const int *indices,
                                                                    const struct TextureLayout *texture, uint32_t *otEntry, int primCodeOverride)
 {
 	(void)pb;
@@ -2169,7 +2149,7 @@ static int DrawLevelOvr1P_EmitPreparedProjectedTriRawCodeAtOtEntry(struct PushBu
 }
 
 static int DrawLevelOvr1P_EmitPreparedProjectedTriRawCodeAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                              const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                              const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                               const struct TextureLayout *texture, u32 maxDepth, int otIndexOverride, int primCodeOverride)
 {
 	int otIndex = DrawLevelOvr1P_ResolveProjectedOtIndex(block, projected, maxDepth, faceIndex, otIndexOverride);
@@ -2182,7 +2162,7 @@ static int DrawLevelOvr1P_IsClipByteSet(u8 clipByte)
 	return clipByte != 0;
 }
 
-static int DrawLevelOvr1P_AreProjectedVerticesHalfNear(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count)
+static int DrawLevelOvr1P_AreProjectedVerticesHalfNear(const struct DrawLevelOvrScratchVertex *projected, const int *indices, int count)
 {
 	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
@@ -2195,7 +2175,7 @@ static int DrawLevelOvr1P_AreProjectedVerticesHalfNear(const struct DrawLevelOvr
 	return 1;
 }
 
-static int DrawLevelOvr1P_HasProjectedVertexNear(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count)
+static int DrawLevelOvr1P_HasProjectedVertexNear(const struct DrawLevelOvrScratchVertex *projected, const int *indices, int count)
 {
 	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
@@ -2240,12 +2220,12 @@ static u32 DrawLevelOvr1P_ReadWord(const void *base, u32 offset)
 	return DrawLevelOvr1P_ReadPackedWord((const u8 *)base + offset);
 }
 
-static void Ovr226_800a1408_AdjustFullDynamicMidVertex(struct DrawLevelOvr1PScratchVertex *projected, struct LevVertex *vertices, const struct QuadBlock *block,
+static void Ovr226_800a1408_AdjustFullDynamicMidVertex(struct DrawLevelOvrScratchVertex *projected, struct LevVertex *vertices, const struct QuadBlock *block,
                                                        int midIndex, int endpointAIndex, int endpointBIndex)
 {
-	struct DrawLevelOvr1PScratchVertex *mid = &projected[midIndex];
-	const struct DrawLevelOvr1PScratchVertex *endpointA = &projected[endpointAIndex];
-	const struct DrawLevelOvr1PScratchVertex *endpointB = &projected[endpointBIndex];
+	struct DrawLevelOvrScratchVertex *mid = &projected[midIndex];
+	const struct DrawLevelOvrScratchVertex *endpointA = &projected[endpointAIndex];
+	const struct DrawLevelOvrScratchVertex *endpointB = &projected[endpointBIndex];
 	const struct LevVertex *levMid = &vertices[block->index[midIndex]];
 	s16 midpoint[3];
 
@@ -2303,7 +2283,7 @@ static void Ovr226_800a1408_AdjustFullDynamicMidVertex(struct DrawLevelOvr1PScra
 	DrawLevelOvr1P_StoreProjectedDepthWord(mid, depth);
 }
 
-static void DrawLevelOvr1P_AdjustFullDynamicMidVertices(struct DrawLevelOvr1PScratchVertex *projected, struct LevVertex *vertices,
+static void DrawLevelOvr1P_AdjustFullDynamicMidVertices(struct DrawLevelOvrScratchVertex *projected, struct LevVertex *vertices,
                                                         const struct QuadBlock *block)
 {
 	Ovr226_800a1408_AdjustFullDynamicMidVertex(projected, vertices, block, 4, 0, 1);
@@ -2313,7 +2293,7 @@ static void DrawLevelOvr1P_AdjustFullDynamicMidVertices(struct DrawLevelOvr1PScr
 	Ovr226_800a1408_AdjustFullDynamicMidVertex(projected, vertices, block, 8, 2, 3);
 }
 
-static u32 DrawLevelOvr1P_GetPreparedProjectedMaxDepthCount(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count)
+static u32 DrawLevelOvr1P_GetPreparedProjectedMaxDepthCount(const struct DrawLevelOvrScratchVertex *projected, const int *indices, int count)
 {
 	u32 maxDepth = projected[indices[0]].depth;
 
@@ -2328,7 +2308,7 @@ static u32 DrawLevelOvr1P_GetPreparedProjectedMaxDepthCount(const struct DrawLev
 	return maxDepth;
 }
 
-static int DrawLevelOvr1P_SourceInsideClipRecordWindow(const struct DrawLevelOvr1PScratchVertex *src)
+static int DrawLevelOvr1P_SourceInsideClipRecordWindow(const struct DrawLevelOvrScratchVertex *src)
 {
 	const s16 *center = DrawLevelOvr1P_Scratch()->projectedCenter.v;
 	s32 x = (s32)src->pos[0] - center[0];
@@ -2356,7 +2336,7 @@ static int DrawLevelOvr1P_SourceInsideClipRecordWindow(const struct DrawLevelOvr
 	return (s32)insideBits < 0;
 }
 
-static int DrawLevelOvr1P_ShouldWriteRenderedClippedRecord(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count)
+static int DrawLevelOvr1P_ShouldWriteRenderedClippedRecord(const struct DrawLevelOvrScratchVertex *projected, const int *indices, int count)
 {
 	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
@@ -2369,7 +2349,7 @@ static int DrawLevelOvr1P_ShouldWriteRenderedClippedRecord(const struct DrawLeve
 	return 0;
 }
 
-static void DrawLevelOvr1P_CopyClipRecordVertex(struct DrawLevelOvr1PClipRecordVertex *dst, const struct DrawLevelOvr1PScratchVertex *src)
+static void DrawLevelOvr1P_CopyClipRecordVertex(struct DrawLevelOvrClipRecordVertex *dst, const struct DrawLevelOvrScratchVertex *src)
 {
 	dst->posVec = src->posVec;
 	dst->flags = src->flags;
@@ -2404,10 +2384,10 @@ static u32 DrawLevelOvr1P_GetRenderedClipRecordHeader(const struct QuadBlock *bl
 }
 
 static int DrawLevelOvr1P_WriteRenderedClippedRecordAtOt(struct PushBuffer *pb, const struct QuadBlock *block,
-                                                         const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count, int faceIndex,
+                                                         const struct DrawLevelOvrScratchVertex *projected, const int *indices, int count, int faceIndex,
                                                          const struct TextureLayout *texture, int otIndexOverride)
 {
-	struct DrawLevelOvr1PClipRecord *record;
+	struct DrawLevelOvrClipRecord *record;
 	u8 *cursor = DrawLevelOvr1P_GetClipRecordCursor();
 	size_t recordSize = DrawLevelOvr1P_GetClipRecordSize(count);
 	u32 maxDepth;
@@ -2428,7 +2408,7 @@ static int DrawLevelOvr1P_WriteRenderedClippedRecordAtOt(struct PushBuffer *pb, 
 	maxDepth = DrawLevelOvr1P_GetPreparedProjectedMaxDepthCount(projected, indices, count);
 	otIndex = DrawLevelOvr1P_ResolveProjectedOtIndex(block, projected, maxDepth, faceIndex, otIndexOverride);
 
-	record = (struct DrawLevelOvr1PClipRecord *)cursor;
+	record = (struct DrawLevelOvrClipRecord *)cursor;
 	record->header = DrawLevelOvr1P_GetRenderedClipRecordHeader(block, count);
 	record->otEntry = (u32)(uintptr_t)&pb->ptrOT[otIndex];
 	// NOTE(aalhendi): Retail terminal near writers 0x800a89dc/0x800aa5fc
@@ -2446,10 +2426,10 @@ static int DrawLevelOvr1P_WriteRenderedClippedRecordAtOt(struct PushBuffer *pb, 
 }
 
 static int DrawLevelOvr1P_WriteWaterRenderedClippedRecordAtOt(struct PushBuffer *pb, const struct QuadBlock *block,
-                                                              const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count, int faceIndex,
+                                                              const struct DrawLevelOvrScratchVertex *projected, const int *indices, int count, int faceIndex,
                                                               int otIndexOverride)
 {
-	struct DrawLevelOvr1PClipRecord *record;
+	struct DrawLevelOvrClipRecord *record;
 	u8 *cursor = DrawLevelOvr1P_GetClipRecordCursor();
 	size_t recordSize = DrawLevelOvr1P_GetClipRecordSize(count);
 	u32 maxDepth;
@@ -2468,7 +2448,7 @@ static int DrawLevelOvr1P_WriteWaterRenderedClippedRecordAtOt(struct PushBuffer 
 	maxDepth = DrawLevelOvr1P_GetPreparedProjectedMaxDepthCount(projected, indices, count);
 	otIndex = DrawLevelOvr1P_ResolveProjectedOtIndex(block, projected, maxDepth, faceIndex, otIndexOverride);
 
-	record = (struct DrawLevelOvr1PClipRecord *)cursor;
+	record = (struct DrawLevelOvrClipRecord *)cursor;
 	// NOTE(aalhendi): Retail water direct helpers 0x800a34d4/0x800a3578 set
 	// bit 31 on clipped-record headers so the consumer keeps the NCLIP result.
 	record->header = count == 4 ? 0x80000001u : 0x80000000u;
@@ -2485,10 +2465,10 @@ static int DrawLevelOvr1P_WriteWaterRenderedClippedRecordAtOt(struct PushBuffer 
 	return 1;
 }
 
-static int Ovr226_800a34d4_WriteWaterRenderedClippedRecordAtOtEntry(struct PushBuffer *pb, const struct DrawLevelOvr1PScratchVertex *projected,
+static int Ovr226_800a34d4_WriteWaterRenderedClippedRecordAtOtEntry(struct PushBuffer *pb, const struct DrawLevelOvrScratchVertex *projected,
                                                                     const int *indices, int count, uint32_t *otEntry)
 {
-	struct DrawLevelOvr1PClipRecord *record;
+	struct DrawLevelOvrClipRecord *record;
 	u8 *cursor = DrawLevelOvr1P_GetClipRecordCursor();
 	size_t recordSize = DrawLevelOvr1P_GetClipRecordSize(count);
 
@@ -2499,7 +2479,7 @@ static int Ovr226_800a34d4_WriteWaterRenderedClippedRecordAtOtEntry(struct PushB
 		return 1;
 	}
 
-	record = (struct DrawLevelOvr1PClipRecord *)cursor;
+	record = (struct DrawLevelOvrClipRecord *)cursor;
 	// NOTE(aalhendi): Retail water-rendered clipped-record writers
 	// 0x800a34d4/0x800a3578 store the inherited GP/OT pointer directly.
 	record->header = count == 4 ? 0x80000001u : 0x80000000u;
@@ -2516,7 +2496,7 @@ static int Ovr226_800a34d4_WriteWaterRenderedClippedRecordAtOtEntry(struct PushB
 	return 1;
 }
 
-static int DrawLevelOvr1P_ShouldEmitClipRecordNclip(s32 nclip, const struct DrawLevelOvr1PClipRecord *record)
+static int DrawLevelOvr1P_ShouldEmitClipRecordNclip(s32 nclip, const struct DrawLevelOvrClipRecord *record)
 {
 	s32 header = (s32)record->header;
 
@@ -2533,49 +2513,49 @@ static int DrawLevelOvr1P_ShouldEmitClipRecordNclip(s32 nclip, const struct Draw
 	return (s32)((u32)nclip ^ ((u32)header << 1)) > 0;
 }
 
-static u32 DrawLevelOvr1P_GetClipRecordColorCode(const struct DrawLevelOvr1PScratchVertex *projected, u32 code)
+static u32 DrawLevelOvr1P_GetClipRecordColorCode(const struct DrawLevelOvrScratchVertex *projected, u32 code)
 {
 	return (DrawLevelOvr1P_ReadPackedWord(projected->color_hi) & 0x00ffffff) | (code << 24);
 }
 
-static u32 DrawLevelOvr1P_GetClipRecordSignedUvWord(const struct DrawLevelOvr1PScratchVertex *projected)
+static u32 DrawLevelOvr1P_GetClipRecordSignedUvWord(const struct DrawLevelOvrScratchVertex *projected)
 {
 	return (u32)(s32)(s16)projected->flags;
 }
 
-static void DrawLevelOvr1P_SetClipRecordPageScratch(const struct DrawLevelOvr1PClipRecord *record)
+static void DrawLevelOvr1P_SetClipRecordPageScratch(const struct DrawLevelOvrClipRecord *record)
 {
 	DrawLevelOvr1P_Scratch()->uv.tpage = record->tpage;
 	DrawLevelOvr1P_Scratch()->uv.clut = record->clut;
 }
 
-static struct DrawLevelOvr1PScratchVertex *DrawLevelOvr1P_GetClipRecordWorkspace(void)
+static struct DrawLevelOvrScratchVertex *DrawLevelOvr1P_GetClipRecordWorkspace(void)
 {
-	return CTR_SCRATCHPAD_PTR(struct DrawLevelOvr1PScratchVertex, DRAW_LEVEL_OVR1P_PROJECTED_FRAME0_OFFSET);
+	return CTR_SCRATCHPAD_PTR(struct DrawLevelOvrScratchVertex, DRAW_LEVEL_OVR_PROJECTED_FRAME0_OFFSET);
 }
 
-static u32 DrawLevelOvr1P_StoreClipRecordUvScratch(const struct DrawLevelOvr1PScratchVertex *projected, enum DrawLevelOvr1PUvScratchSlot slot)
+static u32 DrawLevelOvr1P_StoreClipRecordUvScratch(const struct DrawLevelOvrScratchVertex *projected, enum DrawLevelOvrUvScratchSlot slot)
 {
-	struct DrawLevelOvr1PUvScratch *scratch = &DrawLevelOvr1P_Scratch()->uv;
+	struct DrawLevelOvrUvScratch *scratch = &DrawLevelOvr1P_Scratch()->uv;
 
 	switch (slot)
 	{
-	case DRAW_LEVEL_OVR1P_UV_SCRATCH_SLOT_0:
+	case DRAW_LEVEL_OVR_UV_SCRATCH_SLOT_0:
 		scratch->flag0 = (s16)projected->flags;
 		return scratch->uv0;
 
-	case DRAW_LEVEL_OVR1P_UV_SCRATCH_SLOT_1:
+	case DRAW_LEVEL_OVR_UV_SCRATCH_SLOT_1:
 		scratch->flag1 = (s16)projected->flags;
 		return scratch->uv1;
 
-	case DRAW_LEVEL_OVR1P_UV_SCRATCH_SLOT_2:
+	case DRAW_LEVEL_OVR_UV_SCRATCH_SLOT_2:
 	default:
 		scratch->flag2 = (s16)projected->flags;
 		return scratch->uv2;
 	}
 }
 
-static void DrawLevelOvr1P_WriteClipRecordGT3(POLY_GT3 *poly, const struct DrawLevelOvr1PScratchVertex *emit, u32 code, u32 uv0, u32 uv1, u32 uv2)
+static void DrawLevelOvr1P_WriteClipRecordGT3(POLY_GT3 *poly, const struct DrawLevelOvrScratchVertex *emit, u32 code, u32 uv0, u32 uv1, u32 uv2)
 {
 	CtrGpu_WriteColorCode(&poly->r0, DrawLevelOvr1P_GetClipRecordColorCode(&emit[0], code));
 	CtrGpu_WritePackedXY(&poly->x0, DrawLevelOvr1P_PackProjectedSxy(&emit[0]));
@@ -2588,7 +2568,7 @@ static void DrawLevelOvr1P_WriteClipRecordGT3(POLY_GT3 *poly, const struct DrawL
 	CtrGpu_WritePackedUVWord(&poly->u2, uv2);
 }
 
-static void DrawLevelOvr1P_WriteClipRecordGT4(POLY_GT4 *poly, const struct DrawLevelOvr1PScratchVertex *emit, u32 code, u32 uv0, u32 uv1, u32 uv2)
+static void DrawLevelOvr1P_WriteClipRecordGT4(POLY_GT4 *poly, const struct DrawLevelOvrScratchVertex *emit, u32 code, u32 uv0, u32 uv1, u32 uv2)
 {
 	DrawLevelOvr1P_WriteClipRecordGT3((POLY_GT3 *)poly, emit, code, uv0, uv1, uv2);
 	CtrGpu_WriteColorCode(&poly->r3, DrawLevelOvr1P_GetClipRecordColorCode(&emit[3], 0));
@@ -2596,17 +2576,17 @@ static void DrawLevelOvr1P_WriteClipRecordGT4(POLY_GT4 *poly, const struct DrawL
 	CtrGpu_WritePackedUVWord(&poly->u3, DrawLevelOvr1P_GetClipRecordSignedUvWord(&emit[3]));
 }
 
-static void DrawLevelOvr1P_SetClipRecordSourceDelta(struct DrawLevelOvr1PScratchVertex *projected, s16 delta)
+static void DrawLevelOvr1P_SetClipRecordSourceDelta(struct DrawLevelOvrScratchVertex *projected, s16 delta)
 {
 	DrawLevelOvr1P_WritePackedHalf(&projected->clipNear, (u16)delta);
 }
 
-static s16 DrawLevelOvr1P_GetClipRecordSourceDelta(const struct DrawLevelOvr1PScratchVertex *projected)
+static s16 DrawLevelOvr1P_GetClipRecordSourceDelta(const struct DrawLevelOvrScratchVertex *projected)
 {
 	return (s16)DrawLevelOvr1P_ReadPackedHalf(&projected->clipNear);
 }
 
-static void DrawLevelOvr1P_GetClipRecordSourceVector(const struct DrawLevelOvr1PScratchVertex *projected, SVECTOR *source)
+static void DrawLevelOvr1P_GetClipRecordSourceVector(const struct DrawLevelOvrScratchVertex *projected, SVECTOR *source)
 {
 	if (DrawLevelOvr1P_GetClipRecordSourceDelta(projected) < 0)
 	{
@@ -2624,7 +2604,7 @@ static void DrawLevelOvr1P_GetClipRecordSourceVector(const struct DrawLevelOvr1P
 	source->pad = 0;
 }
 
-static s32 DrawLevelOvr1P_ProjectClipRecordEmitVertices(struct DrawLevelOvr1PScratchVertex *dst, const struct DrawLevelOvr1PScratchVertex *projected,
+static s32 DrawLevelOvr1P_ProjectClipRecordEmitVertices(struct DrawLevelOvrScratchVertex *dst, const struct DrawLevelOvrScratchVertex *projected,
                                                         const int *indices, int count)
 {
 	SVECTOR source[4];
@@ -2652,7 +2632,7 @@ static s32 DrawLevelOvr1P_ProjectClipRecordEmitVertices(struct DrawLevelOvr1PScr
 	return nclip;
 }
 
-static void DrawLevelOvr1P_ProjectClipRecordEmitVertex(struct DrawLevelOvr1PScratchVertex *dst, const struct DrawLevelOvr1PScratchVertex *projected)
+static void DrawLevelOvr1P_ProjectClipRecordEmitVertex(struct DrawLevelOvrScratchVertex *dst, const struct DrawLevelOvrScratchVertex *projected)
 {
 	SVECTOR source;
 
@@ -2665,14 +2645,14 @@ static void DrawLevelOvr1P_ProjectClipRecordEmitVertex(struct DrawLevelOvr1PScra
 }
 
 static int Ovr226_800aac00_EmitClipRecordGT3(struct PushBuffer *pb, struct PrimMem *primMem, uint32_t *otEntry,
-                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
-                                             const struct DrawLevelOvr1PClipRecord *record);
+                                             const struct DrawLevelOvrScratchVertex *projected, const int *indices,
+                                             const struct DrawLevelOvrClipRecord *record);
 
 static int Ovr226_800aad44_EmitClipRecordGT4(struct PushBuffer *pb, struct PrimMem *primMem, uint32_t *otEntry,
-                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
-                                             const struct DrawLevelOvr1PClipRecord *record)
+                                             const struct DrawLevelOvrScratchVertex *projected, const int *indices,
+                                             const struct DrawLevelOvrClipRecord *record)
 {
-	struct DrawLevelOvr1PScratchVertex emit[4];
+	struct DrawLevelOvrScratchVertex emit[4];
 	int emitIndices[4] = {0, 1, 2, 3};
 	int fallbackIndices[3] = {indices[1], indices[3], indices[2]};
 
@@ -2697,9 +2677,9 @@ static int Ovr226_800aad44_EmitClipRecordGT4(struct PushBuffer *pb, struct PrimM
 	// NOTE(aalhendi): Retail relies on the 0x800aa848 per-record 0xd68 prim reserve.
 	POLY_GT4 *prim = primMem->cursor;
 	POLY_GT4 *nextPrim = prim + 1;
-	u32 uv0 = DrawLevelOvr1P_StoreClipRecordUvScratch(&emit[0], DRAW_LEVEL_OVR1P_UV_SCRATCH_SLOT_0);
-	u32 uv1 = DrawLevelOvr1P_StoreClipRecordUvScratch(&emit[1], DRAW_LEVEL_OVR1P_UV_SCRATCH_SLOT_1);
-	u32 uv2 = DrawLevelOvr1P_StoreClipRecordUvScratch(&emit[2], DRAW_LEVEL_OVR1P_UV_SCRATCH_SLOT_2);
+	u32 uv0 = DrawLevelOvr1P_StoreClipRecordUvScratch(&emit[0], DRAW_LEVEL_OVR_UV_SCRATCH_SLOT_0);
+	u32 uv1 = DrawLevelOvr1P_StoreClipRecordUvScratch(&emit[1], DRAW_LEVEL_OVR_UV_SCRATCH_SLOT_1);
+	u32 uv2 = DrawLevelOvr1P_StoreClipRecordUvScratch(&emit[2], DRAW_LEVEL_OVR_UV_SCRATCH_SLOT_2);
 	u32 code = DrawLevelOvr1P_SelectRawPrimitiveCode(uv1, 0x3e, 0x3c);
 
 	DrawLevelOvr1P_WriteClipRecordGT4(prim, emit, code, uv0, uv1, uv2);
@@ -2709,10 +2689,10 @@ static int Ovr226_800aad44_EmitClipRecordGT4(struct PushBuffer *pb, struct PrimM
 }
 
 static int Ovr226_800aac00_EmitClipRecordGT3(struct PushBuffer *pb, struct PrimMem *primMem, uint32_t *otEntry,
-                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
-                                             const struct DrawLevelOvr1PClipRecord *record)
+                                             const struct DrawLevelOvrScratchVertex *projected, const int *indices,
+                                             const struct DrawLevelOvrClipRecord *record)
 {
-	struct DrawLevelOvr1PScratchVertex emit[3];
+	struct DrawLevelOvrScratchVertex emit[3];
 	int emitIndices[3] = {0, 1, 2};
 
 	s32 nclip = DrawLevelOvr1P_ProjectClipRecordEmitVertices(emit, projected, indices, 3);
@@ -2730,9 +2710,9 @@ static int Ovr226_800aac00_EmitClipRecordGT3(struct PushBuffer *pb, struct PrimM
 	// NOTE(aalhendi): Retail relies on the 0x800aa848 per-record 0xd68 prim reserve.
 	POLY_GT3 *prim = primMem->cursor;
 	POLY_GT3 *nextPrim = prim + 1;
-	u32 uv0 = DrawLevelOvr1P_StoreClipRecordUvScratch(&emit[0], DRAW_LEVEL_OVR1P_UV_SCRATCH_SLOT_0);
-	u32 uv1 = DrawLevelOvr1P_StoreClipRecordUvScratch(&emit[1], DRAW_LEVEL_OVR1P_UV_SCRATCH_SLOT_1);
-	u32 uv2 = DrawLevelOvr1P_StoreClipRecordUvScratch(&emit[2], DRAW_LEVEL_OVR1P_UV_SCRATCH_SLOT_2);
+	u32 uv0 = DrawLevelOvr1P_StoreClipRecordUvScratch(&emit[0], DRAW_LEVEL_OVR_UV_SCRATCH_SLOT_0);
+	u32 uv1 = DrawLevelOvr1P_StoreClipRecordUvScratch(&emit[1], DRAW_LEVEL_OVR_UV_SCRATCH_SLOT_1);
+	u32 uv2 = DrawLevelOvr1P_StoreClipRecordUvScratch(&emit[2], DRAW_LEVEL_OVR_UV_SCRATCH_SLOT_2);
 	u32 code = DrawLevelOvr1P_SelectRawPrimitiveCode(uv1, 0x36, 0x34);
 
 	DrawLevelOvr1P_WriteClipRecordGT3(prim, emit, code, uv0, uv1, uv2);
@@ -2764,7 +2744,7 @@ static void DrawLevelOvr1P_StoreCurrentIrVector(s16 *out)
 #endif
 }
 
-static void Ovr226_800aaad0_PrepareClipRecordDepthScratch(struct DrawLevelOvr1PScratchVertex *projected, s32 threshold)
+static void Ovr226_800aaad0_PrepareClipRecordDepthScratch(struct DrawLevelOvrScratchVertex *projected, s32 threshold)
 {
 	// NOTE(aalhendi): Retail 0x800aaad0..0x800aab00 doubles the transformed
 	// IR vector with MIPS `sll 1` wrap semantics and stores sourceZ-threshold.
@@ -2774,7 +2754,7 @@ static void Ovr226_800aaad0_PrepareClipRecordDepthScratch(struct DrawLevelOvr1PS
 	DrawLevelOvr1P_SetClipRecordSourceDelta(projected, (s16)((s32)projected->pos[2] - threshold));
 }
 
-static void Ovr226_800aa858_ProjectClipRecordRawVertex(struct DrawLevelOvr1PScratchVertex *projected, const struct DrawLevelOvr1PClipRecordVertex *src)
+static void Ovr226_800aa858_ProjectClipRecordRawVertex(struct DrawLevelOvrScratchVertex *projected, const struct DrawLevelOvrClipRecordVertex *src)
 {
 	s16 ir[3];
 
@@ -2793,7 +2773,7 @@ static void Ovr226_800aa858_ProjectClipRecordRawVertex(struct DrawLevelOvr1PScra
 	projected->pos[2] = ir[2];
 }
 
-static void DrawLevelOvr1P_PrepareClipRecordDepthScratchRange(struct DrawLevelOvr1PScratchVertex *projected, int count)
+static void DrawLevelOvr1P_PrepareClipRecordDepthScratchRange(struct DrawLevelOvrScratchVertex *projected, int count)
 {
 	s32 threshold = DrawLevelOvr1P_GetDepthClipThreshold();
 
@@ -2803,7 +2783,7 @@ static void DrawLevelOvr1P_PrepareClipRecordDepthScratchRange(struct DrawLevelOv
 	}
 }
 
-static u32 DrawLevelOvr1P_GetClipRecordProjectedNearMask(const struct DrawLevelOvr1PScratchVertex *projected, int count)
+static u32 DrawLevelOvr1P_GetClipRecordProjectedNearMask(const struct DrawLevelOvrScratchVertex *projected, int count)
 {
 	static const u32 bits[4] = {0x4, 0x8, 0x10, 0x20};
 	u32 mask = 0;
@@ -2819,7 +2799,7 @@ static u32 DrawLevelOvr1P_GetClipRecordProjectedNearMask(const struct DrawLevelO
 	return mask;
 }
 
-static void DrawLevelOvr1P_ClearClipRecordProjectedNearBytes(struct DrawLevelOvr1PScratchVertex *projected, int count)
+static void DrawLevelOvr1P_ClearClipRecordProjectedNearBytes(struct DrawLevelOvrScratchVertex *projected, int count)
 {
 	for (s32 vertexIndex = 0; vertexIndex < count; vertexIndex++)
 	{
@@ -2827,8 +2807,8 @@ static void DrawLevelOvr1P_ClearClipRecordProjectedNearBytes(struct DrawLevelOvr
 	}
 }
 
-static void Ovr226_800aab00_InterpolateClipRecordVertex(struct DrawLevelOvr1PScratchVertex *dst, const struct DrawLevelOvr1PScratchVertex *inside,
-                                                        const struct DrawLevelOvr1PScratchVertex *outside)
+static void Ovr226_800aab00_InterpolateClipRecordVertex(struct DrawLevelOvrScratchVertex *dst, const struct DrawLevelOvrScratchVertex *inside,
+                                                        const struct DrawLevelOvrScratchVertex *outside)
 {
 	const u8 *insideUv = (const u8 *)&inside->flags;
 	const u8 *outsideUv = (const u8 *)&outside->flags;
@@ -2853,13 +2833,13 @@ static void Ovr226_800aab00_InterpolateClipRecordVertex(struct DrawLevelOvr1PScr
 
 static u32 DrawLevelOvr1P_GetClipRecordJumpAddress(int count, u32 nearMask)
 {
-	u32 tableOffset = count == 4 ? DRAW_LEVEL_OVR1P_GT4_CLIP_RECORD_JUMP_TABLE_OFFSET : DRAW_LEVEL_OVR1P_GT3_CLIP_RECORD_JUMP_TABLE_OFFSET;
+	u32 tableOffset = count == 4 ? DRAW_LEVEL_OVR_GT4_CLIP_RECORD_JUMP_TABLE_OFFSET : DRAW_LEVEL_OVR_GT3_CLIP_RECORD_JUMP_TABLE_OFFSET;
 
 	return *CTR_SCRATCHPAD_PTR(u32, tableOffset + (int)nearMask);
 }
 
 static int Ovr226_800aa96c_DispatchGT3ClipRecordLabel(struct PushBuffer *pb, struct PrimMem *primMem, uint32_t *otEntry,
-                                                      struct DrawLevelOvr1PScratchVertex *work, const struct DrawLevelOvr1PClipRecord *record,
+                                                      struct DrawLevelOvrScratchVertex *work, const struct DrawLevelOvrClipRecord *record,
                                                       u32 handlerAddress)
 {
 	int indices[4];
@@ -2927,9 +2907,9 @@ static int Ovr226_800aa96c_DispatchGT3ClipRecordLabel(struct PushBuffer *pb, str
 }
 
 static int DrawLevelOvr1P_EmitClipRecordGT3Table(struct PushBuffer *pb, struct PrimMem *primMem, uint32_t *otEntry,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const struct DrawLevelOvr1PClipRecord *record)
+                                                 const struct DrawLevelOvrScratchVertex *projected, const struct DrawLevelOvrClipRecord *record)
 {
-	struct DrawLevelOvr1PScratchVertex *work = DrawLevelOvr1P_GetClipRecordWorkspace();
+	struct DrawLevelOvrScratchVertex *work = DrawLevelOvr1P_GetClipRecordWorkspace();
 
 	if (work != projected)
 	{
@@ -2948,7 +2928,7 @@ static int DrawLevelOvr1P_EmitClipRecordGT3Table(struct PushBuffer *pb, struct P
 }
 
 static int DrawLevelOvr1P_EmitClipRecordTableTri(struct PushBuffer *pb, struct PrimMem *primMem, uint32_t *otEntry,
-                                                 const struct DrawLevelOvr1PScratchVertex *work, const struct DrawLevelOvr1PClipRecord *record, int a, int b,
+                                                 const struct DrawLevelOvrScratchVertex *work, const struct DrawLevelOvrClipRecord *record, int a, int b,
                                                  int c)
 {
 	int indices[3] = {a, b, c};
@@ -2957,7 +2937,7 @@ static int DrawLevelOvr1P_EmitClipRecordTableTri(struct PushBuffer *pb, struct P
 }
 
 static int DrawLevelOvr1P_EmitClipRecordTableQuad(struct PushBuffer *pb, struct PrimMem *primMem, uint32_t *otEntry,
-                                                  const struct DrawLevelOvr1PScratchVertex *work, const struct DrawLevelOvr1PClipRecord *record, int a, int b,
+                                                  const struct DrawLevelOvrScratchVertex *work, const struct DrawLevelOvrClipRecord *record, int a, int b,
                                                   int c, int d)
 {
 	int indices[4] = {a, b, c, d};
@@ -2966,7 +2946,7 @@ static int DrawLevelOvr1P_EmitClipRecordTableQuad(struct PushBuffer *pb, struct 
 }
 
 static int Ovr226_800aaf70_DispatchGT4ClipRecordLabel(struct PushBuffer *pb, struct PrimMem *primMem, uint32_t *otEntry,
-                                                      struct DrawLevelOvr1PScratchVertex *work, const struct DrawLevelOvr1PClipRecord *record,
+                                                      struct DrawLevelOvrScratchVertex *work, const struct DrawLevelOvrClipRecord *record,
                                                       u32 handlerAddress)
 {
 	// NOTE(aalhendi): Retail 0x800aaf70..0x800ab3d4 jump labels branch back to
@@ -3092,9 +3072,9 @@ static int Ovr226_800aaf70_DispatchGT4ClipRecordLabel(struct PushBuffer *pb, str
 }
 
 static int DrawLevelOvr1P_EmitClipRecordGT4Table(struct PushBuffer *pb, struct PrimMem *primMem, uint32_t *otEntry,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const struct DrawLevelOvr1PClipRecord *record)
+                                                 const struct DrawLevelOvrScratchVertex *projected, const struct DrawLevelOvrClipRecord *record)
 {
-	struct DrawLevelOvr1PScratchVertex *work = DrawLevelOvr1P_GetClipRecordWorkspace();
+	struct DrawLevelOvrScratchVertex *work = DrawLevelOvr1P_GetClipRecordWorkspace();
 
 	if (work != projected)
 	{
@@ -3113,8 +3093,8 @@ static int DrawLevelOvr1P_EmitClipRecordGT4Table(struct PushBuffer *pb, struct P
 	return Ovr226_800aaf70_DispatchGT4ClipRecordLabel(pb, primMem, otEntry, work, record, handlerAddress);
 }
 
-static int Ovr226_800aaed4_ProjectFourthClipRecordAndDispatchGT4(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvr1PScratchVertex *projected,
-                                                                 const struct DrawLevelOvr1PClipRecord *record)
+static int Ovr226_800aaed4_ProjectFourthClipRecordAndDispatchGT4(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvrScratchVertex *projected,
+                                                                 const struct DrawLevelOvrClipRecord *record)
 {
 	uint32_t *otEntry = (uint32_t *)(uintptr_t)record->otEntry;
 
@@ -3130,9 +3110,9 @@ static int Ovr226_800aaed4_ProjectFourthClipRecordAndDispatchGT4(struct PushBuff
 static int DrawLevelOvr1P_HasClipRecordConsumerPrimReserve(const struct PrimMem *primMem);
 
 static int Ovr226_800aa848_ProjectFirstThreeClipRecordsAndDispatch(struct PushBuffer *pb, struct PrimMem *primMem,
-                                                                   const struct DrawLevelOvr1PClipRecord *record)
+                                                                   const struct DrawLevelOvrClipRecord *record)
 {
-	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetClipRecordWorkspace();
+	struct DrawLevelOvrScratchVertex *projected = DrawLevelOvr1P_GetClipRecordWorkspace();
 	u32 header = record->header;
 
 	// NOTE(aalhendi): Retail 0x800aa848 preflights primMem->end against
@@ -3191,7 +3171,7 @@ static int Ovr226_800aa790_TerminalPreamble(struct PushBuffer *pb, const u8 *cur
 	// temporary vertices used by the 0x800aab00 interpolation helper.
 	for (s32 vertexIndex = 0; vertexIndex < 3; vertexIndex++)
 	{
-		struct DrawLevelOvr1PScratchVertex *vertex = DrawLevelOvr1P_TerminalClipVertex(vertexIndex);
+		struct DrawLevelOvrScratchVertex *vertex = DrawLevelOvr1P_TerminalClipVertex(vertexIndex);
 
 		vertex->pos[2] = threshold;
 		vertex->clipNear = 0;
@@ -3258,7 +3238,7 @@ static int DrawLevelOvr1P_ConsumeClipRecords(struct PushBuffer *pb, struct PrimM
 
 	while (cursor < end)
 	{
-		struct DrawLevelOvr1PClipRecord *record = (struct DrawLevelOvr1PClipRecord *)cursor;
+		struct DrawLevelOvrClipRecord *record = (struct DrawLevelOvrClipRecord *)cursor;
 		int count = (record->header & 1) != 0 ? 4 : 3;
 		size_t recordSize = DrawLevelOvr1P_GetClipRecordSize(count);
 
@@ -3304,7 +3284,7 @@ static int DrawLevelOvr1P_SelectDirectBit(s32 nclipResult, u32 tableWord, u32 dr
 	return 0;
 }
 
-static u32 DrawLevelOvr1P_SelectDirectMask(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
+static u32 DrawLevelOvr1P_SelectDirectMask(const struct QuadBlock *block, const struct DrawLevelOvrScratchVertex *projected, const int *indices,
                                            u32 tableWord, u32 allowedMask)
 {
 	int primaryIndices[3] = {indices[0], indices[1], indices[2]};
@@ -3323,7 +3303,7 @@ static u32 DrawLevelOvr1P_SelectDirectMask(const struct QuadBlock *block, const 
 	return directMask & allowedMask;
 }
 
-static u32 DrawLevelOvr1P_SelectAndStoreDirectMask(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
+static u32 DrawLevelOvr1P_SelectAndStoreDirectMask(const struct QuadBlock *block, const struct DrawLevelOvrScratchVertex *projected, const int *indices,
                                                    u32 tableWord, u32 allowedMask)
 {
 	u32 directMask = DrawLevelOvr1P_SelectDirectMask(block, projected, indices, tableWord, allowedMask);
@@ -3332,8 +3312,8 @@ static u32 DrawLevelOvr1P_SelectAndStoreDirectMask(const struct QuadBlock *block
 	return directMask;
 }
 
-static int Ovr226_800a18c0_FullDynamicRecursiveGate(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, u32 allowedMask,
-                                                    struct DrawLevelOvr1PFullDynamicRecursiveGate *gate)
+static int Ovr226_800a18c0_FullDynamicRecursiveGate(const struct DrawLevelOvrScratchVertex *projected, const int *indices, u32 allowedMask,
+                                                    struct DrawLevelOvrFullDynamicRecursiveGate *gate)
 {
 	u32 tableWord = DrawLevelOvr1P_Scratch()->selected4x1TableWord;
 
@@ -3353,7 +3333,7 @@ static int Ovr226_800a18c0_FullDynamicRecursiveGate(const struct DrawLevelOvr1PS
 		return 0;
 	}
 
-	gate->forceDirect = projected == CTR_SCRATCHPAD_PTR(struct DrawLevelOvr1PScratchVertex, DRAW_LEVEL_OVR1P_DEEPEST_PROJECTED_FRAME_OFFSET);
+	gate->forceDirect = projected == CTR_SCRATCHPAD_PTR(struct DrawLevelOvrScratchVertex, DRAW_LEVEL_OVR_DEEPEST_PROJECTED_FRAME_OFFSET);
 
 	return 1;
 }
@@ -3365,30 +3345,30 @@ static u32 DrawLevelOvr1P_GetDirectHandlerAddress(u32 directMask)
 		return 0;
 	}
 
-	return *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_DIRECT_HANDLER_TABLE_OFFSET + (int)directMask);
+	return *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_DIRECT_HANDLER_TABLE_OFFSET + (int)directMask);
 }
 
 static int DrawLevelOvr1P_EmitPreparedProjectedTriDirectCodeAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                  const struct TextureLayout *texture, int writeClipBytes, int waterRenderedDirect,
                                                                  int otIndexOverride, int primCodeOverride);
 static int DrawLevelOvr1P_EmitSignedClipProjectedTriDirectAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                               const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                const struct TextureLayout *texture, int writeClipBytes, int waterRenderedDirect,
                                                                int otIndexOverride, int primCodeOverride);
 static int DrawLevelOvr1P_EmitNonzeroClipProjectedQuadDirectAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                  const struct TextureLayout *texture, int writeClipBytes, int waterRenderedDirect,
                                                                  int otIndexOverride, int primCodeOverride);
 static int DrawLevelOvr1P_EmitPreparedProjectedQuadDirectCodeAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                  const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                                  const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                   const struct TextureLayout *texture, int writeClipBytes, int waterRenderedDirect,
                                                                   int otIndexOverride, int primCodeOverride);
 static int DrawLevelOvr1P_EmitPreparedProjectedDirectMaskRawAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                  const struct TextureLayout *texture, u32 directMask, int otIndexOverride);
 static int DrawLevelOvr1P_EmitPreparedProjectedDirectMaskAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                              const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                              const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                               const struct TextureLayout *texture, u32 directMask, int writeClipBytes, int waterRenderedDirect,
                                                               int otIndexOverride);
 
@@ -3472,7 +3452,7 @@ static int DrawLevelOvr1P_IsTargetGridTerminalHandlerAddress(u32 handlerAddress)
 }
 
 static int DrawLevelOvr1P_EmitPreparedProjectedDirectMaskAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                              const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                              const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                               const struct TextureLayout *texture, u32 directMask, int writeClipBytes, int waterRenderedDirect,
                                                               int otIndexOverride)
 {
@@ -3586,7 +3566,7 @@ static int DrawLevelOvr1P_EmitPreparedProjectedDirectMaskAtOt(struct PushBuffer 
 }
 
 static int DrawLevelOvr1P_EmitPreparedProjectedDirectMaskRawAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                  const struct TextureLayout *texture, u32 directMask, int otIndexOverride)
 {
 	u32 handlerAddress = DrawLevelOvr1P_GetDirectHandlerAddress(directMask);
@@ -3648,7 +3628,7 @@ static int DrawLevelOvr1P_EmitPreparedProjectedDirectMaskRawAtOt(struct PushBuff
 }
 
 static int DrawLevelOvr1P_EmitPreparedProjectedTriDirectCodeAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                  const struct TextureLayout *texture, int writeClipBytes, int waterRenderedDirect,
                                                                  int otIndexOverride, int primCodeOverride)
 {
@@ -3663,7 +3643,7 @@ static int DrawLevelOvr1P_EmitPreparedProjectedTriDirectCodeAtOt(struct PushBuff
 	                                                          DrawLevelOvr1P_GetProjectedTriMaxDepth(projected, indices), otIndexOverride, primCodeOverride);
 }
 
-static int DrawLevelOvr1P_AreProjectedVerticesHalfNearSigned(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count)
+static int DrawLevelOvr1P_AreProjectedVerticesHalfNearSigned(const struct DrawLevelOvrScratchVertex *projected, const int *indices, int count)
 {
 	int value = (s8)projected[indices[0]].clipHalfNear;
 
@@ -3675,7 +3655,7 @@ static int DrawLevelOvr1P_AreProjectedVerticesHalfNearSigned(const struct DrawLe
 	return value < 0;
 }
 
-static int DrawLevelOvr1P_HasProjectedVertexNearSigned(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count)
+static int DrawLevelOvr1P_HasProjectedVertexNearSigned(const struct DrawLevelOvrScratchVertex *projected, const int *indices, int count)
 {
 	int value = 0;
 
@@ -3688,7 +3668,7 @@ static int DrawLevelOvr1P_HasProjectedVertexNearSigned(const struct DrawLevelOvr
 }
 
 static int DrawLevelOvr1P_EmitSignedClipProjectedTriDirectAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                               const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                const struct TextureLayout *texture, int writeClipBytes, int waterRenderedDirect,
                                                                int otIndexOverride, int primCodeOverride)
 {
@@ -3716,7 +3696,7 @@ static int DrawLevelOvr1P_EmitSignedClipProjectedTriDirectAtOt(struct PushBuffer
 }
 
 static int DrawLevelOvr1P_EmitNonzeroClipProjectedQuadDirectAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                  const struct TextureLayout *texture, int writeClipBytes, int waterRenderedDirect,
                                                                  int otIndexOverride, int primCodeOverride)
 {
@@ -3744,7 +3724,7 @@ static int DrawLevelOvr1P_EmitNonzeroClipProjectedQuadDirectAtOt(struct PushBuff
 }
 
 static int DrawLevelOvr1P_EmitPreparedProjectedQuadDirectCodeAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                  const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                                  const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                   const struct TextureLayout *texture, int writeClipBytes, int waterRenderedDirect,
                                                                   int otIndexOverride, int primCodeOverride)
 {
@@ -3784,7 +3764,7 @@ static u32 DrawLevelOvr1P_GetNearSubdivisionHandlerAddress(u32 nearMask, int wri
 		return writeClipBytes ? DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_RENDERED_HELPER_DEFAULT : DRAW_LEVEL_OVR_RETAIL_LABEL_GROUND_4X1_LIST_HELPER_DEFAULT;
 	}
 
-	return *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_NEAR_SUBDIVISION_HANDLER_TABLE_OFFSET + (int)(tableIndex * sizeof(u32)));
+	return *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_NEAR_SUBDIVISION_HANDLER_TABLE_OFFSET + (int)(tableIndex * sizeof(u32)));
 }
 
 static int DrawLevelOvr1P_GetNearSubdivisionTableSlot(u32 nearMask)
@@ -3806,19 +3786,19 @@ static void DrawLevelOvr1P_SetPreviousRecursiveHandler(u32 handlerAddress)
 	DrawLevelOvr1P_Scratch()->previousDirectHandlerAddress = handlerAddress;
 }
 
-static struct DrawLevelOvr1PScratchVertex *DrawLevelOvr1P_GetSubdivisionFrame(int depth)
+static struct DrawLevelOvrScratchVertex *DrawLevelOvr1P_GetSubdivisionFrame(int depth)
 {
-	return CTR_SCRATCHPAD_PTR(struct DrawLevelOvr1PScratchVertex,
-	                          DRAW_LEVEL_OVR1P_PROJECTED_FRAME0_OFFSET + ((depth + 1) * DRAW_LEVEL_OVR1P_RECURSION_FRAME_SIZE));
+	return CTR_SCRATCHPAD_PTR(struct DrawLevelOvrScratchVertex,
+	                          DRAW_LEVEL_OVR_PROJECTED_FRAME0_OFFSET + ((depth + 1) * DRAW_LEVEL_OVR1P_RECURSION_FRAME_SIZE));
 }
 
-static void DrawLevelOvr1P_BuildGridSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void DrawLevelOvr1P_BuildGridSubdivisionFrame(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                      const int *indices, int writeClipBytes);
-static void DrawLevelOvr1P_BuildGridSubdivisionFrame4x4(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void DrawLevelOvr1P_BuildGridSubdivisionFrame4x4(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                         const int *indices, int writeClipBytes);
 
 static int DrawLevelOvr1P_EmitDeepestProjectedDirectStoredMaskAtOt(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                   const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                                   const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                    const struct TextureLayout *texture, u32 directMask, int writeClipBytes, int otIndexOverride)
 {
 	DrawLevelOvr1P_Scratch()->directMask = directMask;
@@ -3839,12 +3819,12 @@ static int DrawLevelOvr1P_EmitDeepestProjectedDirectStoredMaskAtOt(struct PushBu
 }
 
 static int DrawLevelOvr1P_DispatchCopiedGridNear(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                  const struct TextureLayout *texture, u32 nearMask, int depth, int writeClipBytes, u32 allowedMask,
                                                  int inheritedOtIndex);
 
 static int DrawLevelOvr1P_DispatchCopiedGridRenderedNearBranch(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                               const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                const struct TextureLayout *texture, int depth, int writeClipBytes, int inheritedOtIndex)
 {
 	const u32 directMask = DRAW_LEVEL_OVR1P_DIRECT_QUAD;
@@ -3871,7 +3851,7 @@ static int DrawLevelOvr1P_DispatchCopiedGridRenderedNearBranch(struct PushBuffer
 }
 
 static int DrawLevelOvr1P_CopiedGridDirectPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                    const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                    const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                     const struct TextureLayout *texture, int depth, int writeClipBytes, u32 allowedMask, int inheritedOtIndex)
 {
 	u32 directMask;
@@ -3914,7 +3894,7 @@ static int DrawLevelOvr1P_CopiedGridDirectPreflight(struct PushBuffer *pb, struc
 }
 
 static int DrawLevelOvr1P_DispatchCopiedGridFace(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                  const struct TextureLayout *texture, int depth, int writeClipBytes, u32 allowedMask, int inheritedOtIndex)
 {
 	// NOTE(aalhendi): The branch-level retail split is modeled here:
@@ -3943,16 +3923,16 @@ static int DrawLevelOvr1P_DispatchCopiedGridFace(struct PushBuffer *pb, struct P
 }
 
 static int DrawLevelOvr1P_EmitProjectedGridFace(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                 const struct TextureLayout *texture, int depth, int writeClipBytes, u32 allowedMask, int inheritedOtIndex)
 {
 	return DrawLevelOvr1P_DispatchCopiedGridFace(pb, primMem, block, projected, indices, faceIndex, texture, depth, writeClipBytes, allowedMask,
 	                                             inheritedOtIndex);
 }
 
-static int DrawLevelOvr1P_IsDeepestSubdivisionFrame(const struct DrawLevelOvr1PScratchVertex *projected)
+static int DrawLevelOvr1P_IsDeepestSubdivisionFrame(const struct DrawLevelOvrScratchVertex *projected)
 {
-	return projected == CTR_SCRATCHPAD_PTR(struct DrawLevelOvr1PScratchVertex, DRAW_LEVEL_OVR1P_DEEPEST_PROJECTED_FRAME_OFFSET);
+	return projected == CTR_SCRATCHPAD_PTR(struct DrawLevelOvrScratchVertex, DRAW_LEVEL_OVR_DEEPEST_PROJECTED_FRAME_OFFSET);
 }
 
 static int DrawLevelOvr1P_HandlerUsesDeepestCompactGrid(u32 handlerAddress)
@@ -4017,7 +3997,7 @@ static int DrawLevelOvr1P_HandlerUses4x4GridFrame(u32 handlerAddress)
 	}
 }
 
-static const struct DrawLevelOvr1PNearSubdivisionCase *DrawLevelOvr1P_GetDeepestGridCompactCase(int slot)
+static const struct DrawLevelOvrNearSubdivisionCase *DrawLevelOvr1P_GetDeepestGridCompactCase(int slot)
 {
 	switch (slot)
 	{
@@ -4037,11 +4017,11 @@ static const struct DrawLevelOvr1PNearSubdivisionCase *DrawLevelOvr1P_GetDeepest
 }
 
 static int DrawLevelOvr1P_DispatchProjectedGridDeepestCompact(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                              const struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, int depth,
+                                                              const struct DrawLevelOvrScratchVertex *projected, int faceIndex, int depth,
                                                               const struct TextureLayout *texture, int writeClipBytes, u32 allowedMask, int slot,
                                                               int inheritedOtIndex)
 {
-	const struct DrawLevelOvr1PNearSubdivisionCase *subdivisionCase = DrawLevelOvr1P_GetDeepestGridCompactCase(slot);
+	const struct DrawLevelOvrNearSubdivisionCase *subdivisionCase = DrawLevelOvr1P_GetDeepestGridCompactCase(slot);
 
 	(void)allowedMask;
 
@@ -4072,7 +4052,7 @@ static int DrawLevelOvr1P_DispatchProjectedGridDeepestCompact(struct PushBuffer 
 }
 
 static int DrawLevelOvr1P_DispatchProjectedGridHelper(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                      const struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, int depth,
+                                                      const struct DrawLevelOvrScratchVertex *projected, int faceIndex, int depth,
                                                       const struct TextureLayout *texture, u32 handlerAddress, int handlerSlot, int writeClipBytes,
                                                       u32 allowedMask, int inheritedOtIndex)
 {
@@ -4245,7 +4225,7 @@ static int DrawLevelOvr1P_DispatchProjectedGridHelper(struct PushBuffer *pb, str
 }
 
 static int DrawLevelOvr1P_DispatchCopiedGridNear(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                  const struct TextureLayout *texture, u32 nearMask, int depth, int writeClipBytes, u32 allowedMask,
                                                  int inheritedOtIndex)
 {
@@ -4254,7 +4234,7 @@ static int DrawLevelOvr1P_DispatchCopiedGridNear(struct PushBuffer *pb, struct P
 	// through the copied near-handler table at scratch 0x148 + nearMask.
 	u32 handlerAddress = DrawLevelOvr1P_GetNearSubdivisionHandlerAddress(nearMask, writeClipBytes);
 	int handlerSlot = DrawLevelOvr1P_GetNearSubdivisionTableSlot(nearMask);
-	struct DrawLevelOvr1PScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
+	struct DrawLevelOvrScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
 	if (DrawLevelOvr1P_HandlerUses4x4GridFrame(handlerAddress))
 	{
 		DrawLevelOvr1P_BuildGridSubdivisionFrame4x4(sub, projected, indices, writeClipBytes);
@@ -4270,33 +4250,33 @@ static int DrawLevelOvr1P_DispatchCopiedGridNear(struct PushBuffer *pb, struct P
 }
 
 static int Ovr226_800a3eb0_Ground4x1NearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                  const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset, int inheritedOtIndex);
 static int Ovr226_800a3f74_DispatchGround4x1Deepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                    const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                    const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                     const struct TextureLayout *texture, int inheritedOtIndex);
 static int Ovr226_800a402c_DispatchGround4x1DirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                       const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                       const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                        const struct TextureLayout *texture, int inheritedOtIndex);
 static int Ovr226_800a46d0_Ground4x1RenderedPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                      const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                       const struct TextureLayout *texture, int depth, u32 allowedMask, uint32_t *inheritedOtEntry);
 static int Ovr226_800a44e0_DispatchGround4x1RenderedHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                   struct DrawLevelOvr1PScratchVertex *projected, int faceIndex,
+                                                                   struct DrawLevelOvrScratchVertex *projected, int faceIndex,
                                                                    const struct TextureLayout *texture, int depth, u32 handlerAddress,
                                                                    uint32_t *inheritedOtEntry);
 static int Ovr226_800a4ad0_Ground4x1RenderedNearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                         const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                         const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                          const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset,
                                                          uint32_t *inheritedOtEntry);
 static int Ovr226_800a4b54_DispatchGround4x1RenderedDeepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                            const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                            const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                             const struct TextureLayout *texture, uint32_t *inheritedOtEntry);
 static int Ovr226_800a4c0c_DispatchGround4x1RenderedDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                               const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                const struct TextureLayout *texture, uint32_t *inheritedOtEntry);
 
-static int Ovr226_800a3b90_SelectAndStoreGround4x1DirectMask(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, u32 allowedMask,
+static int Ovr226_800a3b90_SelectAndStoreGround4x1DirectMask(const struct DrawLevelOvrScratchVertex *projected, const int *indices, u32 allowedMask,
                                                              u32 *directMask)
 {
 	int primaryIndices[3] = {indices[0], indices[1], indices[2]};
@@ -4325,7 +4305,7 @@ static int Ovr226_800a3b90_SelectAndStoreGround4x1DirectMask(const struct DrawLe
 }
 
 static int Ovr226_800a3b90_Ground4x1DirectPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                    const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                    const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                     const struct TextureLayout *texture, int depth, u32 allowedMask, int inheritedOtIndex)
 {
 	u32 directMask = 0;
@@ -4344,7 +4324,7 @@ static int Ovr226_800a3b90_Ground4x1DirectPreflight(struct PushBuffer *pb, struc
 }
 
 static int Ovr226_800a39c4_DispatchGround4x1HelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                           struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
+                                                           struct DrawLevelOvrScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
                                                            int depth, u32 handlerAddress, int inheritedOtIndex)
 {
 	switch (handlerAddress)
@@ -4401,7 +4381,7 @@ static int Ovr226_800a39c4_DispatchGround4x1HelperWrappers(struct PushBuffer *pb
 	}
 }
 
-static int Ovr226_800a3c70_SelectAndStoreGround4x1SelectorDirectMask(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, u32 tableWord,
+static int Ovr226_800a3c70_SelectAndStoreGround4x1SelectorDirectMask(const struct DrawLevelOvrScratchVertex *projected, const int *indices, u32 tableWord,
                                                                      u32 *directMask)
 {
 	int primaryIndices[3] = {indices[0], indices[1], indices[2]};
@@ -4423,7 +4403,7 @@ static int Ovr226_800a3c70_SelectAndStoreGround4x1SelectorDirectMask(const struc
 	return *directMask != 0;
 }
 
-static int Ovr226_800a3d98_ResolveGround4x1SelectorOtIndex(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected, u32 maxDepth,
+static int Ovr226_800a3d98_ResolveGround4x1SelectorOtIndex(const struct QuadBlock *block, const struct DrawLevelOvrScratchVertex *projected, u32 maxDepth,
                                                            int faceIndex)
 {
 	u32 slotWord = DrawLevelOvr1P_GetProjectedOtSlotWord(projected, faceIndex);
@@ -4435,7 +4415,7 @@ static int Ovr226_800a3d98_ResolveGround4x1SelectorOtIndex(const struct QuadBloc
 	return otIndex < 0 ? 0 : otIndex;
 }
 
-static struct TextureLayout *Ovr226_800a3e00_SelectGround4x1SelectorTexture(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected,
+static struct TextureLayout *Ovr226_800a3e00_SelectGround4x1SelectorTexture(const struct QuadBlock *block, const struct DrawLevelOvrScratchVertex *projected,
                                                                             u32 maxDepth)
 {
 	struct TextureLayout *texture = DrawLevelOvr1P_ResolveProjectedMidTexture(block, projected);
@@ -4466,14 +4446,14 @@ static struct TextureLayout *Ovr226_800a3e00_SelectGround4x1SelectorTexture(cons
 	return texture;
 }
 
-static void Ovr226_800a3e44_WriteGround4x1SelectorUv(struct DrawLevelOvr1PScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
+static void Ovr226_800a3e44_WriteGround4x1SelectorUv(struct DrawLevelOvrScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
                                                      u32 tableWord)
 {
 	DrawLevelOvr1P_WriteProjectedUv(projected, indices, texture, tableWord);
 }
 
 static int Ovr226_800a3eb0_Ground4x1NearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                  const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset, int inheritedOtIndex)
 {
 	u32 nearMask = DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(projected, indices, thresholdScratchOffset);
@@ -4483,18 +4463,18 @@ static int Ovr226_800a3eb0_Ground4x1NearOrDirect(struct PushBuffer *pb, struct P
 		return Ovr226_800a402c_DispatchGround4x1DirectTail(pb, primMem, block, projected, indices, faceIndex, texture, inheritedOtIndex);
 	}
 
-	struct DrawLevelOvr1PScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
+	struct DrawLevelOvrScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
 	Ovr226_800a3a78_BuildGround4x1ListSubdivisionFrame(sub, projected, indices);
 
-	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
+	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
 	DrawLevelOvr1P_SetPreviousRecursiveHandler(handlerAddress);
 
 	return Ovr226_800a39c4_DispatchGround4x1HelperWrappers(pb, primMem, block, sub, faceIndex, texture, depth + 1, handlerAddress, inheritedOtIndex);
 }
 
-static void Ovr226_800a3f74_PrepareGround4x1DeepestUv(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static void Ovr226_800a3f74_PrepareGround4x1DeepestUv(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
-	if (projected != CTR_SCRATCHPAD_PTR(struct DrawLevelOvr1PScratchVertex, DRAW_LEVEL_OVR1P_DEEPEST_PROJECTED_FRAME_OFFSET))
+	if (projected != CTR_SCRATCHPAD_PTR(struct DrawLevelOvrScratchVertex, DRAW_LEVEL_OVR_DEEPEST_PROJECTED_FRAME_OFFSET))
 	{
 		return;
 	}
@@ -4522,18 +4502,18 @@ static void Ovr226_800a3f74_PrepareGround4x1DeepestUv(const struct DrawLevelOvr1
 		return;
 	}
 
-	u32 sourceOffset = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_MOSAIC_SOURCE_INDEX_OFFSET) << 1;
+	u32 sourceOffset = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_MOSAIC_SOURCE_INDEX_OFFSET) << 1;
 	if ((s32)(DrawLevelOvr1P_Scratch()->selected4x1TableWord << 8) < 0)
 	{
 		sourceOffset += 0x30;
 	}
-	sourceOffset += *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_MOSAIC_SOURCE_BIAS_OFFSET);
+	sourceOffset += *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_MOSAIC_SOURCE_BIAS_OFFSET);
 
 	const u8 *source = (const u8 *)(uintptr_t)(mosaicBase + sourceOffset);
 	u32 uv0 = DrawLevelOvr1P_ReadPackedWord(source + 0);
 	u32 uv1 = DrawLevelOvr1P_ReadPackedWord(source + 4);
 
-	struct DrawLevelOvr1PScratchVertex *mutableProjected = (struct DrawLevelOvr1PScratchVertex *)projected;
+	struct DrawLevelOvrScratchVertex *mutableProjected = (struct DrawLevelOvrScratchVertex *)projected;
 	DrawLevelOvr1P_Scratch()->uv.uv0 = uv0;
 	mutableProjected[indices[0]].flags = (u16)uv0;
 	DrawLevelOvr1P_Scratch()->uv.uv1 = uv1;
@@ -4543,7 +4523,7 @@ static void Ovr226_800a3f74_PrepareGround4x1DeepestUv(const struct DrawLevelOvr1
 }
 
 static int Ovr226_800a3f74_DispatchGround4x1Deepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                    const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                    const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                     const struct TextureLayout *texture, int inheritedOtIndex)
 {
 	Ovr226_800a3f74_PrepareGround4x1DeepestUv(projected, indices);
@@ -4564,7 +4544,7 @@ static uint32_t *Ovr226_800a4158_ResolveGround4x1DirectOtEntry(struct PushBuffer
 }
 
 static int Ovr226_800a4034_EmitGround4x1GT3Raw(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
+                                               const struct DrawLevelOvrScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
                                                int inheritedOtIndex, int secondary)
 {
 	int triIndices[3];
@@ -4607,7 +4587,7 @@ static int Ovr226_800a4034_EmitGround4x1GT3Raw(struct PushBuffer *pb, struct Pri
 }
 
 static int Ovr226_800a40b8_EmitGround4x1GT4Raw(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
+                                               const struct DrawLevelOvrScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
                                                int inheritedOtIndex)
 {
 	uint32_t *otEntry = Ovr226_800a4158_ResolveGround4x1DirectOtEntry(pb, inheritedOtIndex);
@@ -4636,7 +4616,7 @@ static int Ovr226_800a40b8_EmitGround4x1GT4Raw(struct PushBuffer *pb, struct Pri
 }
 
 static int Ovr226_800a402c_DispatchGround4x1DirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                       const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                       const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                        const struct TextureLayout *texture, int inheritedOtIndex)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
@@ -4657,7 +4637,7 @@ static int Ovr226_800a402c_DispatchGround4x1DirectTail(struct PushBuffer *pb, st
 	}
 }
 
-static int Ovr226_800a3c70_Ground4x1SelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvr1PScratchVertex *projected,
+static int Ovr226_800a3c70_Ground4x1SelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvrScratchVertex *projected,
                                                      struct QuadBlock *block, int faceIndex)
 {
 	int indices[4];
@@ -4681,20 +4661,20 @@ static int Ovr226_800a3c70_Ground4x1SelectorNearGate(struct PushBuffer *pb, stru
 }
 
 static uint32_t *Ovr226_800a4978_ResolveGround4x1RenderedOtEntry(struct PushBuffer *pb, const struct QuadBlock *block,
-                                                                 const struct DrawLevelOvr1PScratchVertex *projected, u32 maxDepth, int faceIndex)
+                                                                 const struct DrawLevelOvrScratchVertex *projected, u32 maxDepth, int faceIndex)
 {
 	int otIndex = Ovr226_800a3d98_ResolveGround4x1SelectorOtIndex(block, projected, maxDepth, faceIndex);
 
 	return &pb->ptrOT[otIndex];
 }
 
-static struct TextureLayout *Ovr226_800a49e0_SelectGround4x1RenderedTexture(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected,
+static struct TextureLayout *Ovr226_800a49e0_SelectGround4x1RenderedTexture(const struct QuadBlock *block, const struct DrawLevelOvrScratchVertex *projected,
                                                                             u32 maxDepth)
 {
 	return Ovr226_800a3e00_SelectGround4x1SelectorTexture(block, projected, maxDepth);
 }
 
-static void Ovr226_800a4a28_WriteGround4x1RenderedUv(struct DrawLevelOvr1PScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
+static void Ovr226_800a4a28_WriteGround4x1RenderedUv(struct DrawLevelOvrScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
                                                      u32 tableWord)
 {
 	DrawLevelOvr1P_WriteProjectedUv(projected, indices, texture, tableWord);
@@ -4706,7 +4686,7 @@ static void Ovr226_800a4950_StoreGround4x1RenderedClipHeader(u32 tableWord)
 }
 
 static int Ovr226_800a4dcc_WriteGround4x1RenderedClippedRecordAtOtEntry(struct PushBuffer *pb, const struct QuadBlock *block,
-                                                                        const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count,
+                                                                        const struct DrawLevelOvrScratchVertex *projected, const int *indices, int count,
                                                                         uint32_t *otEntry)
 {
 	u8 *cursor = DrawLevelOvr1P_GetClipRecordCursor();
@@ -4724,7 +4704,7 @@ static int Ovr226_800a4dcc_WriteGround4x1RenderedClippedRecordAtOtEntry(struct P
 		return 1;
 	}
 
-	struct DrawLevelOvr1PClipRecord *record = (struct DrawLevelOvr1PClipRecord *)cursor;
+	struct DrawLevelOvrClipRecord *record = (struct DrawLevelOvrClipRecord *)cursor;
 	record->header = DrawLevelOvr1P_GetRenderedClipRecordHeader(block, count);
 	record->otEntry = (u32)(uintptr_t)otEntry;
 	record->tpage = DrawLevelOvr1P_Scratch()->uv.tpage;
@@ -4740,7 +4720,7 @@ static int Ovr226_800a4dcc_WriteGround4x1RenderedClippedRecordAtOtEntry(struct P
 }
 
 static int Ovr226_800a4c14_EmitGround4x1RenderedGT3RawOrClip(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
+                                                             const struct DrawLevelOvrScratchVertex *projected, const int *indices,
                                                              const struct TextureLayout *texture, uint32_t *inheritedOtEntry, int secondary)
 {
 	int triIndices[3];
@@ -4778,7 +4758,7 @@ static int Ovr226_800a4c14_EmitGround4x1RenderedGT3RawOrClip(struct PushBuffer *
 }
 
 static int Ovr226_800a4cc8_EmitGround4x1RenderedGT4RawOrClip(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
+                                                             const struct DrawLevelOvrScratchVertex *projected, const int *indices,
                                                              const struct TextureLayout *texture, uint32_t *inheritedOtEntry)
 {
 	if (inheritedOtEntry == NULL)
@@ -4801,7 +4781,7 @@ static int Ovr226_800a4cc8_EmitGround4x1RenderedGT4RawOrClip(struct PushBuffer *
 }
 
 static int Ovr226_800a4c0c_DispatchGround4x1RenderedDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                               const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                const struct TextureLayout *texture, uint32_t *inheritedOtEntry)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
@@ -4822,9 +4802,9 @@ static int Ovr226_800a4c0c_DispatchGround4x1RenderedDirectTail(struct PushBuffer
 	}
 }
 
-static void Ovr226_800a4b54_PrepareGround4x1RenderedDeepestUv(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static void Ovr226_800a4b54_PrepareGround4x1RenderedDeepestUv(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
-	if (projected != CTR_SCRATCHPAD_PTR(struct DrawLevelOvr1PScratchVertex, DRAW_LEVEL_OVR1P_DEEPEST_PROJECTED_FRAME_OFFSET))
+	if (projected != CTR_SCRATCHPAD_PTR(struct DrawLevelOvrScratchVertex, DRAW_LEVEL_OVR_DEEPEST_PROJECTED_FRAME_OFFSET))
 	{
 		return;
 	}
@@ -4851,18 +4831,18 @@ static void Ovr226_800a4b54_PrepareGround4x1RenderedDeepestUv(const struct DrawL
 		return;
 	}
 
-	u32 sourceOffset = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_MOSAIC_SOURCE_INDEX_OFFSET) << 1;
+	u32 sourceOffset = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_MOSAIC_SOURCE_INDEX_OFFSET) << 1;
 	if ((s32)(DrawLevelOvr1P_Scratch()->selected4x1TableWord << 8) < 0)
 	{
 		sourceOffset += 0x30;
 	}
-	sourceOffset += *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_MOSAIC_SOURCE_BIAS_OFFSET);
+	sourceOffset += *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_MOSAIC_SOURCE_BIAS_OFFSET);
 
 	const u8 *source = (const u8 *)(uintptr_t)(mosaicBase + sourceOffset);
 	u32 uv0 = DrawLevelOvr1P_ReadPackedWord(source + 0);
 	u32 uv1 = DrawLevelOvr1P_ReadPackedWord(source + 4);
 
-	struct DrawLevelOvr1PScratchVertex *mutableProjected = (struct DrawLevelOvr1PScratchVertex *)projected;
+	struct DrawLevelOvrScratchVertex *mutableProjected = (struct DrawLevelOvrScratchVertex *)projected;
 	DrawLevelOvr1P_Scratch()->uv.uv0 = uv0;
 	mutableProjected[indices[0]].flags = (u16)uv0;
 	DrawLevelOvr1P_Scratch()->uv.uv1 = uv1;
@@ -4872,7 +4852,7 @@ static void Ovr226_800a4b54_PrepareGround4x1RenderedDeepestUv(const struct DrawL
 }
 
 static int Ovr226_800a4b54_DispatchGround4x1RenderedDeepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                            const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                            const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                             const struct TextureLayout *texture, uint32_t *inheritedOtEntry)
 {
 	Ovr226_800a4b54_PrepareGround4x1RenderedDeepestUv(projected, indices);
@@ -4883,7 +4863,7 @@ static int Ovr226_800a4b54_DispatchGround4x1RenderedDeepest(struct PushBuffer *p
 }
 
 static int Ovr226_800a4ad0_Ground4x1RenderedNearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                         const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                         const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                          const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset, uint32_t *inheritedOtEntry)
 {
 	u32 nearMask = DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(projected, indices, thresholdScratchOffset);
@@ -4893,17 +4873,17 @@ static int Ovr226_800a4ad0_Ground4x1RenderedNearOrDirect(struct PushBuffer *pb, 
 		return Ovr226_800a4c0c_DispatchGround4x1RenderedDirectTail(pb, primMem, block, projected, indices, faceIndex, texture, inheritedOtEntry);
 	}
 
-	struct DrawLevelOvr1PScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
+	struct DrawLevelOvrScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
 	Ovr226_800a4594_BuildGround4x1RenderedSubdivisionFrame(sub, projected, indices);
 
-	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
+	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
 	DrawLevelOvr1P_SetPreviousRecursiveHandler(handlerAddress);
 
 	return Ovr226_800a44e0_DispatchGround4x1RenderedHelperWrappers(pb, primMem, block, sub, faceIndex, texture, depth + 1, handlerAddress, inheritedOtEntry);
 }
 
 static int Ovr226_800a46d0_Ground4x1RenderedPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                      const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                       const struct TextureLayout *texture, int depth, u32 allowedMask, uint32_t *inheritedOtEntry)
 {
 	u32 directMask = 0;
@@ -4932,7 +4912,7 @@ static int Ovr226_800a46d0_Ground4x1RenderedPreflight(struct PushBuffer *pb, str
 }
 
 static int Ovr226_800a44e0_DispatchGround4x1RenderedHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                   struct DrawLevelOvr1PScratchVertex *projected, int faceIndex,
+                                                                   struct DrawLevelOvrScratchVertex *projected, int faceIndex,
                                                                    const struct TextureLayout *texture, int depth, u32 handlerAddress,
                                                                    uint32_t *inheritedOtEntry)
 {
@@ -4990,7 +4970,7 @@ static int Ovr226_800a44e0_DispatchGround4x1RenderedHelperWrappers(struct PushBu
 	}
 }
 
-static int Ovr226_800a47f4_Ground4x1RenderedSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvr1PScratchVertex *projected,
+static int Ovr226_800a47f4_Ground4x1RenderedSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvrScratchVertex *projected,
                                                              struct QuadBlock *block, int faceIndex)
 {
 	int indices[4];
@@ -5025,20 +5005,20 @@ static int Ovr226_800a47f4_Ground4x1RenderedSelectorNearGate(struct PushBuffer *
 }
 
 static int Ovr226_800a52bc_DispatchGround4x2HelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                           struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
+                                                           struct DrawLevelOvrScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
                                                            int depth, u32 handlerAddress, int handlerSlot, int inheritedOtIndex);
 static int Ovr226_800a5b2c_Ground4x2NearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                  const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset, int inheritedOtIndex);
 static int Ovr226_800a5c54_DispatchGround4x2Deepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                    const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                    const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                     const struct TextureLayout *texture, int inheritedOtIndex);
 static int Ovr226_800a5d0c_DispatchGround4x2DirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                       const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                       const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                        const struct TextureLayout *texture, int inheritedOtIndex);
 
 static int Ovr226_800a580c_Ground4x2DirectPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                    const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                    const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                     const struct TextureLayout *texture, int depth, u32 allowedMask, int inheritedOtIndex)
 {
 	u32 directMask = 0;
@@ -5057,10 +5037,10 @@ static int Ovr226_800a580c_Ground4x2DirectPreflight(struct PushBuffer *pb, struc
 }
 
 static int Ovr226_800a52bc_DispatchGround4x2DeepestCompact(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                           const struct DrawLevelOvr1PScratchVertex *projected, int faceIndex,
+                                                           const struct DrawLevelOvrScratchVertex *projected, int faceIndex,
                                                            const struct TextureLayout *texture, int depth, int handlerSlot, int inheritedOtIndex)
 {
-	const struct DrawLevelOvr1PNearSubdivisionCase *subdivisionCase = DrawLevelOvr1P_GetDeepestGridCompactCase(handlerSlot);
+	const struct DrawLevelOvrNearSubdivisionCase *subdivisionCase = DrawLevelOvr1P_GetDeepestGridCompactCase(handlerSlot);
 
 	for (s32 subdivisionIndex = 0; subdivisionIndex < 2; subdivisionIndex++)
 	{
@@ -5087,7 +5067,7 @@ static int Ovr226_800a52bc_DispatchGround4x2DeepestCompact(struct PushBuffer *pb
 }
 
 static int Ovr226_800a52bc_DispatchGround4x2HelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                           struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
+                                                           struct DrawLevelOvrScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
                                                            int depth, u32 handlerAddress, int handlerSlot, int inheritedOtIndex)
 {
 	const u32 allowedQuad = DRAW_LEVEL_OVR1P_DIRECT_QUAD;
@@ -5253,7 +5233,7 @@ static int Ovr226_800a52bc_DispatchGround4x2HelperWrappers(struct PushBuffer *pb
 }
 
 static int Ovr226_800a5b2c_Ground4x2NearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                  const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset, int inheritedOtIndex)
 {
 	u32 nearMask = DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(projected, indices, thresholdScratchOffset);
@@ -5263,10 +5243,10 @@ static int Ovr226_800a5b2c_Ground4x2NearOrDirect(struct PushBuffer *pb, struct P
 		return Ovr226_800a5d0c_DispatchGround4x2DirectTail(pb, primMem, block, projected, indices, faceIndex, texture, inheritedOtIndex);
 	}
 
-	struct DrawLevelOvr1PScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
+	struct DrawLevelOvrScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
 	Ovr226_800a56f4_BuildGround4x2ListSubdivisionFrame(sub, projected, indices);
 
-	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
+	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
 	int handlerSlot = DrawLevelOvr1P_GetNearSubdivisionTableSlot(nearMask);
 	DrawLevelOvr1P_SetPreviousRecursiveHandler(handlerAddress);
 
@@ -5274,7 +5254,7 @@ static int Ovr226_800a5b2c_Ground4x2NearOrDirect(struct PushBuffer *pb, struct P
 	                                                       inheritedOtIndex);
 }
 
-static void Ovr226_800a5c54_PrepareGround4x2DeepestUv(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static void Ovr226_800a5c54_PrepareGround4x2DeepestUv(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
 	u32 handlerAddress = DrawLevelOvr1P_GetDirectHandlerAddress(directMask);
@@ -5286,7 +5266,7 @@ static void Ovr226_800a5c54_PrepareGround4x2DeepestUv(const struct DrawLevelOvr1
 }
 
 static int Ovr226_800a5c54_DispatchGround4x2Deepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                    const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                    const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                     const struct TextureLayout *texture, int inheritedOtIndex)
 {
 	Ovr226_800a5c54_PrepareGround4x2DeepestUv(projected, indices);
@@ -5307,7 +5287,7 @@ static uint32_t *Ovr226_800a5e38_ResolveGround4x2DirectOtEntry(struct PushBuffer
 }
 
 static int Ovr226_800a5d14_EmitGround4x2GT3Raw(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
+                                               const struct DrawLevelOvrScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
                                                int inheritedOtIndex, int secondary)
 {
 	int triIndices[3];
@@ -5336,7 +5316,7 @@ static int Ovr226_800a5d14_EmitGround4x2GT3Raw(struct PushBuffer *pb, struct Pri
 }
 
 static int Ovr226_800a5d98_EmitGround4x2GT4Raw(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
+                                               const struct DrawLevelOvrScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
                                                int inheritedOtIndex)
 {
 	uint32_t *otEntry = Ovr226_800a5e38_ResolveGround4x2DirectOtEntry(pb, inheritedOtIndex);
@@ -5350,7 +5330,7 @@ static int Ovr226_800a5d98_EmitGround4x2GT4Raw(struct PushBuffer *pb, struct Pri
 }
 
 static int Ovr226_800a5d0c_DispatchGround4x2DirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                       const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                       const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                        const struct TextureLayout *texture, int inheritedOtIndex)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
@@ -5371,7 +5351,7 @@ static int Ovr226_800a5d0c_DispatchGround4x2DirectTail(struct PushBuffer *pb, st
 	}
 }
 
-static int Ovr226_800a58ec_Ground4x2SelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvr1PScratchVertex *projected,
+static int Ovr226_800a58ec_Ground4x2SelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvrScratchVertex *projected,
                                                      struct QuadBlock *block, int faceIndex)
 {
 	int indices[4];
@@ -5395,20 +5375,20 @@ static int Ovr226_800a58ec_Ground4x2SelectorNearGate(struct PushBuffer *pb, stru
 }
 
 static int Ovr226_800a725c_DispatchDynamicListHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                             struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
+                                                             struct DrawLevelOvrScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
                                                              int depth, u32 handlerAddress, int handlerSlot, int inheritedOtIndex);
 static int Ovr226_800a78a8_DynamicListNearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                   const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                   const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                    const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset, int inheritedOtIndex);
 static int Ovr226_800a79a0_DispatchDynamicListDeepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                      const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                       const struct TextureLayout *texture, int inheritedOtIndex);
 static int Ovr226_800a7a58_DispatchDynamicListDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                         const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                         const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                          const struct TextureLayout *texture, int inheritedOtIndex);
 
 static int Ovr226_800a7588_DynamicListDirectPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                      const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                       const struct TextureLayout *texture, int depth, u32 allowedMask, int inheritedOtIndex)
 {
 	u32 directMask = 0;
@@ -5427,7 +5407,7 @@ static int Ovr226_800a7588_DynamicListDirectPreflight(struct PushBuffer *pb, str
 }
 
 static int Ovr226_800a725c_DispatchDynamicListHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                             struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
+                                                             struct DrawLevelOvrScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
                                                              int depth, u32 handlerAddress, int handlerSlot, int inheritedOtIndex)
 {
 	const u32 allowedQuad = DRAW_LEVEL_OVR1P_DIRECT_QUAD;
@@ -5590,7 +5570,7 @@ static int Ovr226_800a725c_DispatchDynamicListHelperWrappers(struct PushBuffer *
 }
 
 static int Ovr226_800a78a8_DynamicListNearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                   const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                   const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                    const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset, int inheritedOtIndex)
 {
 	u32 nearMask = DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(projected, indices, thresholdScratchOffset);
@@ -5600,10 +5580,10 @@ static int Ovr226_800a78a8_DynamicListNearOrDirect(struct PushBuffer *pb, struct
 		return Ovr226_800a7a58_DispatchDynamicListDirectTail(pb, primMem, block, projected, indices, faceIndex, texture, inheritedOtIndex);
 	}
 
-	struct DrawLevelOvr1PScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
+	struct DrawLevelOvrScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
 	Ovr226_800a74a0_BuildDynamicListSubdivisionFrame(sub, projected, indices);
 
-	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
+	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
 	int handlerSlot = DrawLevelOvr1P_GetNearSubdivisionTableSlot(nearMask);
 	DrawLevelOvr1P_SetPreviousRecursiveHandler(handlerAddress);
 
@@ -5611,7 +5591,7 @@ static int Ovr226_800a78a8_DynamicListNearOrDirect(struct PushBuffer *pb, struct
 	                                                         inheritedOtIndex);
 }
 
-static void Ovr226_800a79a0_PrepareDynamicListDeepestUv(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static void Ovr226_800a79a0_PrepareDynamicListDeepestUv(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
 	u32 handlerAddress = DrawLevelOvr1P_GetDirectHandlerAddress(directMask);
@@ -5623,7 +5603,7 @@ static void Ovr226_800a79a0_PrepareDynamicListDeepestUv(const struct DrawLevelOv
 }
 
 static int Ovr226_800a79a0_DispatchDynamicListDeepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                      const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                       const struct TextureLayout *texture, int inheritedOtIndex)
 {
 	Ovr226_800a79a0_PrepareDynamicListDeepestUv(projected, indices);
@@ -5634,21 +5614,21 @@ static int Ovr226_800a79a0_DispatchDynamicListDeepest(struct PushBuffer *pb, str
 }
 
 static int Ovr226_800a7a60_EmitDynamicListGT3Raw(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
+                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
                                                  int inheritedOtIndex, int secondary)
 {
 	return Ovr226_800a5d14_EmitGround4x2GT3Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex, secondary);
 }
 
 static int Ovr226_800a7ae4_EmitDynamicListGT4Raw(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
+                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
                                                  int inheritedOtIndex)
 {
 	return Ovr226_800a5d98_EmitGround4x2GT4Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex);
 }
 
 static int Ovr226_800a7a58_DispatchDynamicListDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                         const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                         const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                          const struct TextureLayout *texture, int inheritedOtIndex)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
@@ -5669,7 +5649,7 @@ static int Ovr226_800a7a58_DispatchDynamicListDirectTail(struct PushBuffer *pb, 
 	}
 }
 
-static int Ovr226_800a7668_DynamicListSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvr1PScratchVertex *projected,
+static int Ovr226_800a7668_DynamicListSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvrScratchVertex *projected,
                                                        struct QuadBlock *block, int faceIndex)
 {
 	int indices[4];
@@ -5693,20 +5673,20 @@ static int Ovr226_800a7668_DynamicListSelectorNearGate(struct PushBuffer *pb, st
 }
 
 static int Ovr226_800a8e7c_DispatchWideDynamicHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                             struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
+                                                             struct DrawLevelOvrScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
                                                              int depth, u32 handlerAddress, int handlerSlot, int inheritedOtIndex);
 static int Ovr226_800a94c8_WideDynamicNearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                   const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                   const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                    const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset, int inheritedOtIndex);
 static int Ovr226_800a95c0_DispatchWideDynamicDeepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                      const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                       const struct TextureLayout *texture, int inheritedOtIndex);
 static int Ovr226_800a9678_DispatchWideDynamicDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                         const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                         const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                          const struct TextureLayout *texture, int inheritedOtIndex);
 
 static int Ovr226_800a91a8_WideDynamicDirectPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                      const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                       const struct TextureLayout *texture, int depth, u32 allowedMask, int inheritedOtIndex)
 {
 	u32 directMask = 0;
@@ -5725,7 +5705,7 @@ static int Ovr226_800a91a8_WideDynamicDirectPreflight(struct PushBuffer *pb, str
 }
 
 static int Ovr226_800a8e7c_DispatchWideDynamicHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                             struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
+                                                             struct DrawLevelOvrScratchVertex *projected, int faceIndex, const struct TextureLayout *texture,
                                                              int depth, u32 handlerAddress, int handlerSlot, int inheritedOtIndex)
 {
 	const u32 allowedQuad = DRAW_LEVEL_OVR1P_DIRECT_QUAD;
@@ -5888,7 +5868,7 @@ static int Ovr226_800a8e7c_DispatchWideDynamicHelperWrappers(struct PushBuffer *
 }
 
 static int Ovr226_800a94c8_WideDynamicNearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                   const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                   const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                    const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset, int inheritedOtIndex)
 {
 	u32 nearMask = DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(projected, indices, thresholdScratchOffset);
@@ -5898,10 +5878,10 @@ static int Ovr226_800a94c8_WideDynamicNearOrDirect(struct PushBuffer *pb, struct
 		return Ovr226_800a9678_DispatchWideDynamicDirectTail(pb, primMem, block, projected, indices, faceIndex, texture, inheritedOtIndex);
 	}
 
-	struct DrawLevelOvr1PScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
+	struct DrawLevelOvrScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
 	Ovr226_800a90c0_BuildWideDynamicSubdivisionFrame(sub, projected, indices);
 
-	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
+	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
 	int handlerSlot = DrawLevelOvr1P_GetNearSubdivisionTableSlot(nearMask);
 	DrawLevelOvr1P_SetPreviousRecursiveHandler(handlerAddress);
 
@@ -5909,7 +5889,7 @@ static int Ovr226_800a94c8_WideDynamicNearOrDirect(struct PushBuffer *pb, struct
 	                                                         inheritedOtIndex);
 }
 
-static void Ovr226_800a95c0_PrepareWideDynamicDeepestUv(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static void Ovr226_800a95c0_PrepareWideDynamicDeepestUv(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
 	u32 handlerAddress = DrawLevelOvr1P_GetDirectHandlerAddress(directMask);
@@ -5921,7 +5901,7 @@ static void Ovr226_800a95c0_PrepareWideDynamicDeepestUv(const struct DrawLevelOv
 }
 
 static int Ovr226_800a95c0_DispatchWideDynamicDeepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                      const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                       const struct TextureLayout *texture, int inheritedOtIndex)
 {
 	Ovr226_800a95c0_PrepareWideDynamicDeepestUv(projected, indices);
@@ -5932,21 +5912,21 @@ static int Ovr226_800a95c0_DispatchWideDynamicDeepest(struct PushBuffer *pb, str
 }
 
 static int Ovr226_800a9680_EmitWideDynamicGT3Raw(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
+                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
                                                  int inheritedOtIndex, int secondary)
 {
 	return Ovr226_800a5d14_EmitGround4x2GT3Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex, secondary);
 }
 
 static int Ovr226_800a9704_EmitWideDynamicGT4Raw(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
+                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
                                                  int inheritedOtIndex)
 {
 	return Ovr226_800a5d98_EmitGround4x2GT4Raw(pb, primMem, block, projected, indices, texture, inheritedOtIndex);
 }
 
 static int Ovr226_800a9678_DispatchWideDynamicDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                         const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                         const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                          const struct TextureLayout *texture, int inheritedOtIndex)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
@@ -5967,7 +5947,7 @@ static int Ovr226_800a9678_DispatchWideDynamicDirectTail(struct PushBuffer *pb, 
 	}
 }
 
-static int Ovr226_800a9288_WideDynamicSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvr1PScratchVertex *projected,
+static int Ovr226_800a9288_WideDynamicSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvrScratchVertex *projected,
                                                        struct QuadBlock *block, int faceIndex)
 {
 	int indices[4];
@@ -5991,21 +5971,21 @@ static int Ovr226_800a9288_WideDynamicSelectorNearGate(struct PushBuffer *pb, st
 }
 
 static int Ovr226_800a661c_Ground4x2RenderedPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                      const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                       const struct TextureLayout *texture, int depth, u32 allowedMask, uint32_t *inheritedOtEntry);
 static int Ovr226_800a61c0_DispatchGround4x2RenderedHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                   struct DrawLevelOvr1PScratchVertex *projected, int faceIndex,
+                                                                   struct DrawLevelOvrScratchVertex *projected, int faceIndex,
                                                                    const struct TextureLayout *texture, int depth, u32 handlerAddress, int handlerSlot,
                                                                    uint32_t *inheritedOtEntry);
 static int Ovr226_800a69dc_Ground4x2RenderedNearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                         const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                         const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                          const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset,
                                                          uint32_t *inheritedOtEntry);
 static int Ovr226_800a6af4_DispatchGround4x2RenderedDeepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                            const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                            const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                             const struct TextureLayout *texture, uint32_t *inheritedOtEntry);
 static int Ovr226_800a6bac_DispatchGround4x2RenderedDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                               const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                const struct TextureLayout *texture, uint32_t *inheritedOtEntry);
 
 static void Ovr226_800a689c_StoreGround4x2RenderedClipHeader(u32 tableWord)
@@ -6014,25 +5994,25 @@ static void Ovr226_800a689c_StoreGround4x2RenderedClipHeader(u32 tableWord)
 }
 
 static uint32_t *Ovr226_800a68c8_ResolveGround4x2RenderedOtEntry(struct PushBuffer *pb, const struct QuadBlock *block,
-                                                                 const struct DrawLevelOvr1PScratchVertex *projected, u32 maxDepth, int faceIndex)
+                                                                 const struct DrawLevelOvrScratchVertex *projected, u32 maxDepth, int faceIndex)
 {
 	return Ovr226_800a4978_ResolveGround4x1RenderedOtEntry(pb, block, projected, maxDepth, faceIndex);
 }
 
-static struct TextureLayout *Ovr226_800a6930_SelectGround4x2RenderedTexture(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected,
+static struct TextureLayout *Ovr226_800a6930_SelectGround4x2RenderedTexture(const struct QuadBlock *block, const struct DrawLevelOvrScratchVertex *projected,
                                                                             u32 maxDepth)
 {
 	return Ovr226_800a49e0_SelectGround4x1RenderedTexture(block, projected, maxDepth);
 }
 
-static void Ovr226_800a6970_WriteGround4x2RenderedUv(struct DrawLevelOvr1PScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
+static void Ovr226_800a6970_WriteGround4x2RenderedUv(struct DrawLevelOvrScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
                                                      u32 tableWord)
 {
 	DrawLevelOvr1P_WriteProjectedUv(projected, indices, texture, tableWord);
 }
 
 static int Ovr226_800a6d6c_WriteGround4x2RenderedClippedRecordAtOtEntry(struct PushBuffer *pb, const struct QuadBlock *block,
-                                                                        const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count,
+                                                                        const struct DrawLevelOvrScratchVertex *projected, const int *indices, int count,
                                                                         uint32_t *otEntry)
 {
 	u8 *cursor = DrawLevelOvr1P_GetClipRecordCursor();
@@ -6050,7 +6030,7 @@ static int Ovr226_800a6d6c_WriteGround4x2RenderedClippedRecordAtOtEntry(struct P
 		return 1;
 	}
 
-	struct DrawLevelOvr1PClipRecord *record = (struct DrawLevelOvr1PClipRecord *)cursor;
+	struct DrawLevelOvrClipRecord *record = (struct DrawLevelOvrClipRecord *)cursor;
 	record->header = DrawLevelOvr1P_GetRenderedClipRecordHeader(block, count);
 	record->otEntry = (u32)(uintptr_t)otEntry;
 	record->tpage = DrawLevelOvr1P_Scratch()->uv.tpage;
@@ -6066,7 +6046,7 @@ static int Ovr226_800a6d6c_WriteGround4x2RenderedClippedRecordAtOtEntry(struct P
 }
 
 static int Ovr226_800a6bb4_EmitGround4x2RenderedGT3RawOrClip(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
+                                                             const struct DrawLevelOvrScratchVertex *projected, const int *indices,
                                                              const struct TextureLayout *texture, uint32_t *inheritedOtEntry, int secondary)
 {
 	int triIndices[3];
@@ -6104,7 +6084,7 @@ static int Ovr226_800a6bb4_EmitGround4x2RenderedGT3RawOrClip(struct PushBuffer *
 }
 
 static int Ovr226_800a6c68_EmitGround4x2RenderedGT4RawOrClip(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
+                                                             const struct DrawLevelOvrScratchVertex *projected, const int *indices,
                                                              const struct TextureLayout *texture, uint32_t *inheritedOtEntry)
 {
 	if (inheritedOtEntry == NULL)
@@ -6127,7 +6107,7 @@ static int Ovr226_800a6c68_EmitGround4x2RenderedGT4RawOrClip(struct PushBuffer *
 }
 
 static int Ovr226_800a6bac_DispatchGround4x2RenderedDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                               const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                const struct TextureLayout *texture, uint32_t *inheritedOtEntry)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
@@ -6148,7 +6128,7 @@ static int Ovr226_800a6bac_DispatchGround4x2RenderedDirectTail(struct PushBuffer
 	}
 }
 
-static void Ovr226_800a6af4_PrepareGround4x2RenderedDeepestUv(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static void Ovr226_800a6af4_PrepareGround4x2RenderedDeepestUv(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
 	u32 handlerAddress = DrawLevelOvr1P_GetDirectHandlerAddress(directMask);
@@ -6160,7 +6140,7 @@ static void Ovr226_800a6af4_PrepareGround4x2RenderedDeepestUv(const struct DrawL
 }
 
 static int Ovr226_800a6af4_DispatchGround4x2RenderedDeepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                            const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                            const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                             const struct TextureLayout *texture, uint32_t *inheritedOtEntry)
 {
 	Ovr226_800a6af4_PrepareGround4x2RenderedDeepestUv(projected, indices);
@@ -6171,7 +6151,7 @@ static int Ovr226_800a6af4_DispatchGround4x2RenderedDeepest(struct PushBuffer *p
 }
 
 static int Ovr226_800a69dc_Ground4x2RenderedNearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                         const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                         const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                          const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset, uint32_t *inheritedOtEntry)
 {
 	u32 nearMask = DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(projected, indices, thresholdScratchOffset);
@@ -6181,10 +6161,10 @@ static int Ovr226_800a69dc_Ground4x2RenderedNearOrDirect(struct PushBuffer *pb, 
 		return Ovr226_800a6bac_DispatchGround4x2RenderedDirectTail(pb, primMem, block, projected, indices, faceIndex, texture, inheritedOtEntry);
 	}
 
-	struct DrawLevelOvr1PScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
+	struct DrawLevelOvrScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
 	Ovr226_800a6510_BuildGround4x2RenderedSubdivisionFrame(sub, projected, indices);
 
-	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
+	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
 	int handlerSlot = DrawLevelOvr1P_GetNearSubdivisionTableSlot(nearMask);
 	DrawLevelOvr1P_SetPreviousRecursiveHandler(handlerAddress);
 
@@ -6193,7 +6173,7 @@ static int Ovr226_800a69dc_Ground4x2RenderedNearOrDirect(struct PushBuffer *pb, 
 }
 
 static int Ovr226_800a661c_Ground4x2RenderedPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                      const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                       const struct TextureLayout *texture, int depth, u32 allowedMask, uint32_t *inheritedOtEntry)
 {
 	u32 directMask = 0;
@@ -6222,10 +6202,10 @@ static int Ovr226_800a661c_Ground4x2RenderedPreflight(struct PushBuffer *pb, str
 }
 
 static int Ovr226_800a6260_DispatchGround4x2RenderedDeepestCompact(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                   const struct DrawLevelOvr1PScratchVertex *projected, int faceIndex,
+                                                                   const struct DrawLevelOvrScratchVertex *projected, int faceIndex,
                                                                    const struct TextureLayout *texture, int depth, int handlerSlot, uint32_t *inheritedOtEntry)
 {
-	const struct DrawLevelOvr1PNearSubdivisionCase *subdivisionCase = DrawLevelOvr1P_GetDeepestGridCompactCase(handlerSlot);
+	const struct DrawLevelOvrNearSubdivisionCase *subdivisionCase = DrawLevelOvr1P_GetDeepestGridCompactCase(handlerSlot);
 
 	for (s32 subdivisionIndex = 0; subdivisionIndex < 2; subdivisionIndex++)
 	{
@@ -6252,7 +6232,7 @@ static int Ovr226_800a6260_DispatchGround4x2RenderedDeepestCompact(struct PushBu
 }
 
 static int Ovr226_800a61c0_DispatchGround4x2RenderedHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                   struct DrawLevelOvr1PScratchVertex *projected, int faceIndex,
+                                                                   struct DrawLevelOvrScratchVertex *projected, int faceIndex,
                                                                    const struct TextureLayout *texture, int depth, u32 handlerAddress, int handlerSlot,
                                                                    uint32_t *inheritedOtEntry)
 {
@@ -6418,7 +6398,7 @@ static int Ovr226_800a61c0_DispatchGround4x2RenderedHelperWrappers(struct PushBu
 	                                                  inheritedOtEntry);
 }
 
-static int Ovr226_800a6740_Ground4x2RenderedSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvr1PScratchVertex *projected,
+static int Ovr226_800a6740_Ground4x2RenderedSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvrScratchVertex *projected,
                                                              struct QuadBlock *block, int faceIndex)
 {
 	int indices[4];
@@ -6453,20 +6433,20 @@ static int Ovr226_800a6740_Ground4x2RenderedSelectorNearGate(struct PushBuffer *
 }
 
 static int Ovr226_800a825c_DynamicRenderedPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                    const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                    const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                     const struct TextureLayout *texture, int depth, u32 allowedMask, uint32_t *inheritedOtEntry);
 static int Ovr226_800a7f0c_DispatchDynamicRenderedHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                 struct DrawLevelOvr1PScratchVertex *projected, int faceIndex,
+                                                                 struct DrawLevelOvrScratchVertex *projected, int faceIndex,
                                                                  const struct TextureLayout *texture, int depth, u32 handlerAddress, int handlerSlot,
                                                                  uint32_t *inheritedOtEntry);
 static int Ovr226_800a861c_DynamicRenderedNearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                       const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                       const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                        const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset, uint32_t *inheritedOtEntry);
 static int Ovr226_800a8714_DispatchDynamicRenderedDeepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                          const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                          const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                           const struct TextureLayout *texture, uint32_t *inheritedOtEntry);
 static int Ovr226_800a87cc_DispatchDynamicRenderedDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                             const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                              const struct TextureLayout *texture, uint32_t *inheritedOtEntry);
 
 static void Ovr226_800a84d0_StoreDynamicRenderedClipHeader(u32 tableWord)
@@ -6475,28 +6455,28 @@ static void Ovr226_800a84d0_StoreDynamicRenderedClipHeader(u32 tableWord)
 }
 
 static uint32_t *Ovr226_800a8504_ResolveDynamicRenderedOtEntry(struct PushBuffer *pb, const struct QuadBlock *block,
-                                                               const struct DrawLevelOvr1PScratchVertex *projected, u32 maxDepth, int faceIndex)
+                                                               const struct DrawLevelOvrScratchVertex *projected, u32 maxDepth, int faceIndex)
 {
 	return Ovr226_800a68c8_ResolveGround4x2RenderedOtEntry(pb, block, projected, maxDepth, faceIndex);
 }
 
-static struct TextureLayout *Ovr226_800a856c_SelectDynamicRenderedTexture(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected,
+static struct TextureLayout *Ovr226_800a856c_SelectDynamicRenderedTexture(const struct QuadBlock *block, const struct DrawLevelOvrScratchVertex *projected,
                                                                           u32 maxDepth)
 {
 	return Ovr226_800a6930_SelectGround4x2RenderedTexture(block, projected, maxDepth);
 }
 
-static void Ovr226_800a85b0_WriteDynamicRenderedUv(struct DrawLevelOvr1PScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
+static void Ovr226_800a85b0_WriteDynamicRenderedUv(struct DrawLevelOvrScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
                                                    u32 tableWord)
 {
 	DrawLevelOvr1P_WriteProjectedUv(projected, indices, texture, tableWord);
 }
 
 static int Ovr226_800a898c_WriteDynamicRenderedClippedRecordAtOtEntry(struct PushBuffer *pb, const struct QuadBlock *block,
-                                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count,
+                                                                      const struct DrawLevelOvrScratchVertex *projected, const int *indices, int count,
                                                                       uint32_t *otEntry)
 {
-	struct DrawLevelOvr1PClipRecord *record;
+	struct DrawLevelOvrClipRecord *record;
 	u8 *cursor = DrawLevelOvr1P_GetClipRecordCursor();
 	size_t recordSize = DrawLevelOvr1P_GetClipRecordSize(count);
 
@@ -6512,7 +6492,7 @@ static int Ovr226_800a898c_WriteDynamicRenderedClippedRecordAtOtEntry(struct Pus
 		return 1;
 	}
 
-	record = (struct DrawLevelOvr1PClipRecord *)cursor;
+	record = (struct DrawLevelOvrClipRecord *)cursor;
 	record->header = DrawLevelOvr1P_GetRenderedClipRecordHeader(block, count);
 	record->otEntry = (u32)(uintptr_t)otEntry;
 	record->tpage = DrawLevelOvr1P_Scratch()->uv.tpage;
@@ -6528,7 +6508,7 @@ static int Ovr226_800a898c_WriteDynamicRenderedClippedRecordAtOtEntry(struct Pus
 }
 
 static int Ovr226_800a87d4_EmitDynamicRenderedGT3RawOrClip(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                           const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
+                                                           const struct DrawLevelOvrScratchVertex *projected, const int *indices,
                                                            const struct TextureLayout *texture, uint32_t *inheritedOtEntry, int secondary)
 {
 	int triIndices[3];
@@ -6566,7 +6546,7 @@ static int Ovr226_800a87d4_EmitDynamicRenderedGT3RawOrClip(struct PushBuffer *pb
 }
 
 static int Ovr226_800a8888_EmitDynamicRenderedGT4RawOrClip(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                           const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
+                                                           const struct DrawLevelOvrScratchVertex *projected, const int *indices,
                                                            const struct TextureLayout *texture, uint32_t *inheritedOtEntry)
 {
 	if (inheritedOtEntry == NULL)
@@ -6589,7 +6569,7 @@ static int Ovr226_800a8888_EmitDynamicRenderedGT4RawOrClip(struct PushBuffer *pb
 }
 
 static int Ovr226_800a87cc_DispatchDynamicRenderedDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                             const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                              const struct TextureLayout *texture, uint32_t *inheritedOtEntry)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
@@ -6610,7 +6590,7 @@ static int Ovr226_800a87cc_DispatchDynamicRenderedDirectTail(struct PushBuffer *
 	}
 }
 
-static void Ovr226_800a8714_PrepareDynamicRenderedDeepestUv(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static void Ovr226_800a8714_PrepareDynamicRenderedDeepestUv(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
 	u32 handlerAddress = DrawLevelOvr1P_GetDirectHandlerAddress(directMask);
@@ -6622,7 +6602,7 @@ static void Ovr226_800a8714_PrepareDynamicRenderedDeepestUv(const struct DrawLev
 }
 
 static int Ovr226_800a8714_DispatchDynamicRenderedDeepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                          const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                          const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                           const struct TextureLayout *texture, uint32_t *inheritedOtEntry)
 {
 	Ovr226_800a8714_PrepareDynamicRenderedDeepestUv(projected, indices);
@@ -6633,7 +6613,7 @@ static int Ovr226_800a8714_DispatchDynamicRenderedDeepest(struct PushBuffer *pb,
 }
 
 static int Ovr226_800a861c_DynamicRenderedNearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                       const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                       const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                        const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset, uint32_t *inheritedOtEntry)
 {
 	u32 nearMask = DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(projected, indices, thresholdScratchOffset);
@@ -6643,10 +6623,10 @@ static int Ovr226_800a861c_DynamicRenderedNearOrDirect(struct PushBuffer *pb, st
 		return Ovr226_800a87cc_DispatchDynamicRenderedDirectTail(pb, primMem, block, projected, indices, faceIndex, texture, inheritedOtEntry);
 	}
 
-	struct DrawLevelOvr1PScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
+	struct DrawLevelOvrScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
 	Ovr226_800a8150_BuildDynamicRenderedSubdivisionFrame(sub, projected, indices);
 
-	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
+	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
 	int handlerSlot = DrawLevelOvr1P_GetNearSubdivisionTableSlot(nearMask);
 	DrawLevelOvr1P_SetPreviousRecursiveHandler(handlerAddress);
 
@@ -6655,7 +6635,7 @@ static int Ovr226_800a861c_DynamicRenderedNearOrDirect(struct PushBuffer *pb, st
 }
 
 static int Ovr226_800a825c_DynamicRenderedPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                    const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                    const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                     const struct TextureLayout *texture, int depth, u32 allowedMask, uint32_t *inheritedOtEntry)
 {
 	u32 directMask = 0;
@@ -6684,7 +6664,7 @@ static int Ovr226_800a825c_DynamicRenderedPreflight(struct PushBuffer *pb, struc
 }
 
 static int Ovr226_800a7f0c_DispatchDynamicRenderedHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                 struct DrawLevelOvr1PScratchVertex *projected, int faceIndex,
+                                                                 struct DrawLevelOvrScratchVertex *projected, int faceIndex,
                                                                  const struct TextureLayout *texture, int depth, u32 handlerAddress, int handlerSlot,
                                                                  uint32_t *inheritedOtEntry)
 {
@@ -6847,7 +6827,7 @@ static int Ovr226_800a7f0c_DispatchDynamicRenderedHelperWrappers(struct PushBuff
 	                                                inheritedOtEntry);
 }
 
-static int Ovr226_800a8380_DynamicRenderedSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvr1PScratchVertex *projected,
+static int Ovr226_800a8380_DynamicRenderedSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvrScratchVertex *projected,
                                                            struct QuadBlock *block, int faceIndex)
 {
 	int indices[4];
@@ -6882,20 +6862,20 @@ static int Ovr226_800a8380_DynamicRenderedSelectorNearGate(struct PushBuffer *pb
 }
 
 static int Ovr226_800a9e7c_Quad4x4RenderedPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                    const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                    const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                     const struct TextureLayout *texture, int depth, u32 allowedMask, uint32_t *inheritedOtEntry);
 static int Ovr226_800a9b2c_DispatchQuad4x4RenderedHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                 struct DrawLevelOvr1PScratchVertex *projected, int faceIndex,
+                                                                 struct DrawLevelOvrScratchVertex *projected, int faceIndex,
                                                                  const struct TextureLayout *texture, int depth, u32 handlerAddress, int handlerSlot,
                                                                  uint32_t *inheritedOtEntry);
 static int Ovr226_800aa23c_Quad4x4RenderedNearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                       const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                       const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                        const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset, uint32_t *inheritedOtEntry);
 static int Ovr226_800aa334_DispatchQuad4x4RenderedDeepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                          const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                          const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                           const struct TextureLayout *texture, uint32_t *inheritedOtEntry);
 static int Ovr226_800aa3ec_DispatchQuad4x4RenderedDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                             const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                              const struct TextureLayout *texture, uint32_t *inheritedOtEntry);
 
 static void Ovr226_800aa0fc_StoreQuad4x4RenderedClipHeader(u32 tableWord)
@@ -6904,25 +6884,25 @@ static void Ovr226_800aa0fc_StoreQuad4x4RenderedClipHeader(u32 tableWord)
 }
 
 static uint32_t *Ovr226_800aa124_ResolveQuad4x4RenderedOtEntry(struct PushBuffer *pb, const struct QuadBlock *block,
-                                                               const struct DrawLevelOvr1PScratchVertex *projected, u32 maxDepth, int faceIndex)
+                                                               const struct DrawLevelOvrScratchVertex *projected, u32 maxDepth, int faceIndex)
 {
 	return Ovr226_800a68c8_ResolveGround4x2RenderedOtEntry(pb, block, projected, maxDepth, faceIndex);
 }
 
-static struct TextureLayout *Ovr226_800aa18c_SelectQuad4x4RenderedTexture(const struct QuadBlock *block, const struct DrawLevelOvr1PScratchVertex *projected,
+static struct TextureLayout *Ovr226_800aa18c_SelectQuad4x4RenderedTexture(const struct QuadBlock *block, const struct DrawLevelOvrScratchVertex *projected,
                                                                           u32 maxDepth)
 {
 	return Ovr226_800a6930_SelectGround4x2RenderedTexture(block, projected, maxDepth);
 }
 
-static void Ovr226_800aa1d0_WriteQuad4x4RenderedUv(struct DrawLevelOvr1PScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
+static void Ovr226_800aa1d0_WriteQuad4x4RenderedUv(struct DrawLevelOvrScratchVertex *projected, const int *indices, const struct TextureLayout *texture,
                                                    u32 tableWord)
 {
 	DrawLevelOvr1P_WriteProjectedUv(projected, indices, texture, tableWord);
 }
 
 static int Ovr226_800aa5ac_WriteQuad4x4RenderedClippedRecordAtOtEntry(struct PushBuffer *pb, const struct QuadBlock *block,
-                                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count,
+                                                                      const struct DrawLevelOvrScratchVertex *projected, const int *indices, int count,
                                                                       uint32_t *otEntry)
 {
 	u8 *cursor = DrawLevelOvr1P_GetClipRecordCursor();
@@ -6940,7 +6920,7 @@ static int Ovr226_800aa5ac_WriteQuad4x4RenderedClippedRecordAtOtEntry(struct Pus
 		return 1;
 	}
 
-	struct DrawLevelOvr1PClipRecord *record = (struct DrawLevelOvr1PClipRecord *)cursor;
+	struct DrawLevelOvrClipRecord *record = (struct DrawLevelOvrClipRecord *)cursor;
 	record->header = DrawLevelOvr1P_GetRenderedClipRecordHeader(block, count);
 	record->otEntry = (u32)(uintptr_t)otEntry;
 	record->tpage = DrawLevelOvr1P_Scratch()->uv.tpage;
@@ -6956,7 +6936,7 @@ static int Ovr226_800aa5ac_WriteQuad4x4RenderedClippedRecordAtOtEntry(struct Pus
 }
 
 static int Ovr226_800aa3f4_EmitQuad4x4RenderedGT3RawOrClip(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                           const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
+                                                           const struct DrawLevelOvrScratchVertex *projected, const int *indices,
                                                            const struct TextureLayout *texture, uint32_t *inheritedOtEntry, int secondary)
 {
 	int triIndices[3];
@@ -6994,7 +6974,7 @@ static int Ovr226_800aa3f4_EmitQuad4x4RenderedGT3RawOrClip(struct PushBuffer *pb
 }
 
 static int Ovr226_800aa4a8_EmitQuad4x4RenderedGT4RawOrClip(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                           const struct DrawLevelOvr1PScratchVertex *projected, const int *indices,
+                                                           const struct DrawLevelOvrScratchVertex *projected, const int *indices,
                                                            const struct TextureLayout *texture, uint32_t *inheritedOtEntry)
 {
 	if (inheritedOtEntry == NULL)
@@ -7017,7 +6997,7 @@ static int Ovr226_800aa4a8_EmitQuad4x4RenderedGT4RawOrClip(struct PushBuffer *pb
 }
 
 static int Ovr226_800aa3ec_DispatchQuad4x4RenderedDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                             const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                              const struct TextureLayout *texture, uint32_t *inheritedOtEntry)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
@@ -7038,7 +7018,7 @@ static int Ovr226_800aa3ec_DispatchQuad4x4RenderedDirectTail(struct PushBuffer *
 	}
 }
 
-static void Ovr226_800aa334_PrepareQuad4x4RenderedDeepestUv(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+static void Ovr226_800aa334_PrepareQuad4x4RenderedDeepestUv(const struct DrawLevelOvrScratchVertex *projected, const int *indices)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
 	u32 handlerAddress = DrawLevelOvr1P_GetDirectHandlerAddress(directMask);
@@ -7050,7 +7030,7 @@ static void Ovr226_800aa334_PrepareQuad4x4RenderedDeepestUv(const struct DrawLev
 }
 
 static int Ovr226_800aa334_DispatchQuad4x4RenderedDeepest(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                          const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                          const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                           const struct TextureLayout *texture, uint32_t *inheritedOtEntry)
 {
 	Ovr226_800aa334_PrepareQuad4x4RenderedDeepestUv(projected, indices);
@@ -7061,7 +7041,7 @@ static int Ovr226_800aa334_DispatchQuad4x4RenderedDeepest(struct PushBuffer *pb,
 }
 
 static int Ovr226_800aa23c_Quad4x4RenderedNearOrDirect(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                       const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                       const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                        const struct TextureLayout *texture, int depth, u32 thresholdScratchOffset, uint32_t *inheritedOtEntry)
 {
 	u32 nearMask = DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(projected, indices, thresholdScratchOffset);
@@ -7071,10 +7051,10 @@ static int Ovr226_800aa23c_Quad4x4RenderedNearOrDirect(struct PushBuffer *pb, st
 		return Ovr226_800aa3ec_DispatchQuad4x4RenderedDirectTail(pb, primMem, block, projected, indices, faceIndex, texture, inheritedOtEntry);
 	}
 
-	struct DrawLevelOvr1PScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
+	struct DrawLevelOvrScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
 	Ovr226_800a9d70_BuildQuad4x4RenderedSubdivisionFrame(sub, projected, indices);
 
-	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
+	u32 handlerAddress = *CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_DIRECT_NEAR_HANDLER_TABLE_OFFSET + nearMask);
 	int handlerSlot = DrawLevelOvr1P_GetNearSubdivisionTableSlot(nearMask);
 	DrawLevelOvr1P_SetPreviousRecursiveHandler(handlerAddress);
 
@@ -7083,7 +7063,7 @@ static int Ovr226_800aa23c_Quad4x4RenderedNearOrDirect(struct PushBuffer *pb, st
 }
 
 static int Ovr226_800a9e7c_Quad4x4RenderedPreflight(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                    const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                    const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                     const struct TextureLayout *texture, int depth, u32 allowedMask, uint32_t *inheritedOtEntry)
 {
 	u32 directMask = 0;
@@ -7112,7 +7092,7 @@ static int Ovr226_800a9e7c_Quad4x4RenderedPreflight(struct PushBuffer *pb, struc
 }
 
 static int Ovr226_800a9b2c_DispatchQuad4x4RenderedHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                                 struct DrawLevelOvr1PScratchVertex *projected, int faceIndex,
+                                                                 struct DrawLevelOvrScratchVertex *projected, int faceIndex,
                                                                  const struct TextureLayout *texture, int depth, u32 handlerAddress, int handlerSlot,
                                                                  uint32_t *inheritedOtEntry)
 {
@@ -7275,7 +7255,7 @@ static int Ovr226_800a9b2c_DispatchQuad4x4RenderedHelperWrappers(struct PushBuff
 	                                                inheritedOtEntry);
 }
 
-static int Ovr226_800a9fa0_Quad4x4RenderedSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvr1PScratchVertex *projected,
+static int Ovr226_800a9fa0_Quad4x4RenderedSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvrScratchVertex *projected,
                                                            struct QuadBlock *block, int faceIndex)
 {
 	int indices[4];
@@ -7309,7 +7289,7 @@ static int Ovr226_800a9fa0_Quad4x4RenderedSelectorNearGate(struct PushBuffer *pb
 	return Ovr226_800aa23c_Quad4x4RenderedNearOrDirect(pb, primMem, block, projected, indices, faceIndex, texture, 0, 0x24, inheritedOtEntry);
 }
 
-static int DrawLevelOvr1P_Emit4x1ListSelectedFace(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvr1PScratchVertex *projected,
+static int DrawLevelOvr1P_Emit4x1ListSelectedFace(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvrScratchVertex *projected,
                                                   struct QuadBlock *block, int faceIndex)
 {
 	// NOTE(aalhendi): Retail 0x800a3c70 owns selector decode, table-word
@@ -7397,7 +7377,7 @@ static void DrawLevelOvr1P_TerminateRenderedListCursor(void)
 	}
 }
 
-static struct TextureLayout *Ovr226_800a1058_PrepareFullDynamicLowUv(struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected)
+static struct TextureLayout *Ovr226_800a1058_PrepareFullDynamicLowUv(struct QuadBlock *block, struct DrawLevelOvrScratchVertex *projected)
 {
 	const int *indices = sDrawLevelOvr1PFullDynamicLowIndices;
 	struct TextureLayout *texture = block->ptr_texture_low;
@@ -7428,7 +7408,7 @@ static u16 DrawLevelOvr1P_AverageFullDynamicUv(u16 uvA, u16 uvB)
 	return DrawLevelOvr1P_PackUv(u, v);
 }
 
-static void DrawLevelOvr1P_AdjustFullDynamicMidUvs(struct DrawLevelOvr1PScratchVertex *projected)
+static void DrawLevelOvr1P_AdjustFullDynamicMidUvs(struct DrawLevelOvrScratchVertex *projected)
 {
 	projected[4].flags = DrawLevelOvr1P_AverageFullDynamicUv(projected[0].flags, projected[1].flags);
 	projected[5].flags = DrawLevelOvr1P_AverageFullDynamicUv(projected[0].flags, projected[2].flags);
@@ -7438,11 +7418,11 @@ static void DrawLevelOvr1P_AdjustFullDynamicMidUvs(struct DrawLevelOvr1PScratchV
 }
 
 static int DrawLevelOvr1P_DispatchFullDynamicHelperSequence(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                            struct DrawLevelOvr1PScratchVertex *projected, DrawLevelOvrRetailLabel handlerAddress,
+                                                            struct DrawLevelOvrScratchVertex *projected, DrawLevelOvrRetailLabel handlerAddress,
                                                             struct TextureLayout *texture, int depth);
 
 static int Ovr226_800a1ce8_EmitFullDynamicGT3Raw(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                 struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                 struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                  struct TextureLayout *texture, int secondary)
 {
 	int triIndices[3];
@@ -7465,7 +7445,7 @@ static int Ovr226_800a1ce8_EmitFullDynamicGT3Raw(struct PushBuffer *pb, struct P
 }
 
 static int Ovr226_800a1d6c_EmitFullDynamicGT4Raw(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                 struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                 struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                  struct TextureLayout *texture)
 {
 	return DrawLevelOvr1P_EmitPreparedProjectedQuadRawCodeAtOt(pb, primMem, block, projected, indices, faceIndex, texture, 0,
@@ -7473,7 +7453,7 @@ static int Ovr226_800a1d6c_EmitFullDynamicGT4Raw(struct PushBuffer *pb, struct P
 }
 
 static int Ovr226_800a1cc4_EmitFullDynamicDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                     struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                     struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                      struct TextureLayout *texture)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
@@ -7515,7 +7495,7 @@ static int Ovr226_800a1cc4_IsSplitGroundListADirectHandler(DrawLevelOvrRetailLab
 }
 
 static int Ovr226_800a1cc4_EmitFullDynamicDeepestDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                            struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                            struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                             struct TextureLayout *texture)
 {
 	DrawLevelOvrRetailLabel handlerAddress = DrawLevelOvr1P_GetDirectHandlerAddress(DrawLevelOvr1P_Scratch()->directMask);
@@ -7531,13 +7511,13 @@ static int Ovr226_800a1cc4_EmitFullDynamicDeepestDirectTail(struct PushBuffer *p
 	return result;
 }
 
-static u32 Ovr226_800a1be8_SelectFullDynamicNearMask(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, u32 scratchOffset)
+static u32 Ovr226_800a1be8_SelectFullDynamicNearMask(const struct DrawLevelOvrScratchVertex *projected, const int *indices, u32 scratchOffset)
 {
 	return DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(projected, indices, scratchOffset);
 }
 
 static int Ovr226_800a1be8_DispatchFullDynamicNearSubdivision(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                              struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                              struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                               struct TextureLayout *texture, int depth, u32 directMask, u32 thresholdScratchOffset)
 {
 	(void)directMask;
@@ -7555,17 +7535,17 @@ static int Ovr226_800a1be8_DispatchFullDynamicNearSubdivision(struct PushBuffer 
 	DrawLevelOvrRetailLabel handlerAddress = DrawLevelOvr1P_GetNearSubdivisionHandlerAddress(nearMask, DRAW_LEVEL_OVR1P_CLIP_BYTES_LIST);
 	DrawLevelOvr1P_SetPreviousRecursiveHandler(handlerAddress);
 
-	struct DrawLevelOvr1PScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
+	struct DrawLevelOvrScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
 	Ovr226_800a17d8_BuildFullDynamicSubdivisionFrame(sub, projected, indices);
 
 	return DrawLevelOvr1P_DispatchFullDynamicHelperSequence(pb, primMem, block, sub, handlerAddress, texture, depth + 1);
 }
 
 static int DrawLevelOvr1P_EmitFullDynamicTerminalFaceSlotMode(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                              struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                              struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                               struct TextureLayout *texture, int depth, u32 allowedMask, int updateSlot)
 {
-	struct DrawLevelOvr1PFullDynamicRecursiveGate gate;
+	struct DrawLevelOvrFullDynamicRecursiveGate gate;
 
 	if (updateSlot)
 	{
@@ -7589,13 +7569,13 @@ static int DrawLevelOvr1P_EmitFullDynamicTerminalFaceSlotMode(struct PushBuffer 
 }
 
 static int DrawLevelOvr1P_EmitFullDynamicTerminalFacePreserveSlot(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                                  struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                                  struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                   struct TextureLayout *texture, int depth, u32 allowedMask)
 {
 	return DrawLevelOvr1P_EmitFullDynamicTerminalFaceSlotMode(pb, primMem, block, projected, indices, faceIndex, texture, depth, allowedMask, 0);
 }
 
-static int Ovr226_800a19a8_SelectFullDynamicDirectSlot(struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, int *indices,
+static int Ovr226_800a19a8_SelectFullDynamicDirectSlot(struct QuadBlock *block, struct DrawLevelOvrScratchVertex *projected, int faceIndex, int *indices,
                                                        struct TextureLayout **texture, u32 *directMask)
 {
 	u32 tableWord = DrawLevelOvr1P_Select4x1ProjectedFace(projected, block, faceIndex, indices);
@@ -7625,7 +7605,7 @@ static int Ovr226_800a19a8_SelectFullDynamicDirectSlot(struct QuadBlock *block, 
 }
 
 static int DrawLevelOvr1P_EmitFullDynamicSelectorFace(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                      struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, int depth)
+                                                      struct DrawLevelOvrScratchVertex *projected, int faceIndex, int depth)
 {
 	struct TextureLayout *texture = NULL;
 	int indices[4];
@@ -7643,63 +7623,63 @@ static int DrawLevelOvr1P_EmitFullDynamicSelectorFace(struct PushBuffer *pb, str
 }
 
 static int Ovr226_800a1534_EmitFullDynamicFace0(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
+                                                struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
 {
 	return DrawLevelOvr1P_EmitFullDynamicTerminalFacePreserveSlot(pb, primMem, block, projected, sDrawLevelOvr1PGridFaceIndices[0], 0, texture, depth,
 	                                                              allowedMask);
 }
 
 static int Ovr226_800a1548_EmitFullDynamicFace1(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
+                                                struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
 {
 	return DrawLevelOvr1P_EmitFullDynamicTerminalFacePreserveSlot(pb, primMem, block, projected, sDrawLevelOvr1PGridFaceIndices[1], 1, texture, depth,
 	                                                              allowedMask);
 }
 
 static int Ovr226_800a155c_EmitFullDynamicFace2(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
+                                                struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
 {
 	return DrawLevelOvr1P_EmitFullDynamicTerminalFacePreserveSlot(pb, primMem, block, projected, sDrawLevelOvr1PGridFaceIndices[2], 2, texture, depth,
 	                                                              allowedMask);
 }
 
 static int Ovr226_800a1570_EmitFullDynamicFace3(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
+                                                struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
 {
 	return DrawLevelOvr1P_EmitFullDynamicTerminalFacePreserveSlot(pb, primMem, block, projected, sDrawLevelOvr1PGridFaceIndices[3], 3, texture, depth,
 	                                                              allowedMask);
 }
 
 static int Ovr226_800a1584_EmitFullDynamicExtraFace0(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                     struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
+                                                     struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
 {
 	return DrawLevelOvr1P_EmitFullDynamicTerminalFacePreserveSlot(pb, primMem, block, projected, sDrawLevelOvr1PGridExtraFaceIndices[0], 0, texture, depth,
 	                                                              allowedMask);
 }
 
 static int Ovr226_800a1598_EmitFullDynamicExtraFace1(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                     struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
+                                                     struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
 {
 	return DrawLevelOvr1P_EmitFullDynamicTerminalFacePreserveSlot(pb, primMem, block, projected, sDrawLevelOvr1PGridExtraFaceIndices[1], 1, texture, depth,
 	                                                              allowedMask);
 }
 
 static int Ovr226_800a15ac_EmitFullDynamicExtraFace2(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                     struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
+                                                     struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
 {
 	return DrawLevelOvr1P_EmitFullDynamicTerminalFacePreserveSlot(pb, primMem, block, projected, sDrawLevelOvr1PGridExtraFaceIndices[2], 2, texture, depth,
 	                                                              allowedMask);
 }
 
 static int Ovr226_800a15c0_EmitFullDynamicExtraFace3(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                     struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
+                                                     struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth, u32 allowedMask)
 {
 	return DrawLevelOvr1P_EmitFullDynamicTerminalFacePreserveSlot(pb, primMem, block, projected, sDrawLevelOvr1PGridExtraFaceIndices[3], 3, texture, depth,
 	                                                              allowedMask);
 }
 
 static int Ovr226_800a15d4_FullDynamicHelperSlot0(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                  struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth)
+                                                  struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth)
 {
 	//Retail 0x800a15d4 does not call the shared Face1/Face2
 	// emitters. It inlines its own index sets, closing both sub-quads on corner
@@ -7725,7 +7705,7 @@ static int Ovr226_800a15d4_FullDynamicHelperSlot0(struct PushBuffer *pb, struct 
 }
 
 static int Ovr226_800a1614_FullDynamicHelperSlot1(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                  struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth)
+                                                  struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth)
 {
 	if (!Ovr226_800a1548_EmitFullDynamicFace1(pb, primMem, block, projected, texture, depth, DRAW_LEVEL_OVR1P_DIRECT_QUAD))
 	{
@@ -7739,7 +7719,7 @@ static int Ovr226_800a1614_FullDynamicHelperSlot1(struct PushBuffer *pb, struct 
 }
 
 static int Ovr226_800a1634_FullDynamicHelperSlot3(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                  struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth)
+                                                  struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth)
 {
 	if (!Ovr226_800a1584_EmitFullDynamicExtraFace0(pb, primMem, block, projected, texture, depth, DRAW_LEVEL_OVR1P_DIRECT_QUAD))
 	{
@@ -7753,7 +7733,7 @@ static int Ovr226_800a1634_FullDynamicHelperSlot3(struct PushBuffer *pb, struct 
 }
 
 static int Ovr226_800a1654_FullDynamicHelperSlot7(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                  struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth)
+                                                  struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth)
 {
 	if (!DrawLevelOvr1P_EmitFullDynamicTerminalFacePreserveSlot(pb, primMem, block, projected, sDrawLevelOvr1PGridMixedFaceIndices[2], 0, texture, depth,
 	                                                            DRAW_LEVEL_OVR1P_DIRECT_QUAD))
@@ -7769,7 +7749,7 @@ static int Ovr226_800a1654_FullDynamicHelperSlot7(struct PushBuffer *pb, struct 
 }
 
 static int Ovr226_800a1694_FullDynamicHelperSlot2(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                  struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth)
+                                                  struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth)
 {
 	if (!Ovr226_800a15c0_EmitFullDynamicExtraFace3(pb, primMem, block, projected, texture, depth, DRAW_LEVEL_OVR1P_DIRECT_QUAD))
 	{
@@ -7787,7 +7767,7 @@ static int Ovr226_800a1694_FullDynamicHelperSlot2(struct PushBuffer *pb, struct 
 }
 
 static int Ovr226_800a16bc_FullDynamicHelperSlot4(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                  struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth)
+                                                  struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth)
 {
 	if (!Ovr226_800a1598_EmitFullDynamicExtraFace1(pb, primMem, block, projected, texture, depth, DRAW_LEVEL_OVR1P_DIRECT_QUAD))
 	{
@@ -7805,7 +7785,7 @@ static int Ovr226_800a16bc_FullDynamicHelperSlot4(struct PushBuffer *pb, struct 
 }
 
 static int Ovr226_800a16e4_FullDynamicHelperSlot9(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                  struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth)
+                                                  struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth)
 {
 	if (!Ovr226_800a15ac_EmitFullDynamicExtraFace2(pb, primMem, block, projected, texture, depth, DRAW_LEVEL_OVR1P_DIRECT_QUAD))
 	{
@@ -7823,7 +7803,7 @@ static int Ovr226_800a16e4_FullDynamicHelperSlot9(struct PushBuffer *pb, struct 
 }
 
 static int Ovr226_800a170c_FullDynamicHelperSlot11(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                   struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth)
+                                                   struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth)
 {
 	if (!Ovr226_800a1584_EmitFullDynamicExtraFace0(pb, primMem, block, projected, texture, depth, DRAW_LEVEL_OVR1P_DIRECT_QUAD))
 	{
@@ -7841,9 +7821,9 @@ static int Ovr226_800a170c_FullDynamicHelperSlot11(struct PushBuffer *pb, struct
 }
 
 static int Ovr226_800a1734_FullDynamicDefaultHelper(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                    struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture, int depth)
+                                                    struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture, int depth)
 {
-	if (projected == CTR_SCRATCHPAD_PTR(struct DrawLevelOvr1PScratchVertex, DRAW_LEVEL_OVR1P_PROJECTED_FRAME0_OFFSET))
+	if (projected == CTR_SCRATCHPAD_PTR(struct DrawLevelOvrScratchVertex, DRAW_LEVEL_OVR_PROJECTED_FRAME0_OFFSET))
 	{
 		for (int faceIndex = 0; faceIndex < 4; faceIndex++)
 		{
@@ -7876,7 +7856,7 @@ static int Ovr226_800a1734_FullDynamicDefaultHelper(struct PushBuffer *pb, struc
 }
 
 static int DrawLevelOvr1P_DispatchFullDynamicHelperSequence(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                            struct DrawLevelOvr1PScratchVertex *projected, DrawLevelOvrRetailLabel handlerAddress,
+                                                            struct DrawLevelOvrScratchVertex *projected, DrawLevelOvrRetailLabel handlerAddress,
                                                             struct TextureLayout *texture, int depth)
 {
 	switch (handlerAddress)
@@ -7922,13 +7902,13 @@ static int DrawLevelOvr1P_DispatchFullDynamicHelperSequence(struct PushBuffer *p
 	}
 }
 
-static u32 Ovr226_800a10dc_SelectFullDynamicTopNearMask(const struct DrawLevelOvr1PScratchVertex *projected)
+static u32 Ovr226_800a10dc_SelectFullDynamicTopNearMask(const struct DrawLevelOvrScratchVertex *projected)
 {
 	return DrawLevelOvr1P_GetProjectedNearMaskAtScratchOffset(projected, sDrawLevelOvr1PFullDynamicLowIndices, 0x14);
 }
 
 static int Ovr226_800a1338_DispatchFullDynamicLowDirect(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                        struct DrawLevelOvr1PScratchVertex *projected, struct TextureLayout *texture)
+                                                        struct DrawLevelOvrScratchVertex *projected, struct TextureLayout *texture)
 {
 	const int *indices = sDrawLevelOvr1PFullDynamicLowIndices;
 	u32 directMask;
@@ -7948,7 +7928,7 @@ static int Ovr226_800a1338_DispatchFullDynamicLowDirect(struct PushBuffer *pb, s
 	return Ovr226_800a1cc4_EmitFullDynamicDirectTail(pb, primMem, block, projected, indices, -1, texture);
 }
 
-static void Ovr226_800a11e0_ProjectFullDynamicLastPair(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected)
+static void Ovr226_800a11e0_ProjectFullDynamicLastPair(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvrScratchVertex *projected)
 {
 	struct LevVertex *vertex7 = &vertices[block->index[7]];
 	struct LevVertex *vertex8 = &vertices[block->index[8]];
@@ -7972,14 +7952,14 @@ static void Ovr226_800a11e0_ProjectFullDynamicLastPair(struct LevVertex *vertice
 	DrawLevelOvr1P_StoreProjectedDepthWord(&projected[8], depth8);
 }
 
-static void Ovr226_800a1128_ProjectFullDynamicHighGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvr1PScratchVertex *projected)
+static void Ovr226_800a1128_ProjectFullDynamicHighGrid(struct LevVertex *vertices, const struct QuadBlock *block, struct DrawLevelOvrScratchVertex *projected)
 {
 	Ovr226_800a0f78_ProjectVertexTripleFullDepth(vertices, block, projected, 4, 5, 6);
 	Ovr226_800a11e0_ProjectFullDynamicLastPair(vertices, block, projected);
 }
 
 static int Ovr226_800a1128_DispatchFullDynamicTransitionGrid(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                             struct LevVertex *vertices, struct DrawLevelOvr1PScratchVertex *projected, u32 nearMask,
+                                                             struct LevVertex *vertices, struct DrawLevelOvrScratchVertex *projected, u32 nearMask,
                                                              struct TextureLayout *texture)
 {
 	Ovr226_800a1128_ProjectFullDynamicHighGrid(vertices, block, projected);
@@ -7992,7 +7972,7 @@ static int Ovr226_800a1128_DispatchFullDynamicTransitionGrid(struct PushBuffer *
 
 static int Ovr226_800a0f78_EmitFullDynamicQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block, struct LevVertex *vertices)
 {
-	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
+	struct DrawLevelOvrScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	Ovr226_800a0f78_ProjectFullDynamicLowQuad(vertices, block, projected);
 	struct TextureLayout *texture = Ovr226_800a1058_PrepareFullDynamicLowUv(block, projected);
@@ -8093,7 +8073,7 @@ static void DrawLevelOvr1P_SetSplitGroundThresholdScratch(void)
 }
 
 static int DrawLevelOvr1P_ProjectSplitGroundListALowGrid(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                         struct DrawLevelOvr1PScratchVertex *projected)
+                                                         struct DrawLevelOvrScratchVertex *projected)
 {
 	DrawLevelOvr1P_SetGridFaceSlot(projected, 0);
 	if (DrawLevelOvr1P_ProjectListVertexTriple(vertices, block, projected, 0, 1, 2, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS))
@@ -8106,7 +8086,7 @@ static int DrawLevelOvr1P_ProjectSplitGroundListALowGrid(struct LevVertex *verti
 }
 
 static int DrawLevelOvr1P_ProjectSplitGroundListATransitionGrid(struct LevVertex *vertices, const struct QuadBlock *block,
-                                                                struct DrawLevelOvr1PScratchVertex *projected)
+                                                                struct DrawLevelOvrScratchVertex *projected)
 {
 	if (DrawLevelOvr1P_ProjectListVertexTriple(vertices, block, projected, 6, 7, 8, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS))
 	{
@@ -8120,7 +8100,7 @@ static int DrawLevelOvr1P_ProjectSplitGroundListATransitionGrid(struct LevVertex
 static int DrawLevelOvr1P_EmitSplitGroundListAQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block)
 {
 	struct LevVertex *vertices = mesh->ptrVertexArray;
-	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
+	struct DrawLevelOvrScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	if (DrawLevelOvr1P_ProjectSplitGroundListALowGrid(vertices, block, projected))
 	{
@@ -8191,7 +8171,7 @@ static int DrawLevelOvr1P_DrawSplitGroundListABspList(struct VisMemBspListNode *
 static int Ovr226_800a3738_EmitGround4x1ListQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block)
 {
 	struct LevVertex *vertices = mesh->ptrVertexArray;
-	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
+	struct DrawLevelOvrScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_FACE))
 	{
@@ -8214,10 +8194,10 @@ static u32 DrawLevelOvr1P_GetBspListReserve(int role)
 {
 	switch (role)
 	{
-	case DRAW_LEVEL_OVR1P_BUCKET_4X1_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_4X1_LIST:
 		return DRAW_LEVEL_OVR1P_BUCKET_RESERVE_4X1;
 
-	case DRAW_LEVEL_OVR1P_BUCKET_4X2_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_4X2_LIST:
 		return DRAW_LEVEL_OVR1P_BUCKET_RESERVE_4X2;
 
 	default:
@@ -8229,10 +8209,10 @@ static u32 DrawLevelOvr1P_GetNonWaterRenderedListReserve(int role)
 {
 	switch (role)
 	{
-	case DRAW_LEVEL_OVR1P_BUCKET_4X1_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_4X1_RENDERED:
 		return DRAW_LEVEL_OVR1P_BUCKET_RESERVE_4X1;
 
-	case DRAW_LEVEL_OVR1P_BUCKET_4X2_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_4X2_RENDERED:
 		return DRAW_LEVEL_OVR1P_BUCKET_RESERVE_4X2;
 
 	default:
@@ -8244,8 +8224,8 @@ static enum DrawLevelOvr1PGridSlotMode DrawLevelOvr1P_GetNonWaterRenderedListSlo
 {
 	switch (role)
 	{
-	case DRAW_LEVEL_OVR1P_BUCKET_4X1_RENDERED:
-	case DRAW_LEVEL_OVR1P_BUCKET_4X2_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_4X1_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_4X2_RENDERED:
 		return DRAW_LEVEL_OVR1P_GRID_SLOT_FACE;
 
 	default:
@@ -8253,18 +8233,18 @@ static enum DrawLevelOvr1PGridSlotMode DrawLevelOvr1P_GetNonWaterRenderedListSlo
 	}
 }
 
-static int DrawLevelOvr1P_NonWaterRenderedSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvr1PScratchVertex *projected,
+static int DrawLevelOvr1P_NonWaterRenderedSelectorNearGate(struct PushBuffer *pb, struct PrimMem *primMem, struct DrawLevelOvrScratchVertex *projected,
                                                            struct QuadBlock *block, int faceIndex, int role)
 {
 	switch (role)
 	{
-	case DRAW_LEVEL_OVR1P_BUCKET_4X1_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_4X1_RENDERED:
 		return Ovr226_800a47f4_Ground4x1RenderedSelectorNearGate(pb, primMem, projected, block, faceIndex);
 
-	case DRAW_LEVEL_OVR1P_BUCKET_4X2_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_4X2_RENDERED:
 		return Ovr226_800a6740_Ground4x2RenderedSelectorNearGate(pb, primMem, projected, block, faceIndex);
 
-	case DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_DYNAMIC_RENDERED:
 		return Ovr226_800a8380_DynamicRenderedSelectorNearGate(pb, primMem, projected, block, faceIndex);
 
 	default:
@@ -8276,7 +8256,7 @@ static int DrawLevelOvr1P_DrawNonWaterRenderedList(struct QuadBlock **renderedLi
                                                    int role)
 {
 	struct LevVertex *vertices = mesh->ptrVertexArray;
-	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
+	struct DrawLevelOvrScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 	u32 reserve = DrawLevelOvr1P_GetNonWaterRenderedListReserve(role);
 	enum DrawLevelOvr1PGridSlotMode slotMode = DrawLevelOvr1P_GetNonWaterRenderedListSlotMode(role);
 
@@ -8317,7 +8297,7 @@ static int DrawLevelOvr1P_DrawNonWaterRenderedList(struct QuadBlock **renderedLi
 static int Ovr226_800a5030_EmitGround4x2ListQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block)
 {
 	struct LevVertex *vertices = mesh->ptrVertexArray;
-	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
+	struct DrawLevelOvrScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_FACE))
 	{
@@ -8339,7 +8319,7 @@ static int Ovr226_800a5030_EmitGround4x2ListQuadBlock(struct PushBuffer *pb, str
 static int Ovr226_800a6fd0_EmitDynamicListQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block)
 {
 	struct LevVertex *vertices = mesh->ptrVertexArray;
-	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
+	struct DrawLevelOvrScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_WORD))
 	{
@@ -8361,7 +8341,7 @@ static int Ovr226_800a6fd0_EmitDynamicListQuadBlock(struct PushBuffer *pb, struc
 static int Ovr226_800a8bf0_EmitWideDynamicQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block)
 {
 	struct LevVertex *vertices = mesh->ptrVertexArray;
-	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
+	struct DrawLevelOvrScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_POS_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_WORD))
 	{
@@ -8384,13 +8364,13 @@ static int DrawLevelOvr1P_EmitBspListQuadBlock(struct PushBuffer *pb, struct Pri
 {
 	switch (role)
 	{
-	case DRAW_LEVEL_OVR1P_BUCKET_4X1_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_4X1_LIST:
 		return Ovr226_800a3738_EmitGround4x1ListQuadBlock(pb, primMem, mesh, block);
 
-	case DRAW_LEVEL_OVR1P_BUCKET_4X2_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_4X2_LIST:
 		return Ovr226_800a5030_EmitGround4x2ListQuadBlock(pb, primMem, mesh, block);
 
-	case DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_DYNAMIC_LIST:
 		return Ovr226_800a6fd0_EmitDynamicListQuadBlock(pb, primMem, mesh, block);
 
 	default:
@@ -8444,35 +8424,35 @@ static int DrawLevelOvr1P_DrawBspListQuadBlocks(struct VisMemBspListNode *slot, 
 	return 1;
 }
 
-static struct QuadBlock **DrawLevelOvr1P_GetRenderedListForRole(struct DrawLevelOvr1PRenderList *renderList, int role)
+static struct QuadBlock **DrawLevelOvr1P_GetRenderedListForRole(struct DrawLevelOvrRenderList *renderList, int role)
 {
 	switch (role)
 	{
-	case DRAW_LEVEL_OVR1P_BUCKET_FULL_DYNAMIC_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_FULL_DYNAMIC_LIST:
 		// NOTE(aalhendi): Retail 0x800a0e7c clears 0x80096404 for every
 		// empty bucket, including full-dynamic which has no rendered slot.
 		return DrawLevelOvr1P_GetRenderedOverflowBase();
-	case DRAW_LEVEL_OVR1P_BUCKET_4X4_LIST:
-	case DRAW_LEVEL_OVR1P_BUCKET_4X4_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_4X4_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_4X4_RENDERED:
 		return renderList->list[0].ptrQuadBlocksRendered;
-	case DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_LIST:
-	case DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_DYNAMIC_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_DYNAMIC_RENDERED:
 		return renderList->list[1].ptrQuadBlocksRendered;
-	case DRAW_LEVEL_OVR1P_BUCKET_4X2_LIST:
-	case DRAW_LEVEL_OVR1P_BUCKET_4X2_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_4X2_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_4X2_RENDERED:
 		return renderList->list[2].ptrQuadBlocksRendered;
-	case DRAW_LEVEL_OVR1P_BUCKET_4X1_LIST:
-	case DRAW_LEVEL_OVR1P_BUCKET_4X1_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_4X1_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_4X1_RENDERED:
 		return renderList->list[3].ptrQuadBlocksRendered;
-	case DRAW_LEVEL_OVR1P_BUCKET_WATER_LIST:
-	case DRAW_LEVEL_OVR1P_BUCKET_WATER_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_WATER_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_WATER_RENDERED:
 		return renderList->list[4].ptrQuadBlocksRendered;
 	default:
 		return NULL;
 	}
 }
 
-static void DrawLevelOvr1P_ClearRenderedListForRole(struct DrawLevelOvr1PRenderList *renderList, int role)
+static void DrawLevelOvr1P_ClearRenderedListForRole(struct DrawLevelOvrRenderList *renderList, int role)
 {
 	struct QuadBlock **renderedList = DrawLevelOvr1P_GetRenderedListForRole(renderList, role);
 
@@ -8482,7 +8462,7 @@ static void DrawLevelOvr1P_ClearRenderedListForRole(struct DrawLevelOvr1PRenderL
 	}
 }
 
-static u32 Ovr226_800a262c_SelectWaterDirectMask(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, u32 allowedMask)
+static u32 Ovr226_800a262c_SelectWaterDirectMask(const struct DrawLevelOvrScratchVertex *projected, const int *indices, u32 allowedMask)
 {
 	u32 directMask = 0;
 
@@ -8503,7 +8483,7 @@ static u32 Ovr226_800a262c_SelectWaterDirectMask(const struct DrawLevelOvr1PScra
 	return directMask & allowedMask;
 }
 
-static u32 Ovr226_800a262c_SelectAndStoreWaterDirectMask(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, u32 allowedMask)
+static u32 Ovr226_800a262c_SelectAndStoreWaterDirectMask(const struct DrawLevelOvrScratchVertex *projected, const int *indices, u32 allowedMask)
 {
 	u32 directMask = Ovr226_800a262c_SelectWaterDirectMask(projected, indices, allowedMask);
 
@@ -8511,7 +8491,7 @@ static u32 Ovr226_800a262c_SelectAndStoreWaterDirectMask(const struct DrawLevelO
 	return directMask;
 }
 
-static void DrawLevelOvr1P_BuildGridSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void DrawLevelOvr1P_BuildGridSubdivisionFrame(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                      const int *indices, int writeClipBytes)
 {
 	DrawLevelOvr1P_BuildMidpointFromFirstEndpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]], writeClipBytes);
@@ -8521,8 +8501,8 @@ static void DrawLevelOvr1P_BuildGridSubdivisionFrame(struct DrawLevelOvr1PScratc
 	DrawLevelOvr1P_BuildMidpointFromFirstEndpoint(&sub[1], &sub[6], &projected[indices[1]], &projected[indices[2]], writeClipBytes);
 }
 
-static void Ovr226_800a24e8_BuildWaterListSubdivideMidpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstMid,
-                                                            const struct DrawLevelOvr1PScratchVertex *srcA, const struct DrawLevelOvr1PScratchVertex *srcB)
+static void Ovr226_800a24e8_BuildWaterListSubdivideMidpoint(struct DrawLevelOvrScratchVertex *dstA, struct DrawLevelOvrScratchVertex *dstMid,
+                                                            const struct DrawLevelOvrScratchVertex *srcA, const struct DrawLevelOvrScratchVertex *srcB)
 {
 	const u8 *srcAUv = (const u8 *)&srcA->flags;
 	const u8 *srcBUv = (const u8 *)&srcB->flags;
@@ -8557,7 +8537,7 @@ static void Ovr226_800a24e8_BuildWaterListSubdivideMidpoint(struct DrawLevelOvr1
 	DrawLevelOvr1P_StoreProjectedDepthWord(dstMid, depth);
 }
 
-static void Ovr226_800a24e8_BuildWaterListSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void Ovr226_800a24e8_BuildWaterListSubdivisionFrame(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                            const int *indices)
 {
 	Ovr226_800a24e8_BuildWaterListSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
@@ -8567,8 +8547,8 @@ static void Ovr226_800a24e8_BuildWaterListSubdivisionFrame(struct DrawLevelOvr1P
 	Ovr226_800a24e8_BuildWaterListSubdivideMidpoint(&sub[1], &sub[6], &projected[indices[1]], &projected[indices[2]]);
 }
 
-static void Ovr226_800a2fe4_BuildWaterRenderedSubdivideMidpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstMid,
-                                                                const struct DrawLevelOvr1PScratchVertex *srcA, const struct DrawLevelOvr1PScratchVertex *srcB)
+static void Ovr226_800a2fe4_BuildWaterRenderedSubdivideMidpoint(struct DrawLevelOvrScratchVertex *dstA, struct DrawLevelOvrScratchVertex *dstMid,
+                                                                const struct DrawLevelOvrScratchVertex *srcA, const struct DrawLevelOvrScratchVertex *srcB)
 {
 	const u8 *srcAUv = (const u8 *)&srcA->flags;
 	const u8 *srcBUv = (const u8 *)&srcB->flags;
@@ -8603,7 +8583,7 @@ static void Ovr226_800a2fe4_BuildWaterRenderedSubdivideMidpoint(struct DrawLevel
 	DrawLevelOvr1P_SetProjectedDepth(dstMid, depth, DRAW_LEVEL_OVR1P_CLIP_BYTES_RENDERED);
 }
 
-static void Ovr226_800a2fe4_BuildWaterRenderedSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void Ovr226_800a2fe4_BuildWaterRenderedSubdivisionFrame(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                                const int *indices)
 {
 	Ovr226_800a2fe4_BuildWaterRenderedSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
@@ -8613,7 +8593,7 @@ static void Ovr226_800a2fe4_BuildWaterRenderedSubdivisionFrame(struct DrawLevelO
 	Ovr226_800a2fe4_BuildWaterRenderedSubdivideMidpoint(&sub[1], &sub[6], &projected[indices[1]], &projected[indices[2]]);
 }
 
-static void DrawLevelOvr1P_BuildGridSubdivisionFrame4x4(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
+static void DrawLevelOvr1P_BuildGridSubdivisionFrame4x4(struct DrawLevelOvrScratchVertex *sub, const struct DrawLevelOvrScratchVertex *projected,
                                                         const int *indices, int writeClipBytes)
 {
 	DrawLevelOvr1P_BuildMidpointFromFirstEndpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]], writeClipBytes);
@@ -8625,7 +8605,7 @@ static void DrawLevelOvr1P_BuildGridSubdivisionFrame4x4(struct DrawLevelOvr1PScr
 }
 
 static int Ovr226_800a25d0_WaterListFaceGate(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex, int depth, u32 allowedMask,
+                                             const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex, int depth, u32 allowedMask,
                                              uint32_t *inheritedOtEntry);
 
 static const int *Ovr226_800a22a4_GetWaterListLeafWrapperIndices(DrawLevelOvrRetailLabel handlerLabel)
@@ -8653,7 +8633,7 @@ static const int *Ovr226_800a22a4_GetWaterListLeafWrapperIndices(DrawLevelOvrRet
 }
 
 static int Ovr226_800a22a4_DispatchWaterListHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                           const struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, int depth,
+                                                           const struct DrawLevelOvrScratchVertex *projected, int faceIndex, int depth,
                                                            DrawLevelOvrRetailLabel handlerLabel, int handlerSlot, u32 allowedMask, uint32_t *inheritedOtEntry)
 {
 	int slot = handlerSlot;
@@ -8881,7 +8861,7 @@ static int Ovr226_800a22a4_DispatchWaterListHelperWrappers(struct PushBuffer *pb
 }
 
 static int Ovr226_800a27dc_EmitWaterListGT3Raw(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex, int secondary,
+                                               const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex, int secondary,
                                                uint32_t *inheritedOtEntry)
 {
 	int triIndices[3];
@@ -8924,7 +8904,7 @@ static int Ovr226_800a27dc_EmitWaterListGT3Raw(struct PushBuffer *pb, struct Pri
 }
 
 static int Ovr226_800a2850_EmitWaterListGT4Raw(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                               const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                               const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                uint32_t *inheritedOtEntry)
 {
 	(void)pb;
@@ -8950,7 +8930,7 @@ static int Ovr226_800a2850_EmitWaterListGT4Raw(struct PushBuffer *pb, struct Pri
 }
 
 static int Ovr226_800a27b8_EmitWaterListDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                   const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                   const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                    uint32_t *inheritedOtEntry)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
@@ -8987,7 +8967,7 @@ static int Ovr226_800a27b8_EmitWaterListDirectTail(struct PushBuffer *pb, struct
 }
 
 static int Ovr226_800a2660_WaterListNearDispatch(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex, int depth,
+                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex, int depth,
                                                  DrawLevelOvrRetailLabel handlerLabel, int handlerSlot, u32 allowedMask, uint32_t *inheritedOtEntry)
 {
 	if (DrawLevelOvr1P_IsDeepestSubdivisionFrame(projected))
@@ -8999,7 +8979,7 @@ static int Ovr226_800a2660_WaterListNearDispatch(struct PushBuffer *pb, struct P
 		return Ovr226_800a27b8_EmitWaterListDirectTail(pb, primMem, block, projected, indices, faceIndex, inheritedOtEntry);
 	}
 
-	struct DrawLevelOvr1PScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
+	struct DrawLevelOvrScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
 	// NOTE(aalhendi): Retail 0x800a272c..0x800a27a4 advances by 0xb8,
 	// builds five 0x800a24e8 midpoint pairs, then jumps through scratch 0x148.
 	Ovr226_800a24e8_BuildWaterListSubdivisionFrame(sub, projected, indices);
@@ -9009,7 +8989,7 @@ static int Ovr226_800a2660_WaterListNearDispatch(struct PushBuffer *pb, struct P
 }
 
 static int Ovr226_800a25d0_WaterListFaceGate(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                             const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex, int depth, u32 allowedMask,
+                                             const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex, int depth, u32 allowedMask,
                                              uint32_t *inheritedOtEntry)
 {
 	// NOTE(aalhendi): Retail 0x800a25d0..0x800a27b8 owns the shared water-list
@@ -9070,7 +9050,7 @@ static int Ovr226_800a1eb0_ConsumeWaterVisibilityBit(void)
 static int Ovr226_800a1ee0_EmitWaterListQuadBlock(struct PushBuffer *pb, struct PrimMem *primMem, struct mesh_info *mesh, struct QuadBlock *block)
 {
 	struct LevVertex *vertices = mesh->ptrVertexArray;
-	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
+	struct DrawLevelOvrScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	if (DrawLevelOvr1P_ProjectListGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_WATER_COLOR_LO_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_FACE))
 	{
@@ -9126,7 +9106,7 @@ static int Ovr226_800a1e30_DrawWaterBspList(struct VisMemBspListNode *slot, stru
 }
 
 static int Ovr226_800a30f0_WaterRenderedFaceGate(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex, int depth,
+                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex, int depth,
                                                  u32 allowedMask, uint32_t *inheritedOtEntry);
 
 static const int *Ovr226_800a2da0_GetWaterRenderedLeafWrapperIndices(DrawLevelOvrRetailLabel handlerLabel)
@@ -9168,7 +9148,7 @@ static const int *Ovr226_800a2da0_GetWaterRenderedLeafWrapperIndices(DrawLevelOv
 }
 
 static int Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                               const struct DrawLevelOvr1PScratchVertex *projected, int faceIndex, int depth,
+                                                               const struct DrawLevelOvrScratchVertex *projected, int faceIndex, int depth,
                                                                DrawLevelOvrRetailLabel handlerLabel, int handlerSlot, u32 allowedMask,
                                                                uint32_t *inheritedOtEntry)
 {
@@ -9385,7 +9365,7 @@ static int Ovr226_800a2da0_DispatchWaterRenderedHelperWrappers(struct PushBuffer
 }
 
 static uint32_t *Ovr226_800a31f0_ResolveWaterRenderedInheritedOtEntry(struct PushBuffer *pb, const struct QuadBlock *block,
-                                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                                      const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex,
                                                                       uint32_t *inheritedOtEntry)
 {
 	if (inheritedOtEntry != NULL)
@@ -9409,7 +9389,7 @@ static uint32_t *Ovr226_800a31f0_ResolveWaterRenderedInheritedOtEntry(struct Pus
 }
 
 static int Ovr226_800a333c_EmitWaterRenderedGT3RawOrClip(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                         const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int secondary,
+                                                         const struct DrawLevelOvrScratchVertex *projected, const int *indices, int secondary,
                                                          uint32_t *inheritedOtEntry)
 {
 	int triIndices[3];
@@ -9450,7 +9430,7 @@ static int Ovr226_800a333c_EmitWaterRenderedGT3RawOrClip(struct PushBuffer *pb, 
 }
 
 static int Ovr226_800a33e0_EmitWaterRenderedGT4RawOrClip(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                         const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, uint32_t *inheritedOtEntry)
+                                                         const struct DrawLevelOvrScratchVertex *projected, const int *indices, uint32_t *inheritedOtEntry)
 {
 	if (inheritedOtEntry == NULL)
 	{
@@ -9471,7 +9451,7 @@ static int Ovr226_800a33e0_EmitWaterRenderedGT4RawOrClip(struct PushBuffer *pb, 
 }
 
 static int Ovr226_800a3318_DispatchWaterRenderedDirectTail(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                           const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, uint32_t *inheritedOtEntry)
+                                                           const struct DrawLevelOvrScratchVertex *projected, const int *indices, uint32_t *inheritedOtEntry)
 {
 	u32 directMask = DrawLevelOvr1P_Scratch()->directMask;
 	DrawLevelOvrRetailLabel handlerLabel = DrawLevelOvr1P_GetDirectHandlerAddress(directMask);
@@ -9498,7 +9478,7 @@ static int Ovr226_800a3318_DispatchWaterRenderedDirectTail(struct PushBuffer *pb
 }
 
 static int Ovr226_800a31bc_WaterRenderedNearDispatch(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                     const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex, int depth,
+                                                     const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex, int depth,
                                                      u32 allowedMask, uint32_t *inheritedOtEntry)
 {
 	DrawLevelOvr1P_Scratch()->directMask = allowedMask;
@@ -9515,7 +9495,7 @@ static int Ovr226_800a31bc_WaterRenderedNearDispatch(struct PushBuffer *pb, stru
 		return Ovr226_800a3318_DispatchWaterRenderedDirectTail(pb, primMem, block, projected, indices, faceOtEntry);
 	}
 
-	struct DrawLevelOvr1PScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
+	struct DrawLevelOvrScratchVertex *sub = DrawLevelOvr1P_GetSubdivisionFrame(depth);
 	// NOTE(aalhendi): Retail 0x800a31c0 builds the water 3x3 subdivision
 	// frame before jumping through the copied recursive-handler table.
 	Ovr226_800a2fe4_BuildWaterRenderedSubdivisionFrame(sub, projected, indices);
@@ -9527,7 +9507,7 @@ static int Ovr226_800a31bc_WaterRenderedNearDispatch(struct PushBuffer *pb, stru
 }
 
 static int Ovr226_800a30f0_WaterRenderedFaceGate(struct PushBuffer *pb, struct PrimMem *primMem, struct QuadBlock *block,
-                                                 const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex, int depth,
+                                                 const struct DrawLevelOvrScratchVertex *projected, const int *indices, int faceIndex, int depth,
                                                  u32 allowedMask, uint32_t *inheritedOtEntry)
 {
 	if (DrawLevelOvr1P_AreProjectedVerticesHalfNear(projected, indices, 4))
@@ -9558,7 +9538,7 @@ static int DrawLevelOvr1P_DrawRenderedWaterQuadBlockWithDefaultHandler(struct Pu
                                                                        struct QuadBlock *block, DrawLevelOvrRetailLabel defaultHandlerAddress)
 {
 	struct LevVertex *vertices = mesh->ptrVertexArray;
-	struct DrawLevelOvr1PScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
+	struct DrawLevelOvrScratchVertex *projected = DrawLevelOvr1P_GetScratchVertices();
 
 	DrawLevelOvr1P_ProjectRenderedGrid(vertices, block, projected, DRAW_LEVEL_OVR1P_PROJECTED_SOURCE_WATER_COLOR_LO_FLAGS, DRAW_LEVEL_OVR1P_GRID_SLOT_NONE);
 	Ovr226_800a2c4c_ApplyWaterRenderedColorFades(projected);
@@ -9588,7 +9568,7 @@ static int Ovr226_800a2904_DrawWaterRenderedListWithDefaultHandler(struct QuadBl
 
 		if (block == NULL)
 		{
-			*CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_WATER_RENDERED_SENTINEL_OFFSET) = 0;
+			*CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_WATER_RENDERED_SENTINEL_OFFSET) = 0;
 			return 1;
 		}
 
@@ -9616,13 +9596,13 @@ static int DrawLevelOvr1P_DrawRenderedQuadBlocks(struct QuadBlock **renderedList
 
 	switch (role)
 	{
-	case DRAW_LEVEL_OVR1P_BUCKET_4X1_RENDERED:
-	case DRAW_LEVEL_OVR1P_BUCKET_4X2_RENDERED:
-	case DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_RENDERED:
-	case DRAW_LEVEL_OVR1P_BUCKET_4X4_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_4X1_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_4X2_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_DYNAMIC_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_4X4_RENDERED:
 		return DrawLevelOvr1P_DrawNonWaterRenderedList(renderedList, pb, mesh, primMem, role);
 
-	case DRAW_LEVEL_OVR1P_BUCKET_WATER_RENDERED:
+	case DRAW_LEVEL_OVR_BUCKET_WATER_RENDERED:
 		return Ovr226_800a2904_DrawWaterRenderedList(renderedList, pb, mesh, primMem);
 
 	default:
@@ -9630,28 +9610,28 @@ static int DrawLevelOvr1P_DrawRenderedQuadBlocks(struct QuadBlock **renderedList
 	}
 }
 
-static void *DrawLevelOvr1P_GetRenderListBucketValue(struct DrawLevelOvr1PRenderList *renderList, const struct DrawLevelOvr1PBucket *bucket)
+static void *DrawLevelOvr1P_GetRenderListBucketValue(struct DrawLevelOvrRenderList *renderList, const struct DrawLevelOvrBucket *bucket)
 {
 	int renderListOffset = bucket->renderListOffset;
 
-	if (renderListOffset == offsetof(struct DrawLevelOvr1PRenderList, bspListStart_FullDynamic))
+	if (renderListOffset == offsetof(struct DrawLevelOvrRenderList, bspListStart_FullDynamic))
 	{
 		return renderList->bspListStart_FullDynamic;
 	}
 
-	if (renderListOffset == offsetof(struct DrawLevelOvr1PRenderList, ptrQuadBlocksRendered_FullDynamic))
+	if (renderListOffset == offsetof(struct DrawLevelOvrRenderList, ptrQuadBlocksRendered_FullDynamic))
 	{
 		return renderList->ptrQuadBlocksRendered_FullDynamic;
 	}
 
 	u32 slotIndex = (u32)renderListOffset / sizeof(renderList->list[0]);
 
-	if (slotIndex >= DRAW_LEVEL_OVR1P_RENDER_LIST_SLOT_COUNT)
+	if (slotIndex >= DRAW_LEVEL_OVR_RENDER_LIST_SLOT_COUNT)
 	{
 		return NULL;
 	}
 
-	if (bucket->kind == DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED)
+	if (bucket->kind == DRAW_LEVEL_OVR_BUCKET_QUADBLOCKS_RENDERED)
 	{
 		return renderList->list[slotIndex].ptrQuadBlocksRendered;
 	}
@@ -9682,7 +9662,7 @@ static void Ovr226_800a0d34_SetEntryGteAndCameraScratch(struct PushBuffer *pb)
 	DrawLevelOvr1P_Scratch()->clipWindowPacked = DrawLevelOvr1P_ReadWord(&pb->rect, 4);
 }
 
-static const struct DrawLevelOvr1PBucket *Ovr226_800a0e78_FindBucketByHandler(u32 handlerAddress)
+static const struct DrawLevelOvrBucket *Ovr226_800a0e78_FindBucketByHandler(u32 handlerAddress)
 {
 	for (s32 bucketIndex = 0; bucketIndex < OVR226_BUCKET_COUNT; bucketIndex++)
 	{
@@ -9698,24 +9678,24 @@ static const struct DrawLevelOvr1PBucket *Ovr226_800a0e78_FindBucketByHandler(u3
 static int Ovr226_800a0e78_DispatchBucketHandler(u32 handlerAddress, void *bucketValue, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
                                                  const int *visFaceList)
 {
-	const struct DrawLevelOvr1PBucket *bucket = Ovr226_800a0e78_FindBucketByHandler(handlerAddress);
+	const struct DrawLevelOvrBucket *bucket = Ovr226_800a0e78_FindBucketByHandler(handlerAddress);
 
 	if (bucket == NULL)
 	{
 		return 0;
 	}
 
-	if (bucket->kind == DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED)
+	if (bucket->kind == DRAW_LEVEL_OVR_BUCKET_QUADBLOCKS_RENDERED)
 	{
 		return DrawLevelOvr1P_DrawRenderedQuadBlocks((struct QuadBlock **)bucketValue, pb, mesh, primMem, bucket->role);
 	}
 
-	if (bucket->role == DRAW_LEVEL_OVR1P_BUCKET_FULL_DYNAMIC_LIST)
+	if (bucket->role == DRAW_LEVEL_OVR_BUCKET_FULL_DYNAMIC_LIST)
 	{
 		return Ovr226_800a0ef4_DrawFullDynamicBspList((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList);
 	}
 
-	if (bucket->role == DRAW_LEVEL_OVR1P_BUCKET_WATER_LIST)
+	if (bucket->role == DRAW_LEVEL_OVR_BUCKET_WATER_LIST)
 	{
 		return Ovr226_800a1e30_DrawWaterBspList((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList);
 	}
@@ -9724,10 +9704,10 @@ static int Ovr226_800a0e78_DispatchBucketHandler(u32 handlerAddress, void *bucke
 	// next, word one is the BSP pointer preserved by VisMem initialization.
 	switch (bucket->role)
 	{
-	case DRAW_LEVEL_OVR1P_BUCKET_4X1_LIST:
-	case DRAW_LEVEL_OVR1P_BUCKET_4X2_LIST:
-	case DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_LIST:
-	case DRAW_LEVEL_OVR1P_BUCKET_4X4_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_4X1_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_4X2_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_DYNAMIC_LIST:
+	case DRAW_LEVEL_OVR_BUCKET_4X4_LIST:
 		return DrawLevelOvr1P_DrawBspListQuadBlocks((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList, bucket->role);
 
 	default:
@@ -9735,13 +9715,13 @@ static int Ovr226_800a0e78_DispatchBucketHandler(u32 handlerAddress, void *bucke
 	}
 }
 
-static int Ovr226_800a0e10_DispatchBucketTable(struct DrawLevelOvr1PRenderList *renderList, struct PushBuffer *pb, struct mesh_info *mesh,
+static int Ovr226_800a0e10_DispatchBucketTable(struct DrawLevelOvrRenderList *renderList, struct PushBuffer *pb, struct mesh_info *mesh,
                                                struct PrimMem *primMem, const int *visFaceList)
 {
-	for (s32 renderListOffset = DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_FULL_DYNAMIC_LIST; renderListOffset >= 0; renderListOffset -= (s32)sizeof(u32))
+	for (s32 renderListOffset = DRAW_LEVEL_OVR_RENDER_LIST_OFFSET_FULL_DYNAMIC_LIST; renderListOffset >= 0; renderListOffset -= (s32)sizeof(u32))
 	{
 		u32 bucketIndex = (u32)renderListOffset / sizeof(u32);
-		const struct DrawLevelOvr1PBucket *bucket = &sDrawLevelOvr1PBuckets[bucketIndex];
+		const struct DrawLevelOvrBucket *bucket = &sDrawLevelOvr1PBuckets[bucketIndex];
 		void *bucketValue = DrawLevelOvr1P_GetRenderListBucketValue(renderList, bucket);
 		u32 setupAddress = R226.bucketSetupAddresses[bucketIndex];
 		u32 handlerAddress = R226.bucketHandlerAddresses[bucketIndex];
@@ -9771,7 +9751,7 @@ static int Ovr226_800a0e10_DispatchBucketTable(struct DrawLevelOvr1PRenderList *
 void DrawLevelOvr1P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, const int *visFaceList,
                     const struct TextureLayout *waterEnvMap)
 {
-	struct DrawLevelOvr1PRenderList *renderList = LevRenderList;
+	struct DrawLevelOvrRenderList *renderList = LevRenderList;
 	struct mesh_info *mesh = (struct mesh_info *)bspList;
 	u32 hostStackAnchor;
 

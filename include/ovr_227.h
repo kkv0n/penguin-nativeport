@@ -1,6 +1,85 @@
 #ifndef OVR_227_H
 #define OVR_227_H
 
+// Overlay 227 constants, measured in its own ASM (split/asm/ovr_227_1.s).
+// Retail loads 226-229 at the same address and they are mutually exclusive:
+// each one bakes its own values as immediates instead of sharing them.
+enum Ovr227DrawLevelConstants
+{
+	// 0x800a11f4 addiu -0x19c0 (226 reads this from scratch 0x14)
+	OVR227_DEPTH_SCALE = 0x19c0,
+
+	// 0x800a3ef0 and family: 226 reads these from scratch 0x1c/0x20/0x24/0x28
+	OVR227_TEXTURE_LOD_DEPTH_THRESHOLD0 = 0x1000,
+	OVR227_TEXTURE_LOD_DEPTH_THRESHOLD1 = 0x800,
+	OVR227_TOP_LEVEL_NEAR_DEPTH_THRESHOLD = 0x600,
+	OVR227_RECURSIVE_NEAR_DEPTH_THRESHOLD = 0x300,
+
+	// 0x800a1520 addiu -0x1680 (226 reads this from scratch 0x2c)
+	OVR227_FULL_DYNAMIC_FADE_DEPTH_START = 0x1680,
+};
+
+enum Ovr227Lod
+{
+	OVR227_LOD_HIGH,
+	OVR227_LOD_LOW,
+};
+
+enum Ovr227GteFlag
+{
+	OVR227_GTE_RTPT_OVERFLOW = 0x20000,
+};
+
+enum Ovr227Depth
+{
+	OVR227_MAX_OT_INDEX = 1020,
+	OVR227_RECURSION_FRAME_SIZE = 0xb8,
+	OVR227_MAX_NEAR_SUBDIV_DEPTH = 2,
+	OVR227_CLIP_RECORD_GT3_SIZE = 0x30,
+	OVR227_CLIP_RECORD_GT4_SIZE = 0x3c,
+
+	// 227 primMem reserves: 226 uses 0xd68/0x1040/0x1380/0x1a00/0x2700 and
+	// 227 uses these, with matching occurrence counts (1/2/2/6/1).
+	OVR227_CLIP_RECORD_PRIM_RESERVE = 0x1a68,
+	OVR227_BUCKET_RESERVE_4X1 = 0x1d40,
+	OVR227_BUCKET_RESERVE_4X2 = 0x2080,
+	OVR227_BUCKET_RESERVE_DEFAULT = 0x2700,
+	OVR227_BUCKET_RESERVE_FULL_DYNAMIC = 0x3400,
+};
+
+enum Ovr227DirectMask
+{
+	OVR227_DIRECT_TRI_PRIMARY = 0x4,
+	OVR227_DIRECT_TRI_SECONDARY = 0x8,
+	OVR227_DIRECT_QUAD = 0xc,
+};
+
+enum Ovr227ClipBytes
+{
+	OVR227_CLIP_BYTES_LIST = 0,
+	OVR227_CLIP_BYTES_RENDERED = 1,
+};
+
+enum Ovr227PrimCode
+{
+	OVR227_PRIM_CODE_AUTO = -1,
+};
+
+enum Ovr227ProjectedSource
+{
+	OVR227_PROJECTED_SOURCE_POS_FLAGS,
+	OVR227_PROJECTED_SOURCE_WATER_COLOR_LO_FLAGS,
+};
+
+enum Ovr227GridSlotMode
+{
+	OVR227_GRID_SLOT_NONE,
+	OVR227_GRID_SLOT_FACE,
+	OVR227_GRID_SLOT_WORD,
+};
+
+#define OVR227_SLOT_WORD_PRESERVE UINT32_C(0xffffffff)
+
 enum OverlayRDATA_227_Counts
 {
 	OVR227_BUCKET_COUNT = 11,

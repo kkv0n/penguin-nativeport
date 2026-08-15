@@ -160,7 +160,7 @@ static void DrawLevelOvr4P_ApplyBucketSetup(u32 setupAddress, u32 handlerAddress
 
 static void DrawLevelOvr4P_CopyScratchInitTable(void)
 {
-	u32 *scratch = CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_SCRATCH_INIT_TABLE_OFFSET);
+	u32 *scratch = CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_SCRATCH_INIT_TABLE_OFFSET);
 
 	for (s32 scratchWordIndex = 0; scratchWordIndex < OVR229_SCRATCH_INIT_WORD_COUNT; scratchWordIndex++)
 	{
@@ -170,7 +170,7 @@ static void DrawLevelOvr4P_CopyScratchInitTable(void)
 
 static void DrawLevelOvr4P_CopyClipRecordJumpTable(void)
 {
-	u32 *clipRecordJumpTable = CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_GT3_CLIP_RECORD_JUMP_TABLE_OFFSET);
+	u32 *clipRecordJumpTable = CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR_GT3_CLIP_RECORD_JUMP_TABLE_OFFSET);
 
 	for (s32 jumpWordIndex = 0; jumpWordIndex < OVR229_CLIP_RECORD_JUMP_WORD_COUNT; jumpWordIndex++)
 	{
@@ -178,12 +178,12 @@ static void DrawLevelOvr4P_CopyClipRecordJumpTable(void)
 	}
 }
 
-static int DrawLevelOvr4P_DrawViewportBucket(struct DrawLevelOvr1PRenderList *renderList, s32 renderListOffset, struct PushBuffer *pb, struct mesh_info *mesh,
+static int DrawLevelOvr4P_DrawViewportBucket(struct DrawLevelOvrRenderList *renderList, s32 renderListOffset, struct PushBuffer *pb, struct mesh_info *mesh,
                                              struct PrimMem *primMem, const int *visFaceList, u8 **clipCursor, int playerIndex, int applySetup,
                                              int *didDispatch)
 {
 	u32 bucketIndex = (u32)renderListOffset / sizeof(u32);
-	const struct DrawLevelOvr1PBucket *bucket = &sDrawLevelOvr1PBuckets[bucketIndex];
+	const struct DrawLevelOvrBucket *bucket = &sDrawLevelOvr1PBuckets[bucketIndex];
 	void *bucketValue = DrawLevelOvr1P_GetRenderListBucketValue(renderList, bucket);
 	u32 setupAddress = R229.bucketSetupAddresses[bucketIndex];
 	u32 handlerAddress = R229.bucketHandlerAddresses[bucketIndex];
@@ -213,11 +213,11 @@ static int DrawLevelOvr4P_DrawViewportBucket(struct DrawLevelOvr1PRenderList *re
 	return 1;
 }
 
-static int DrawLevelOvr4P_DispatchBucketTable(struct DrawLevelOvr1PRenderList *renderLists, struct PushBuffer *pushBuffers, struct mesh_info *mesh,
+static int DrawLevelOvr4P_DispatchBucketTable(struct DrawLevelOvrRenderList *renderLists, struct PushBuffer *pushBuffers, struct mesh_info *mesh,
                                               struct PrimMem *primMem, const int *visFaceList0, const int *visFaceList1, const int *visFaceList2,
                                               const int *visFaceList3, u8 **clipCursors)
 {
-	for (s32 renderListOffset = DRAW_LEVEL_OVR1P_RENDER_LIST_OFFSET_4X1_LIST; renderListOffset >= 0; renderListOffset -= (s32)sizeof(u32))
+	for (s32 renderListOffset = DRAW_LEVEL_OVR_RENDER_LIST_OFFSET_4X1_LIST; renderListOffset >= 0; renderListOffset -= (s32)sizeof(u32))
 	{
 		int setupApplied = 0;
 		int didDispatch = 0;
@@ -281,7 +281,7 @@ static int DrawLevelOvr4P_DispatchBucketHandler(u32 handlerAddress, void *bucket
 	{
 		DrawLevelOvr1P_SetPrimReserveBias(OVR229_WATER_BSP_LIST_PRIM_RESERVE_BIAS);
 		DrawLevelOvr1P_SetSplitGroundThresholdScratch();
-		return DrawLevelOvr1P_DrawRenderedQuadBlocks((struct QuadBlock **)bucketValue, pb, mesh, primMem, DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_RENDERED);
+		return DrawLevelOvr1P_DrawRenderedQuadBlocks((struct QuadBlock **)bucketValue, pb, mesh, primMem, DRAW_LEVEL_OVR_BUCKET_DYNAMIC_RENDERED);
 	}
 
 	if (handlerAddress == OVR229_RETAIL_LABEL_SPLIT_GROUND_LIST_B_HANDLER)
@@ -290,9 +290,9 @@ static int DrawLevelOvr4P_DispatchBucketHandler(u32 handlerAddress, void *bucket
 
 		DrawLevelOvr1P_SetPrimReserveBias(OVR229_SPLIT_GROUND_LIST_B_PRIM_RESERVE_BIAS);
 		DrawLevelOvr1P_SetSplitGroundThresholdScratch();
-		DrawLevelOvr1P_SetMosaicReloadSpanOverride(DRAW_LEVEL_OVR1P_SPLIT_GROUND_MOSAIC_RELOAD_SPAN);
+		DrawLevelOvr1P_SetMosaicReloadSpanOverride(DRAW_LEVEL_OVR_SPLIT_GROUND_MOSAIC_RELOAD_SPAN);
 		result =
-		    DrawLevelOvr1P_DrawBspListQuadBlocks((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList, DRAW_LEVEL_OVR1P_BUCKET_4X2_LIST);
+		    DrawLevelOvr1P_DrawBspListQuadBlocks((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList, DRAW_LEVEL_OVR_BUCKET_4X2_LIST);
 		DrawLevelOvr1P_SetMosaicReloadSpanOverride(0);
 		return result;
 	}
@@ -303,8 +303,8 @@ static int DrawLevelOvr4P_DispatchBucketHandler(u32 handlerAddress, void *bucket
 
 		DrawLevelOvr1P_SetPrimReserveBias(OVR229_SPLIT_GROUND_LIST_B_PRIM_RESERVE_BIAS);
 		DrawLevelOvr1P_SetSplitGroundThresholdScratch();
-		DrawLevelOvr1P_SetMosaicReloadSpanOverride(DRAW_LEVEL_OVR1P_SPLIT_GROUND_MOSAIC_RELOAD_SPAN);
-		result = DrawLevelOvr1P_DrawRenderedQuadBlocks((struct QuadBlock **)bucketValue, pb, mesh, primMem, DRAW_LEVEL_OVR1P_BUCKET_4X2_RENDERED);
+		DrawLevelOvr1P_SetMosaicReloadSpanOverride(DRAW_LEVEL_OVR_SPLIT_GROUND_MOSAIC_RELOAD_SPAN);
+		result = DrawLevelOvr1P_DrawRenderedQuadBlocks((struct QuadBlock **)bucketValue, pb, mesh, primMem, DRAW_LEVEL_OVR_BUCKET_4X2_RENDERED);
 		DrawLevelOvr1P_SetMosaicReloadSpanOverride(0);
 		return result;
 	}
@@ -313,14 +313,14 @@ static int DrawLevelOvr4P_DispatchBucketHandler(u32 handlerAddress, void *bucket
 	{
 		DrawLevelOvr1P_SetPrimReserveBias(OVR229_WATER_BSP_LIST_PRIM_RESERVE_BIAS);
 		DrawLevelOvr1P_SetSplitGroundThresholdScratch();
-		return DrawLevelOvr1P_DrawBspListQuadBlocks((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList, DRAW_LEVEL_OVR1P_BUCKET_4X4_LIST);
+		return DrawLevelOvr1P_DrawBspListQuadBlocks((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList, DRAW_LEVEL_OVR_BUCKET_4X4_LIST);
 	}
 
 	if (handlerAddress == OVR229_RETAIL_LABEL_QUAD_4X4_RENDERED_HANDLER)
 	{
 		DrawLevelOvr1P_SetPrimReserveBias(OVR229_WATER_BSP_LIST_PRIM_RESERVE_BIAS);
 		DrawLevelOvr1P_SetSplitGroundThresholdScratch();
-		return DrawLevelOvr1P_DrawRenderedQuadBlocks((struct QuadBlock **)bucketValue, pb, mesh, primMem, DRAW_LEVEL_OVR1P_BUCKET_4X4_RENDERED);
+		return DrawLevelOvr1P_DrawRenderedQuadBlocks((struct QuadBlock **)bucketValue, pb, mesh, primMem, DRAW_LEVEL_OVR_BUCKET_4X4_RENDERED);
 	}
 
 	// NOTE(aalhendi): Reject handler addresses that are not present in the
@@ -340,7 +340,7 @@ static int DrawLevelOvr4P_ConsumeClipRecords(struct PushBuffer *pb, struct PrimM
 void DrawLevelOvr4P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, const int *visFaceList0, const int *visFaceList1,
                     const int *visFaceList2, const int *visFaceList3, const struct TextureLayout *waterEnvMap)
 {
-	struct DrawLevelOvr1PRenderList *renderLists = LevRenderList;
+	struct DrawLevelOvrRenderList *renderLists = LevRenderList;
 	struct mesh_info *mesh = (struct mesh_info *)bspList;
 	u8 *clipCursors[4];
 	u32 hostStackAnchor;

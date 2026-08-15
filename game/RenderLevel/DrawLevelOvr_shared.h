@@ -8,8 +8,8 @@
 // Bucket metadata and scratch views.
 typedef int (*DrawLevelOvrClipConsumer)(struct PushBuffer *pb, struct PrimMem *primMem, u8 *clipCursor, int playerIndex);
 
-extern const struct DrawLevelOvr1PBucket sDrawLevelOvr1PBuckets[];
-struct DrawLevelOvr1PStableScratch *DrawLevelOvr1P_Scratch(void);
+extern const struct DrawLevelOvrBucket sDrawLevelOvr1PBuckets[];
+struct DrawLevelOvrStableScratch *DrawLevelOvr1P_Scratch(void);
 struct MainRenderLevelGeometryScratch *DrawLevelOvr1P_RenderScratch(void);
 
 // Shared overlay scratch controls.
@@ -28,7 +28,7 @@ void DrawLevelOvr_ClearRenderedOverflowBase(int playerIndex);
 int DrawLevelOvr1P_ConsumeClipRecords(struct PushBuffer *pb, struct PrimMem *primMem);
 int DrawLevelOvr_ConsumeClipRecordsForViewport(struct PushBuffer *pb, struct PrimMem *primMem, u8 *clipCursor, int playerIndex,
                                                DrawLevelOvrClipConsumer consume);
-void *DrawLevelOvr1P_GetRenderListBucketValue(struct DrawLevelOvr1PRenderList *renderList, const struct DrawLevelOvr1PBucket *bucket);
+void *DrawLevelOvr1P_GetRenderListBucketValue(struct DrawLevelOvrRenderList *renderList, const struct DrawLevelOvrBucket *bucket);
 int DrawLevelOvr1P_DrawBspListQuadBlocks(struct VisMemBspListNode *slot, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
                                          const int *visFaceList, int role);
 int DrawLevelOvr1P_DrawRenderedQuadBlocks(struct QuadBlock **renderedList, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem, int role);
